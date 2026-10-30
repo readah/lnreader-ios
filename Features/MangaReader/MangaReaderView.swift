@@ -158,7 +158,7 @@ struct MangaReaderView: View {
             isDismissing = true
             dismiss()
         })
-        .statusBarHidden(true)
+        .statusBarHidden(!chrome.isControl)
         .onGeometryChange(for: CGSize.self) { $0.size } action: { readerSize = $0 }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
