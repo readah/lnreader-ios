@@ -122,8 +122,9 @@ struct NovelDetailView: View {
                     status: localEntry?.status ?? details?.status ?? .unknown,
                     source: sourceName,
                     hasStartedReading: hasStartedReading,
+                    isFinished: isFinished,
                     continueChapterName: resumeChapter?.name,
-                    canStartReading: !allChapters.isEmpty,
+                    canStartReading: !allChapters.isEmpty && !isFinished,
                     onContinueReading: continueReading
                 ) {
                     EntryActionBar(
@@ -550,6 +551,11 @@ struct NovelDetailView: View {
 
     private var sourceName: String {
         sourceManager.source(forKey: sourceKey)?.name ?? SourceKey.identifier(from: sourceKey)
+    }
+
+    /// Every visible chapter is read, so the hero button is disabled and says so.
+    private var isFinished: Bool {
+        localEntry != nil && !orderedChapters.isEmpty && !orderedChapters.contains { $0.unread }
     }
 
     private var hasStartedReading: Bool {

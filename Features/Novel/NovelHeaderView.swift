@@ -14,6 +14,8 @@ struct NovelHeaderView<Actions: View>: View {
     /// Source name, shown on the status line.
     var source: String? = nil
     var hasStartedReading: Bool = true
+    /// All chapters are read: the button is disabled and says "You're all caught up".
+    var isFinished: Bool = false
     /// Name of the chapter the button opens, shown under the label.
     var continueChapterName: String? = nil
     /// False until there is a chapter to open. The button used to look enabled
@@ -149,10 +151,13 @@ struct NovelHeaderView<Actions: View>: View {
     private var continueButton: some View {
         Button(action: onContinueReading) {
             VStack(spacing: 2) {
-                Label(hasStartedReading ? "Continue reading" : "Start reading", systemImage: "book.fill")
+                Label(
+                    isFinished ? "You're all caught up" : (hasStartedReading ? "Continue reading" : "Start reading"),
+                    systemImage: isFinished ? "checkmark.circle.fill" : "book.fill"
+                )
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
-                if let continueChapterName, !continueChapterName.isEmpty {
+                if !isFinished, let continueChapterName, !continueChapterName.isEmpty {
                     Text(continueChapterName)
                         .font(Typography.caption)
                         .lineLimit(1)
