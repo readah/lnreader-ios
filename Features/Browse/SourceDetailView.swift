@@ -26,8 +26,49 @@ struct SourceDetailView: View {
     @State private var filterState = FilterState()
     @State private var showFilters = false
 
-    private var columns: [GridItem] {
-        [GridItem(.adaptive(minimum: LayoutConstants.gridItemMinSize), spacing: 12)]
+    /// The Library's display preferences, set from the Browse page.
+    @AppStorage("general.defaultDisplayMode") private var displayMode = DisplayMode.comfortable
+    @AppStorage(LibraryGridColumns.key) private var columnCount = LibraryGridColumns.automatic
+
+    private var columns: [GridItem] { LibraryGridColumns.gridItems(count: columnCount) }
+
+    private var loadMoreFooter: some View {
+        ProgressView()
+            .frame(maxWidth: .infinity)
+            .padding()
+            .task { await loadMore() }
+    }
+
+    @ViewBuilder
+    private func entryLink(_ entry: SourceEntry) -> some View {
+        NavigationLink {
+            NovelDetailView(sourceEntry: entry)
+                .bookZoom(from: entry.url, in: bookTransitions)
+        } label: {
+            if displayMode == .list {
+                BrowseEntryRow(entry: entry, transitionNamespace: bookTransitions)
+            } else {
+                BrowseEntryCell(
+                    entry: entry, displayMode: displayMode, transitionNamespace: bookTransitions)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var entriesLayout: some View {
+        if displayMode == .list {
+            LazyVStack(spacing: 0) {
+                ForEach(entries) { entryLink($0) }
+                if hasMore && !entries.isEmpty { loadMoreFooter }
+            }
+        } else {
+            LazyVGrid(columns: columns, spacing: 16) {
+                ForEach(entries) { entryLink($0) }
+                if hasMore && !entries.isEmpty { loadMoreFooter }
+            }
+            .padding(.horizontal)
+        }
     }
 
     /// `CatalogSource`, not `NovelSource`: browse is identical for both kinds.
@@ -37,25 +78,7 @@ struct SourceDetailView: View {
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(entries) { entry in
-                    NavigationLink {
-                        NovelDetailView(sourceEntry: entry)
-                            .bookZoom(from: entry.url, in: bookTransitions)
-                    } label: {
-                        BrowseEntryCell(entry: entry, transitionNamespace: bookTransitions)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if hasMore && !entries.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .task { await loadMore() }
-                }
-            }
-            .padding(.horizontal)
+            entriesLayout
         }
         .navigationTitle(title)
         .searchable(text: $searchText, prompt: "Search \(title)")
@@ -252,6 +275,7 @@ struct SourceDetailView: View {
 
 struct BrowseEntryCell: View {
     let entry: SourceEntry
+    var displayMode: DisplayMode = .compact
     var transitionNamespace: Namespace.ID? = nil
 
     var body: some View {
@@ -262,10 +286,58 @@ struct BrowseEntryCell: View {
             )
             .bookTransitionSource(entry.url, in: transitionNamespace)
 
-            Text(entry.title)
-                .font(Typography.caption)
-                .lineLimit(2)
-                .foregroundStyle(.primary)
+            if displayMode != .coverOnly {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.title)
+                        .font(Typography.caption)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .foregroundStyle(.primary)
+
+                    if displayMode == .comfortable, let author = entry.author, !author.isEmpty {
+                        Text(author)
+                            .font(Typography.small)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
         }
+    }
+}
+
+/// The `.list` layout: a small cover beside title and author.
+struct BrowseEntryRow: View {
+    let entry: SourceEntry
+    var transitionNamespace: Namespace.ID? = nil
+
+    var body: some View {
+        HStack(spacing: 12) {
+            NovelCoverView(
+                url: entry.thumbnailURL,
+                aspectRatio: LayoutConstants.coverAspectRatio
+            )
+            .frame(width: 60, height: 86)
+            .bookTransitionSource(entry.url, in: transitionNamespace)
+            .clipShape(.rect(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(entry.title)
+                    .font(Typography.headline)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                if let author = entry.author, !author.isEmpty {
+                    Text(author)
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .frame(minHeight: LayoutConstants.listRowHeight)
+        .contentShape(.rect)
     }
 }

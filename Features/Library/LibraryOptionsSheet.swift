@@ -160,6 +160,25 @@ struct LibraryOptionsSheet: View {
     // MARK: - Display
 
     private var displayList: some View {
+        DisplayOptionsList(
+            displayMode: $displayMode,
+            columnCount: $columnCount,
+            footer: "Applies to every category. Auto fits as many covers as the screen allows.",
+            hasOverride: hasDisplayOverride,
+            onReset: onResetDisplay
+        )
+    }
+}
+
+/// Layout and items per row. Library and Browse both show this, so the two cannot drift.
+struct DisplayOptionsList: View {
+    @Binding var displayMode: DisplayMode
+    @Binding var columnCount: Int
+    var footer: String
+    var hasOverride = false
+    var onReset: () -> Void = {}
+
+    var body: some View {
         List {
             Section {
                 Picker("Layout", selection: $displayMode) {
@@ -178,12 +197,12 @@ struct LibraryOptionsSheet: View {
                     }
                     .pickerStyle(.menu)
                 } footer: {
-                    Text("Applies to every category. Auto fits as many covers as the screen allows.")
+                    Text(footer)
                 }
             }
-            if hasDisplayOverride {
+            if hasOverride {
                 Section {
-                    Button("Use default display", systemImage: "arrow.uturn.backward", action: onResetDisplay)
+                    Button("Use default display", systemImage: "arrow.uturn.backward", action: onReset)
                 }
             }
         }

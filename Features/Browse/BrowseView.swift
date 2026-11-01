@@ -36,6 +36,10 @@ struct BrowseView: View {
 
     @AppStorage("browse.kind") private var kindRaw = BrowseKind.novels.rawValue
     @State private var searchText = ""
+    @State private var showDisplay = false
+    /// Same keys as the Library's default display, so the two always agree.
+    @AppStorage("general.defaultDisplayMode") private var displayMode = DisplayMode.comfortable
+    @AppStorage(LibraryGridColumns.key) private var columnCount = LibraryGridColumns.automatic
     /// The source whose entries are being migrated, if any.
     @State private var migratingSource: MigratingSource?
     /// The source whose catalogue is open.
@@ -67,6 +71,23 @@ struct BrowseView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .toolbar { toolbarContent }
+                .sheet(isPresented: $showDisplay) {
+                    NavigationStack {
+                        DisplayOptionsList(
+                            displayMode: $displayMode,
+                            columnCount: $columnCount,
+                            footer: "Applies to every source and to the Library. Auto fits as many covers as the screen allows."
+                        )
+                        .navigationTitle("Display")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { showDisplay = false }.bold()
+                            }
+                        }
+                    }
+                    .presentationDetents([.medium, .large])
+                }
                 // Holding a source with entries offers to move all of them, which
                 // is the only bulk migration there is: the source is the unit.
                 .sheet(item: $migratingSource) { source in
@@ -79,6 +100,12 @@ struct BrowseView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button { showDisplay = true } label: {
+                Image(systemName: "rectangle.grid.2x2")
+            }
+            .accessibilityLabel("Display")
+        }
         if kind == .novels {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {

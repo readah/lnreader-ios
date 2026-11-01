@@ -19,12 +19,7 @@ struct LibraryGridView: View {
     /// Items per row; 0 picks as many as fit (`LibraryGridColumns`).
     @AppStorage(LibraryGridColumns.key) private var columnCount = LibraryGridColumns.automatic
 
-    private var columns: [GridItem] {
-        if columnCount >= LibraryGridColumns.range.lowerBound {
-            return Array(repeating: GridItem(.flexible(), spacing: 12), count: columnCount)
-        }
-        return [GridItem(.adaptive(minimum: LayoutConstants.gridItemMinSize), spacing: 12)]
-    }
+    private var columns: [GridItem] { LibraryGridColumns.gridItems(count: columnCount) }
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 16) {
@@ -69,6 +64,14 @@ enum LibraryGridColumns {
     static let key = "library.gridColumns"
     static let automatic = 0
     static let range = 2...8
+
+    /// Grid columns for a stored count; anything outside `range` means "as many as fit".
+    @MainActor static func gridItems(count: Int) -> [GridItem] {
+        if count >= range.lowerBound {
+            return Array(repeating: GridItem(.flexible(), spacing: 12), count: min(count, range.upperBound))
+        }
+        return [GridItem(.adaptive(minimum: LayoutConstants.gridItemMinSize), spacing: 12)]
+    }
 }
 
 // MARK: - Editable Grid Cell (edit mode wrapper)
