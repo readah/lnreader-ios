@@ -210,7 +210,6 @@ private struct DownloadQueueRow: View {
 }
 
 struct LibraryUpdateSettingsView: View {
-    @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Entry> { $0.inLibrary }) private var entries: [Entry]
     @AppStorage("general.autoUpdateOnLaunch") private var autoUpdateOnLaunch = false
     @AppStorage("updates.backgroundEnabled") private var enabled = false
@@ -242,11 +241,11 @@ struct LibraryUpdateSettingsView: View {
                     if !schedulingError.isEmpty { Text(schedulingError) }
                 }
             }
-            Section("Per-title updates") {
-                ForEach(entries.filter { !$0.isLocal }) { entry in
-                    Picker(entry.displayTitle, selection: Binding(get: { entry.updateStrategy }, set: { entry.updateStrategy = $0; try? context.save() })) {
-                        ForEach(UpdateStrategy.allCases, id: \.self) { Text($0.displayName).tag($0) }
-                    }
+            Section {
+                NavigationLink {
+                    PerTitleUpdatesView(entries: entries)
+                } label: {
+                    LabeledContent("Per-title updates", value: perTitleSummary)
                 }
             }
         }
@@ -255,6 +254,108 @@ struct LibraryUpdateSettingsView: View {
         .onChange(of: hours) { _, _ in LibraryMaintenance.schedule() }
         .onChange(of: notify) { _, value in
             if value { Task { _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) } }
+        }
+    }
+
+    /// "All titles" when nothing is overridden, otherwise how many are not checked every time.
+    private var perTitleSummary: String {
+        let overridden = entries.lazy.filter { !$0.isLocal && $0.updateStrategy != .always }.count
+        return overridden == 0 ? "All titles" : "\(overridden) limited"
+    }
+}
+
+/// Every library title with its update strategy. Searchable, and filterable by strategy
+/// so the handful of titles that are skipped are easy to find again. The library query
+/// lives in `LibraryUpdateSettingsView`, which passes its results down.
+private struct PerTitleUpdatesView: View {
+    let entries: [Entry]
+    @Environment(\.modelContext) private var context
+    @State private var search = ""
+    @State private var scope: UpdateStrategy?
+
+    var body: some View {
+        let rows = visibleRows
+        List {
+            if rows.isEmpty {
+                Group {
+                    if search.isEmpty && scope == nil {
+                        ContentUnavailableView("No titles", systemImage: "books.vertical",
+                                               description: Text("Titles you add to your library show up here."))
+                    } else {
+                        ContentUnavailableView.search(text: search)
+                    }
+                }
+                .listRowBackground(Color.clear)
+            } else {
+                Section {
+                    ForEach(rows) { entry in
+                        PerTitleUpdateRow(entry: entry) { strategy in
+                            entry.updateStrategy = strategy
+                            try? context.save()
+                        }
+                    }
+                } footer: {
+                    Text("“Only once” fetches the chapter list once, for finished series. “Never” skips the title in every update, manual or automatic.")
+                }
+            }
+        }
+        .settingsScreen("Per-title updates")
+        .searchable(text: $search, prompt: "Search titles")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { filterMenu }
+        }
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            Picker("Show", selection: $scope) {
+                Text("All titles").tag(UpdateStrategy?.none)
+                ForEach(UpdateStrategy.allCases, id: \.self) { Text($0.displayName).tag(UpdateStrategy?.some($0)) }
+            }
+        } label: {
+            Label("Filter", systemImage: scope == nil
+                  ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+        }
+    }
+
+    private var visibleRows: [Entry] {
+        let query = search.trimmingCharacters(in: .whitespaces)
+        return entries
+            .filter { entry in
+                !entry.isLocal
+                    && (scope == nil || entry.updateStrategy == scope)
+                    && (query.isEmpty || entry.displayTitle.localizedStandardContains(query))
+            }
+            .sorted { $0.displayTitle.localizedStandardCompare($1.displayTitle) == .orderedAscending }
+    }
+}
+
+/// Title on the left, wrapping up to two lines; the strategy menu on the right at a fixed
+/// width so it never drops to its own line when the title is long.
+private struct PerTitleUpdateRow: View {
+    let entry: Entry
+    let onChange: (UpdateStrategy) -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(entry.displayTitle)
+                .font(Typography.body)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Menu {
+                Picker("Update", selection: Binding(get: { entry.updateStrategy }, set: onChange)) {
+                    ForEach(UpdateStrategy.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(entry.updateStrategy.displayName)
+                    Image(systemName: "chevron.up.chevron.down").imageScale(.small)
+                }
+                .font(Typography.body)
+            }
+            .fixedSize()
+            .accessibilityLabel("Updates for \(entry.displayTitle)")
+            .accessibilityValue(entry.updateStrategy.displayName)
         }
     }
 }
