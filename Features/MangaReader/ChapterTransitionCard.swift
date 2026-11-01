@@ -7,12 +7,14 @@ struct ChapterTransitionCard: View {
     enum Direction { case previous, next }
     let direction: Direction
     let title: String
+    @Environment(\.coverTint) private var coverTint
 
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: direction == .next ? "chevron.down.circle" : "chevron.up.circle")
                 .font(.largeTitle.weight(.light))
                 .imageScale(.large)
+                .foregroundStyle(coverTint ?? .white)
             Text(direction == .next ? "Next chapter" : "Previous chapter")
                 .font(.footnote.weight(.semibold))
                 .textCase(.uppercase)
@@ -21,7 +23,7 @@ struct ChapterTransitionCard: View {
                 .font(.headline)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
-            ProgressView().tint(.white).padding(.top, 6)
+            ProgressView().tint(coverTint ?? .white).padding(.top, 6)
         }
         .foregroundStyle(.white)
         .padding(32)

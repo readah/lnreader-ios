@@ -191,6 +191,7 @@ struct MihonBackupChecks {
             Set(NativeSourceIDs.mihon.values) == [
                 "builtin:mangafire", "builtin:allmanga", "builtin:manhwa18", "builtin:fourkhd",
                 "builtin:omegascans", "builtin:pornpics", "builtin:metarthunter",
+                "builtin:atsumaru", "builtin:weebcentral", "builtin:kagane",
             ],
             "every native manga source carries a Mihon id")
 

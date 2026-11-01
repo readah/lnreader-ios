@@ -39,6 +39,7 @@ struct HistoryRow: View {
             .onTapGesture(perform: onOpenChapter)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
+            .accessibilityValue((history.chapter?.read ?? false) ? "Read" : "Unread")
             .accessibilityHint("Opens the chapter")
 
             if earlierCount > 0 {
@@ -57,6 +58,7 @@ struct HistoryRow: View {
 
                 Text(history.chapter?.name ?? "")
                     .font(Typography.body)
+                    .foregroundStyle((history.chapter?.read ?? false) ? .secondary : .primary)
                     .lineLimit(2)
 
                 HStack(spacing: 8) {
@@ -118,6 +120,7 @@ struct HistoryChapterRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(history.chapter?.name ?? "")
                         .font(Typography.body)
+                        .foregroundStyle((history.chapter?.read ?? false) ? .secondary : .primary)
                         .lineLimit(1)
 
                     if let progress = history.chapter?.progress, progress > 0, progress < 100 {
@@ -137,6 +140,7 @@ struct HistoryChapterRow: View {
         .onTapGesture(perform: onOpenChapter)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .accessibilityValue((history.chapter?.read ?? false) ? "Read" : "Unread")
         .accessibilityHint("Opens the chapter")
     }
 }

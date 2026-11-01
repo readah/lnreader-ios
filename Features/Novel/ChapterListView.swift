@@ -323,6 +323,7 @@ extension ChapterDisplay: ChapterOrdered {
 /// Bounded chapter pages keep navigation manageable even for very long novels.
 struct ChapterDirectoryView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.coverTint) private var coverTint
     let entry: Entry?
     let sourceEntry: SourceEntry?
     let chapters: [ChapterDisplay]
@@ -410,10 +411,12 @@ struct ChapterDirectoryView: View {
                         Spacer()
                         Button { goToCurrent() } label: { Label("Go to current chapter", systemImage: "location.fill").labelStyle(.iconOnly) }
                             .buttonStyle(.borderless)
+                            .tint(coverTint)
                     }
                     HStack {
                         Label { TextField("Jump to chapter", text: $jumpNumber).keyboardType(.numberPad).focused($jumpFocused) } icon: { Image(systemName: "number") }
                         Button("Go", action: jump).buttonStyle(.borderless).disabled(jumpNumber.isEmpty)
+                            .tint(coverTint)
                     }
                     if let jumpError { Text(jumpError).font(.caption).foregroundStyle(AppTheme.destructive) }
                 }
@@ -428,7 +431,7 @@ struct ChapterDirectoryView: View {
                                     HStack {
                                         Text(chapter.name).font(.subheadline).fontWeight(chapter.path == currentChapterPath ? .semibold : .regular).foregroundStyle(.primary).lineLimit(2)
                                         Spacer()
-                                        if chapter.path == currentChapterPath { Image(systemName: "book.fill").foregroundStyle(.primary) }
+                                        if chapter.path == currentChapterPath { Image(systemName: "book.fill").foregroundStyle(coverTint ?? .primary) }
                                         else if chapter.bookmarked { Image(systemName: "bookmark.fill").foregroundStyle(.secondary) }
                                     }.frame(minHeight: 44).contentShape(Rectangle())
                                 }.buttonStyle(.plain)
@@ -446,6 +449,11 @@ struct ChapterDirectoryView: View {
                 } header: { Text(search.isEmpty ? "Chapters \(pageLabel)" : "\(filtered.count) results") }
             }
             .listStyle(.insetGrouped)
+            .background {
+                if let coverTint {
+                    coverTint.opacity(0.10).ignoresSafeArea()
+                }
+            }
             .id("\(search.isEmpty ? currentPage : -1)-\(selectedFilter.rawValue)")
             .searchable(text: $search, prompt: "Search every chapter")
             .navigationTitle("Chapters").navigationBarTitleDisplayMode(.large)
@@ -455,7 +463,10 @@ struct ChapterDirectoryView: View {
                         Picker("Filter", selection: Binding(get: { selectedFilter }, set: { selectedFilter = $0; page = 0 })) {
                             ForEach(ChapterFilter.allCases) { Text($0.rawValue).tag($0) }
                         }
-                    } label: { Label("Filter chapters", systemImage: selectedFilter != .all ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease") }
+                    } label: {
+                        Label("Filter chapters", systemImage: selectedFilter != .all ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+                            .foregroundStyle(selectedFilter != .all ? (coverTint ?? .primary) : .primary)
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { if let onClose { onClose() } else { dismiss() } } }
             }

@@ -13,6 +13,7 @@ struct MangaPageView: View {
     let loader: PageLoader
 
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.coverTint) private var coverTint
     @State private var image: UIImage?
     @State private var loadedURL: String?
     @State private var didFail = false
@@ -65,10 +66,10 @@ struct MangaPageView: View {
             Color.clear
                 .aspectRatio(ratio, contentMode: .fit)
                 .frame(maxWidth: .infinity)
-                .overlay { ProgressView().tint(.white) }
+                .overlay { ProgressView().tint(coverTint ?? .white) }
         } else {
             ProgressView()
-                .tint(.white)
+                .tint(coverTint ?? .white)
                 .frame(maxWidth: .infinity, minHeight: 220)
         }
     }

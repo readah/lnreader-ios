@@ -42,6 +42,7 @@ struct UpdateRow: View {
                 // Chapter name
                 Text(chapter.name)
                     .font(Typography.body)
+                    .foregroundStyle(chapter.read ? .secondary : .primary)
                     .lineLimit(2)
 
                 // Release date
