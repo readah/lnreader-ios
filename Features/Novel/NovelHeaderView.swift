@@ -22,6 +22,9 @@ struct NovelHeaderView<Actions: View>: View {
     /// and do nothing when tapped.
     var canStartReading: Bool = true
     let onContinueReading: () -> Void
+    /// Held the title. The hero owns the gesture only: the screen that knows what
+    /// the title is for writes the clipboard and confirms it.
+    var onCopyTitle: (() -> Void)? = nil
     /// Secondary entry actions, drawn under the primary button.
     @ViewBuilder var actions: Actions
 
@@ -114,6 +117,12 @@ struct NovelHeaderView<Actions: View>: View {
                 .foregroundStyle(.white)
                 .lineLimit(3)
                 .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
+                // Hold to copy, in place of a context menu: the title is the one
+                // thing on this screen worth pasting somewhere else.
+                .onLongPressGesture(minimumDuration: 0.5) { onCopyTitle?() }
+                // Nothing on screen says the title can be held, so VoiceOver is
+                // offered the same action by name.
+                .accessibilityAction(named: Text("Copy title")) { onCopyTitle?() }
 
             if let byline {
                 Text(byline)

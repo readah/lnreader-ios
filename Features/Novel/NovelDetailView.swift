@@ -73,6 +73,8 @@ struct NovelDetailView: View {
     @State private var isAddingToLibrary = false
     /// Scanlator priority for this entry, loaded from its own defaults key.
     @State private var scanlatorSettings: ScanlatorSettings
+    /// The title was copied a moment ago; the toast is on screen.
+    @State private var titleCopied = false
     /// Cover tint, when the user turned it on in Settings › Appearance.
     @AppStorage(AppearanceTint.enabledKey) private var tintDetails = false
     @AppStorage(AppearanceTint.strengthKey) private var tintStrength = AppearanceTint.defaultStrength
@@ -125,7 +127,8 @@ struct NovelDetailView: View {
                     isFinished: isFinished,
                     continueChapterName: resumeChapter?.name,
                     canStartReading: !allChapters.isEmpty && !isFinished,
-                    onContinueReading: continueReading
+                    onContinueReading: continueReading,
+                    onCopyTitle: copyTitle
                 ) {
                     EntryActionBar(
                         entry: localEntry,
@@ -206,6 +209,10 @@ struct NovelDetailView: View {
                 coverTint.opacity(tintStrength * 0.55).ignoresSafeArea()
             }
         }
+        // A screen-level overlay, so the confirmation is where the eye lands
+        // after a hold, not inside the hero that scrolls it away.
+        .overlay(alignment: .bottom) { copyToast }
+        .task(id: titleCopied) { await retireCopyToast() }
         .onDisappear { chapterSelection.end() }
         .toolbar(removing: .title)
         .toolbar {
@@ -561,6 +568,46 @@ struct NovelDetailView: View {
     private var hasStartedReading: Bool {
         localEntry != nil
             && (lastOpenedPath != nil || allChapters.contains { !$0.unread || $0.isInProgress })
+    }
+
+    // MARK: - Copying the title
+
+    /// The toast for a title that just went to the clipboard.
+    ///
+    /// A `UIPasteboard` write from code is silent — the system's "pasted from"
+    /// banner only appears when something is read back — so a copy has to
+    /// acknowledge itself. Hidden from VoiceOver, which gets an announcement
+    /// instead, so the confirmation is heard once and not read twice.
+    @ViewBuilder
+    private var copyToast: some View {
+        if titleCopied {
+            Label("Title copied", systemImage: "checkmark")
+                .font(Typography.caption)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .glassEffect(.regular, in: .capsule)
+                .padding(.bottom, 24)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    /// Hold the title to keep it. The gesture is the hero's; the copy, the haptic
+    /// and the confirmation are this screen's.
+    private func copyTitle() {
+        UIPasteboard.general.string = displayTitle
+        Haptics.shared.impact(.light)
+        AccessibilityNotification.Announcement("Title copied").post()
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) { titleCopied = true }
+    }
+
+    /// Takes the toast away again, and cancels itself if another copy lands first.
+    private func retireCopyToast() async {
+        guard titleCopied else { return }
+        try? await Task.sleep(for: .seconds(1.8))
+        guard !Task.isCancelled else { return }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { titleCopied = false }
     }
 
     // MARK: - Actions
