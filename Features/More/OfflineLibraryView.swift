@@ -284,7 +284,7 @@ struct LibraryBackupView: View {
     @State private var message: String?
     @State private var pending: LibraryBackup.Snapshot?
     @State private var pendingMihon: MihonBackup.Backup?
-    @AppStorage("backup.includeLocalBooks") private var includeLocalBooks = true
+    @AppStorage("backup.includeLocalBooks") private var includeLocalBooks = false
     /// Which kind of file the file picker is currently choosing.
     @State private var importsMihon = false
     var body: some View {
