@@ -123,8 +123,27 @@ enum SchemaV2: VersionedSchema {
 
         // MARK: Display values (overrides win)
 
+        /// Some sources put the whole anchor tag in the author field, so the
+        /// library used to show `Editor:+CKtalon/" class="a1" title="…`. Cut it
+        /// back to the name. Display only: the stored value is left alone.
+        private static func cleanAuthor(_ raw: String?) -> String? {
+            guard var text = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !text.isEmpty else { return nil }
+            if let range = text.range(of: "title=\"") {
+                text = String(text[range.upperBound...])
+            }
+            if let quote = text.firstIndex(of: "\"") {
+                text = String(text[..<quote])
+            }
+            if let tag = text.firstIndex(of: "<") {
+                text = String(text[..<tag])
+            }
+            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleaned.isEmpty ? nil : cleaned
+        }
+
         var displayTitle: String { customTitle ?? title }
-        var displayAuthor: String? { customAuthor ?? author }
+        var displayAuthor: String? { Self.cleanAuthor(customAuthor ?? author) }
         var displayArtist: String? { customArtist ?? artist }
         var displaySummary: String? { customDescription ?? summary }
         var displayThumbnailURL: String? { customThumbnailURL ?? thumbnailURL }
