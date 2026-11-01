@@ -338,11 +338,14 @@ struct MangaReaderView: View {
 
     private var topBar: some View {
         GlassEffectContainer {
-            ZStack {
-                HStack {
+            ZStack(alignment: .top) {
+                HStack(alignment: .top) {
                     glassCircleButton("chevron.left", label: "Close reader") { dismiss() }
                     Spacer()
-                    HStack(spacing: 8) {
+                    // Stacked rather than side by side: a long chapter title gets
+                    // the width of the bar instead of running under the buttons.
+                    VStack(spacing: 8) {
+                        settingsButton
                         // Auto scroll only moves the webtoon strip.
                         if mode == .webtoon {
                             glassCircleButton(
@@ -350,7 +353,6 @@ struct MangaReaderView: View {
                                 label: "Start auto scroll"
                             ) { toggleAutoScroll() }
                         }
-                        settingsButton
                     }
                 }
 
