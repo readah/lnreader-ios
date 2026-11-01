@@ -46,8 +46,7 @@ struct ReaderView: View {
     @State private var isLoading = true
     @State private var chrome: ReaderChromeState = .control
     @State private var showSettings = false
-    /// Settings open full height; the reader can still pull them down to half.
-    @State private var settingsDetent: PresentationDetent = .large
+    @State private var settingsDetent: PresentationDetent = .medium
     @State private var showChapterList = false
     @State private var startTTSWhenReady = false
     @State private var errorMessage: String?
@@ -100,7 +99,7 @@ struct ReaderView: View {
     }
 
     private func openSettings() {
-        settingsDetent = .large
+        settingsDetent = .medium
         showSettings = true
     }
 
@@ -162,6 +161,11 @@ struct ReaderView: View {
                 dismiss()
             })
             .onChange(of: chrome) { _, state in ttsBridge.setControlsVisible(state.isControl) }
+            .onChange(of: showSettings) { _, visible in
+                if visible {
+                    settingsDetent = .medium
+                }
+            }
             .sheet(isPresented: $showSettings) { settingsSheet }
             .fullScreenCover(isPresented: $showChapterList) { chapterListSheet }
             .sheet(isPresented: $showLoginSheet) { loginSheet }
@@ -333,7 +337,8 @@ struct ReaderView: View {
             lineFocusDulling: $lineFocusDulling,
             characterSpacing: $characterSpacing,
             wordSpacing: $wordSpacing,
-            grainIntensity: $grainIntensity
+            grainIntensity: $grainIntensity,
+            detent: $settingsDetent
         )
         // Full height by default, so every setting fits without scrolling;
         // half height is one drag down, same as the manga reader's sheet.

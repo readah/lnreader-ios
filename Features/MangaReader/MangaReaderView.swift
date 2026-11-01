@@ -26,8 +26,6 @@ struct MangaReaderView: View {
     // Observed so a changed global default re-renders a series that follows it.
     @AppStorage(MangaReaderSettingsKey.readingMode) private var defaultModeRaw = MangaReadingMode.pager.rawValue
     @AppStorage(MangaReaderSettingsKey.direction) private var defaultDirectionRaw = MangaPagingDirection.leftToRight.rawValue
-    /// The chapter sheet's order, the same setting the detail screen writes.
-    @AppStorage(ChapterOrder.ascendingKey) private var chapterOrderAscending = false
 
     @State private var chapterURL: String
     @State private var chapterName: String
@@ -55,13 +53,13 @@ struct MangaReaderView: View {
     @State private var readerSize: CGSize = .zero
     @State private var scroller = WebtoonScrollController()
     @State private var showReaderSettings = false
+    @State private var settingsDetent: PresentationDetent = .medium
     /// Volume keys, auto scroll and hold-to-scroll: one stored value for the user.
     @AppStorage(MangaControlSettings.storageKey) private var inputSettings = MangaControlSettings()
     @State private var currentIndex = 0
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var chrome: ReaderChromeState = .control
-    @State private var zoom = MangaZoomState()
     @State private var showChapterSheet = false
     /// Set when stepping back a chapter so it opens on its last page.
     @State private var landOnLastPage = false
@@ -108,41 +106,27 @@ struct MangaReaderView: View {
 
     private var chapterChoices: [SourceChapter] {
         if !storedChapters.isEmpty {
-            // The open chapter stays reachable even if its scanlator was hidden
-            // after it was opened.
-            return storedChapters.filter { !$0.hidden || $0.url == chapterURL }.map {
+            return storedChapters.map {
                 SourceChapter(url: $0.url, name: $0.name, chapterNumber: $0.chapterNumber,
-                              scanlator: $0.scanlator, dateUpload: $0.dateUpload)
+                              scanlator: $0.scanlator)
             }
         }
         return sourceChapters
     }
-
-    /// Finger travel, in points, beyond which a touch is a swipe and not a tap.
-    private static let tapSlop: CGFloat = 6
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
             content
-                .mangaZoom($zoom, in: readerSize, horizontalOnly: mode == .webtoon)
                 .contentShape(Rectangle())
                 // A simultaneous gesture, not an overlay: an overlay of
                 // `Color.clear` sits above the scroll view and eats the drag, so
                 // the webtoon would not scroll and the pager would not swipe.
                 .simultaneousGesture(
-                    // A drag with no minimum distance rather than `SpatialTapGesture`,
-                    // which forgives a lot of finger travel: a micro swipe would
-                    // count as a tap and turn the page. Past `tapSlop` it is a swipe.
-                    DragGesture(minimumDistance: 0)
+                    SpatialTapGesture()
                         // The webtoon strip handles its own taps.
-                        .onEnded { value in
-                            guard mode != .webtoon,
-                                  hypot(value.translation.width, value.translation.height) <= Self.tapSlop
-                            else { return }
-                            handleTap(at: value.startLocation)
-                        }
+                        .onEnded { value in if mode != .webtoon { handleTap(at: value.location) } }
                 )
 
             if chrome.isControl {
@@ -150,18 +134,6 @@ struct MangaReaderView: View {
             }
 
             scrollOverlays
-
-            // Same Focus and incognito indicators as the novel reader: each draws
-            // nothing unless it has something to say.
-            if !chrome.isControl {
-                VStack(spacing: 8) {
-                    ReaderFocusIndicator()
-                    IncognitoIndicator()
-                    Spacer()
-                }
-                .ignoresSafeArea(.keyboard)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
         }
         .background { volumeKeys }
         .background(EdgeSwipeDismiss {
@@ -169,7 +141,7 @@ struct MangaReaderView: View {
             isDismissing = true
             dismiss()
         })
-        .statusBarHidden(!chrome.isControl)
+        .statusBarHidden(true)
         .onGeometryChange(for: CGSize.self) { $0.size } action: { readerSize = $0 }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
@@ -179,8 +151,20 @@ struct MangaReaderView: View {
             await loadChapterChoices()
         }
         .sheet(isPresented: $showChapterSheet) { chapterSheet }
+        .onChange(of: showReaderSettings) { _, visible in
+            if visible {
+                settingsDetent = .medium
+            }
+        }
         .sheet(isPresented: $showReaderSettings) {
-            MangaReaderSettingsSheet(series: seriesSettings, controls: $inputSettings)
+            MangaReaderSettingsSheet(
+                series: seriesSettings,
+                controls: $inputSettings,
+                detent: $settingsDetent
+            )
+            .presentationDetents([.medium, .large], selection: $settingsDetent)
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(28)
         }
         .onAppear {
             setScreenAwake(true)
@@ -197,7 +181,6 @@ struct MangaReaderView: View {
             libraryManager.flushProgress(context: modelContext)
         }
         .onChange(of: currentIndex) { old, index in
-            if mode == .pager { zoom.reset() }
             pageTurnHaptic(from: old, to: index)
             handlePageChange(index)
         }
@@ -208,14 +191,10 @@ struct MangaReaderView: View {
             }
         }
         .onChange(of: scanlatorSettings.value) { rebuildNavigable() }
-        .onReceive(NotificationCenter.default.publisher(for: ChapterVisibility.didChange)) { _ in
-            loadStoredChapters()
-        }
         .onChange(of: mode) { _, _ in
             // Re-run the layout without refetching the page list. The strip
             // starts again from the chapter that is open.
             chrome = .control
-            zoom.reset()
             appendTask?.cancel()
             appendTask = nil
             segments = pages.isEmpty ? [] : [ReaderSegment(id: chapterURL, name: chapterName, pages: pages)]
@@ -259,8 +238,6 @@ struct MangaReaderView: View {
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
-        // A zoomed page is panned, not swiped.
-        .scrollDisabled(zoom.isZoomed)
         .id(chapterURL)
         .environment(\.layoutDirection, direction.layoutDirection)
         .ignoresSafeArea()
@@ -301,32 +278,33 @@ struct MangaReaderView: View {
     }
 
     private func errorView(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Can't show this chapter", systemImage: "exclamationmark.triangle")
-        } description: {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.largeTitle)
+                .foregroundStyle(.white.opacity(0.8))
             Text(message)
-        } actions: {
+                .font(.callout)
+                .foregroundStyle(.white.opacity(0.8))
+                .multilineTextAlignment(.center)
             Button("Try again") {
                 Task { await loadChapter() }
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.bordered)
+            .tint(.white)
         }
-        // The reader surface is black in every appearance.
-        .environment(\.colorScheme, .dark)
         .padding(32)
     }
 
     // MARK: - Chrome
 
     /// Keep the image legible beneath the controls with a light edge blur.
-    /// Radius 2, down from 8 then 4: enough to soften the edge, not to fog the page.
     private var controls: some View {
         ZStack {
             VStack(spacing: 0) {
-                GlurView(radius: 2, direction: .up)
+                GlurView(radius: 8, direction: .up)
                     .frame(height: 140)
                 Spacer(minLength: 0)
-                GlurView(radius: 2, direction: .down)
+                GlurView(radius: 8, direction: .down)
                     .frame(height: 140)
             }
             .ignoresSafeArea()
@@ -345,16 +323,20 @@ struct MangaReaderView: View {
         GlassEffectContainer {
             ZStack {
                 HStack {
-                    GlassIconButton(symbol: "chevron.left", label: "Close reader") { dismiss() }
+                    glassCircleButton("chevron.left", label: "Close reader") { dismiss() }
                     Spacer()
-                    optionsMenu
+                    settingsButton
                 }
 
-                GlassPillButton { showChapterSheet = true } label: {
+                Button { showChapterSheet = true } label: {
                     Text(chapterName)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .lineLimit(1)
+                        .frame(height: 46)
+                        .padding(.horizontal, 20)
+                        .glassEffect(.regular.interactive(), in: .capsule)
                 }
+                .buttonStyle(.plain)
                 .padding(.horizontal, 60)
                 .accessibilityLabel("Chapters: \(chapterName)")
             }
@@ -364,64 +346,16 @@ struct MangaReaderView: View {
         .padding(.top, 8)
     }
 
-    private var optionsMenu: some View {
-        Menu {
-            Picker("Layout", selection: Binding(
-                get: { mode },
-                set: { seriesSettings.setReadingMode($0) }
-            )) {
-                ForEach(MangaReadingMode.allCases) { readingMode in
-                    Label(readingMode.displayName, systemImage: readingMode.iconName)
-                        .tag(readingMode)
-                }
-            }
-            if mode == .pager {
-                Picker("Direction", selection: Binding(
-                    get: { direction },
-                    set: { seriesSettings.setDirection($0) }
-                )) {
-                    ForEach(MangaPagingDirection.allCases) { option in
-                        Text(option.displayName).tag(option)
-                    }
-                }
-            }
-            Section("This series") {
-                Button("Use for all series", systemImage: "square.stack") {
-                    seriesSettings.makeDefault()
-                }
-                if seriesSettings.hasOverrides {
-                    Button("Reset to default", systemImage: "arrow.uturn.backward") {
-                        seriesSettings.reset()
-                    }
-                }
-            }
-            if mode == .webtoon {
-                Button(
-                    scroller.isAutoScrolling ? "Stop auto scroll" : "Start auto scroll",
-                    systemImage: scroller.isAutoScrolling ? "pause.circle" : "play.circle"
-                ) { toggleAutoScroll() }
-            }
-            Section("Zoom") {
-                Button("Zoom in", systemImage: "plus.magnifyingglass") { zoomBy(MangaZoomState.step) }
-                    .disabled(!zoom.canZoomIn)
-                Button("Zoom out", systemImage: "minus.magnifyingglass") { zoomBy(1 / MangaZoomState.step) }
-                    .disabled(!zoom.isZoomed)
-                if zoom.isZoomed {
-                    Button("Reset zoom", systemImage: "arrow.up.left.and.down.right.magnify") {
-                        animateZoom { zoom.reset() }
-                    }
-                }
-            }
-            Button("Reader settings…", systemImage: "gearshape") { showReaderSettings = true }
+    private var settingsButton: some View {
+        Button {
+            showReaderSettings = true
         } label: {
             Image(systemName: "slider.horizontal.3")
-                .font(.body.weight(.semibold))
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .glassEffect(.regular.interactive(), in: .circle)
         }
-        .menuStyle(.button)
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
-        .controlSize(.large)
-        .accessibilityLabel("Reader options")
+        .accessibilityLabel("Reader settings")
     }
 
     private var bottomBar: some View {
@@ -430,19 +364,47 @@ struct MangaReaderView: View {
                 if pages.count > 1 {
                     MangaPageSlider(index: Binding(get: { currentIndex }, set: seekPage), pageCount: pages.count)
                 }
-                GlassStepper(
-                    backLabel: "Previous chapter",
-                    forwardLabel: "Next chapter",
-                    canGoBack: !isLoading && hasChapter(offset: -1),
-                    canGoForward: !isLoading && hasChapter(offset: 1),
-                    back: { Task { await moveChapter(by: -1) } },
-                    forward: { Task { await moveChapter(by: 1) } }
-                )
+                HStack(spacing: 0) {
+                    chapterButton(offset: -1, symbol: "chevron.left", label: "Previous chapter")
+                    Divider().frame(height: 24)
+                    chapterButton(offset: 1, symbol: "chevron.right", label: "Next chapter")
+                }
+                .glassEffect(.regular.interactive(), in: .capsule)
             }
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
+    }
+
+    private func glassCircleButton(
+        _ symbol: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .glassEffect(.regular.interactive(), in: .circle)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private func chapterButton(offset: Int, symbol: String, label: String) -> some View {
+        let available = !isLoading && hasChapter(offset: offset)
+        return Button {
+            Task { await moveChapter(by: offset) }
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .disabled(!available)
+        .opacity(available ? 1 : 0.35)
+        .accessibilityLabel(label)
     }
 
     // MARK: - Loading
@@ -511,7 +473,12 @@ struct MangaReaderView: View {
             predicate: predicate,
             sortBy: [SortDescriptor(\.sourceOrder)]
         )
-        storedChapters = ChapterOrder.oldestFirst((try? modelContext.fetch(descriptor)) ?? [])
+        storedChapters = ((try? modelContext.fetch(descriptor)) ?? []).sorted { lhs, rhs in
+            if lhs.chapterNumber != rhs.chapterNumber {
+                return lhs.chapterNumber < rhs.chapterNumber
+            }
+            return lhs.sourceOrder < rhs.sourceOrder
+        }
         rebuildNavigable()
     }
 
@@ -523,8 +490,12 @@ struct MangaReaderView: View {
         defer { isLoadingChapters = false }
         do {
             let entry = SourceEntry(sourceKey: sourceKey, kind: .manga, url: entryURL, title: "")
-            // The boundary: `navigable` is oldest-first from here on.
-            sourceChapters = ChapterOrder.normalized(try await source.chapters(entry))
+            sourceChapters = try await source.chapters(entry).sorted { lhs, rhs in
+                if lhs.chapterNumber != rhs.chapterNumber {
+                    return lhs.chapterNumber < rhs.chapterNumber
+                }
+                return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+            }
             chapterSourceEntry = try? await source.details(entry)
             rebuildNavigable()
         } catch {
@@ -585,10 +556,6 @@ struct MangaReaderView: View {
         chapterName = segments[target].name
         pages = segments[target].pages
         currentIndex = target > from ? 0 : pages.count - 1
-        // Chapters well behind the reader leave the strip, so it does not grow
-        // with every chapter read. The strip removes them once it is at rest.
-        let firstKept = StripWindow.firstKept(current: target)
-        if firstKept > 0 { segments.removeFirst(firstKept) }
         if let storedChapter, let entry = storedChapter.entry {
             libraryManager.recordHistory(entry: entry, chapter: storedChapter, context: modelContext)
         }
@@ -698,16 +665,6 @@ struct MangaReaderView: View {
         scroller.momentum = inputSettings.momentum
         scroller.hold = inputSettings.hold
         scroller.isHoldEnabled = inputSettings.holdScrollEnabled
-        scroller.holdGoesForward = { point in
-            let preferences = seriesSettings.resolved
-            // Only the back zone scrolls back; the menu zone and a layout
-            // without zones keep the default, forward.
-            return preferences.tapZones.action(
-                at: point,
-                in: readerSize,
-                inverted: preferences.invertTapZones
-            ) != .previous
-        }
         scroller.onScrollActivity = { scheduleChromeHide() }
         scroller.onReachedEnd = {
             // Out of pages: bring the controls back so the next chapter is one tap away.
@@ -718,7 +675,7 @@ struct MangaReaderView: View {
     private func scheduleChromeHide() {
         guard chrome.isControl, chromeHideTask == nil else { return }
         chromeHideTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1))
+            try? await Task.sleep(for: .seconds(2.5))
             guard !Task.isCancelled else { return }
             chromeHideTask = nil
             setChrome(.focus)
@@ -758,20 +715,25 @@ struct MangaReaderView: View {
         VStack {
             if let speed = scroller.holdSpeed {
                 Text("\(Int(speed)) pt/s")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .frame(height: 36)
                     .glassEffect(.regular, in: .capsule)
                     .padding(.top, 60)
                     .transition(.opacity)
             }
             Spacer()
             if scroller.isAutoScrolling {
-                GlassPillButton { scroller.stopAuto() } label: {
+                Button { scroller.stopAuto() } label: {
                     Label("Auto scroll", systemImage: "pause.fill")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18)
+                        .frame(height: 44)
+                        .glassEffect(.regular.interactive(), in: .capsule)
                 }
+                .buttonStyle(.plain)
                 .padding(.bottom, chrome.isControl ? 96 : 28)
                 .accessibilityLabel("Stop auto scroll")
             }
@@ -812,8 +774,6 @@ struct MangaReaderView: View {
     private func handleTap(at point: CGPoint) {
         // The finger lifting after a hold-to-scroll is not a tap.
         guard !scroller.justHeld else { return }
-        // Zoomed in, tap zones would turn the page under a magnified view.
-        if zoom.isZoomed { toggleControls(); return }
 
         let preferences = seriesSettings.resolved
         let isPager = mode == .pager
@@ -827,11 +787,6 @@ struct MangaReaderView: View {
         case .next: isPager ? turnPage(forward: true) : scroller.scrollScreen(forward: true)
         case .menu: toggleControls()
         }
-    }
-
-    /// Eased, never a spring: an overshoot below 1x would show black bars around the page.
-    private func animateZoom(_ change: () -> Void) {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25), change)
     }
 
     private func turnPage(forward: Bool) {
@@ -866,10 +821,6 @@ struct MangaReaderView: View {
         Haptics.shared.impact(.light)
     }
 
-    private func zoomBy(_ factor: CGFloat) {
-        animateZoom { zoom.zoom(by: factor, in: readerSize) }
-    }
-
     private func toggleControls() {
         setChrome(chrome.toggled)
     }
@@ -885,23 +836,19 @@ struct MangaReaderView: View {
 
     private var directoryChapters: [ChapterDisplay] {
         let stored = Dictionary(storedChapters.map { ($0.url, $0) }, uniquingKeysWith: { first, _ in first })
-        // `navigable` is oldest-first, so `position` is the reading index.
-        let rows = navigableChapters.enumerated().map { index, chapter in
+        return navigableChapters.enumerated().map { index, chapter in
             if let saved = stored[chapter.url] {
                 return ChapterDisplay(chapter: saved, position: index)
             }
             return ChapterDisplay(sourceChapter: chapter, position: index, sourceKey: sourceKey,
                                   entryURL: entryURL, kind: .manga)
         }
-        return ChapterOrder.display(rows, ascending: chapterOrderAscending)
     }
 
     private var navigableChapters: [SourceChapter] { navigable }
 
     private func rebuildNavigable() {
         let choices = chapterChoices
-        // Saved chapters already carry the decision (`Chapter.hidden`).
-        guard storedChapters.isEmpty else { navigable = choices; return }
         let items = choices.map {
             ScanlatorRules.Item(number: $0.chapterNumber > 0 ? $0.chapterNumber : nil, scanlator: $0.scanlator)
         }
@@ -971,34 +918,57 @@ struct MangaReaderView: View {
     }
 }
 
-/// The page scrubber: a native `Slider` stepping one page at a time, inside a
-/// glass capsule so it lines up with the chapter navigation capsule.
+/// A 44-point control so the scrubber aligns with the chapter navigation capsule.
 private struct MangaPageSlider: View {
     @Binding var index: Int
     let pageCount: Int
 
+    private var progress: CGFloat {
+        CGFloat(index) / CGFloat(max(pageCount - 1, 1))
+    }
+
     var body: some View {
-        Slider(
-            value: Binding(
-                get: { Double(index) },
-                set: { index = Int($0.rounded()) }
-            ),
-            in: 0...Double(max(pageCount - 1, 1)),
-            step: 1
-        ) {
-            Text("Page")
-        } minimumValueLabel: {
-            Text("\(index + 1)").frame(minWidth: 24, alignment: .trailing)
-        } maximumValueLabel: {
-            Text("\(pageCount)").frame(minWidth: 24, alignment: .leading)
+        GeometryReader { geometry in
+            let trackWidth = max(geometry.size.width - 88, 1)
+            HStack(spacing: 8) {
+                Text("\(index + 1)")
+                    .frame(width: 24, alignment: .trailing)
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.25))
+                    Capsule().fill(.white)
+                        .frame(width: max(6, trackWidth * progress))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 6)
+                .accessibilityHidden(true)
+                Text("\(pageCount)")
+                    .frame(width: 24, alignment: .leading)
+            }
+            .font(.caption.monospacedDigit().weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .glassEffect(.regular.interactive(), in: .capsule)
+            .contentShape(Capsule())
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let fraction = min(max((value.location.x - 44) / trackWidth, 0), 1)
+                        index = Int((fraction * CGFloat(max(pageCount - 1, 0))).rounded())
+                    }
+            )
         }
-        .font(.caption.monospacedDigit().weight(.semibold))
-        .tint(.white)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .frame(minHeight: 44)
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .frame(height: 44)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Page")
         .accessibilityValue("\(index + 1) of \(pageCount)")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: index = min(index + 1, pageCount - 1)
+            case .decrement: index = max(index - 1, 0)
+            @unknown default: break
+            }
+        }
     }
 }
 
