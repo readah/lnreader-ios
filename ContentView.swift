@@ -17,6 +17,8 @@ struct ContentView: View {
     @State private var readerRouter = ReaderRouter()
     /// Bumped when the History tab is tapped while already showing; resumes the top entry.
     @State private var historyResume = 0
+    /// An entry a link asked for. The library pushes it; see `EntryLink`.
+    @State private var openedEntry: SourceEntry?
 
     var body: some View {
         TabView(selection: Binding(
@@ -27,7 +29,7 @@ struct ContentView: View {
             }
         )) {
             Tab(AppTab.library.title, systemImage: AppTab.library.icon, value: .library) {
-                LibraryView()
+                LibraryView(openedEntry: $openedEntry)
             }
 
             Tab(AppTab.updates.title, systemImage: AppTab.updates.icon, value: .updates) {
@@ -59,6 +61,15 @@ struct ContentView: View {
         }
         .environment(readerRouter)
         .environment(\.isReaderPresented, readerRouter.request != nil)
+        // A `lnreader://entry` link (see `EntryLink`) opens in the library stack,
+        // so Back lands there. The reader is closed first, or the entry would be
+        // pushed behind its cover.
+        .onOpenURL { url in
+            guard let link = EntryLink.parse(url) else { return }
+            readerRouter.close()
+            selectedTab = .library
+            openedEntry = link.sourceEntry
+        }
         // The reader is its own window: anything that opens a chapter goes
         // through the router, and this is the single place it is presented.
         .fullScreenCover(
@@ -82,7 +93,8 @@ struct ContentView: View {
             // anything can push over it. Best effort: a launch on a dead network
             // must not surface an error or hold up the library.
             await syncManager.pull(into: modelContext, quiet: true)
-            sourceManager.registerNativeSources()
+            // Sources are registered in `SourceManager.init`: a link can open an
+            // entry before this task gets here.
             ChapterDownloadManager.shared.configure(context: modelContext, sources: sourceManager)
             LibraryMaintenance.schedule()
             // The HTTP stack gets its Cloudflare solver before any source is browsed.

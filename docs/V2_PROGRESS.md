@@ -34,6 +34,7 @@ backup/restore and narration are built but have never been exercised on a device
 | Backup / restore | **Built (local)** | Encrypted `.lnbk` snapshots, recovery key, merge restore; `.tachibk` import. Export to `.tachibk` and cloud sync remain deferred. Not exercised on a device |
 | Library | **Verified** | Filters, per-category sort / display / update scope, badges — all checked on device. No category editor yet |
 | Chapter fetching | **Verified** | Opening an entry no longer refetches; last-fetched time and a Refresh button |
+| Entry links | **Built** | The detail screen shares a `lnreader://entry` link (source key + source-relative url + kind + title, see `Services/EntryLink.swift`); opening one pushes that entry onto the library stack. Custom scheme only — no universal link, so the link is tappable in Messages and Safari but not everywhere. Not exercised on a device |
 | Performance | **Pass done** | Library counts cached off-main, reader writes coalesced, covers downsampled; numbers in [PERFORMANCE.md](PERFORMANCE.md), next rewrite in [LIBRARY_QUERY_PLAN.md](LIBRARY_QUERY_PLAN.md) |
 | Extension repos, JS bridge, Kotlin/JS transpiler | **Removed** | Sources are native; adding one is a Swift file in `Services/Sources/Native/` |
 | Migration (v1 → v2) | **Dropped** | User's call; fresh installs start empty. Importing another app's `.tachibk` is the only way in |

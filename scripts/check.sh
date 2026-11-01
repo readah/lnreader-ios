@@ -38,7 +38,7 @@ compile_and_run_plain() {
 
 # The checks that take no arguments, in dependency order: the cheap layers
 # first, so a break in the foundation shows up before the expensive ones run.
-PLAIN_CHECKS="foundation schema chapter-sync chapter-order page-pipeline scanlators \
+PLAIN_CHECKS="foundation links schema chapter-sync chapter-order page-pipeline scanlators \
 reader-settings haptics filters sorts categories badges offline mihon-backup tts-contracts \
 sync migration"
 
@@ -50,9 +50,9 @@ No argument        list the checks
 all                run every check that takes no arguments
 <check>            run one check
 
-Checks: foundation schema chapter-sync chapter-order page-pipeline scanlators reader-settings
-        haptics filters sorts categories badges offline mihon-backup tts-contracts
-        sync migration native-comments player
+Checks: foundation links schema chapter-sync chapter-order page-pipeline scanlators
+        reader-settings haptics filters sorts categories badges offline mihon-backup
+        tts-contracts sync migration native-comments player
 
 Checks needing setup, not part of `all`:
   native-comments   needs the SwiftSoup checkout or network access, and a normal
@@ -74,6 +74,16 @@ run() {
         Services/Network/Interceptors.swift \
         Utilities/DateParsing.swift \
         tests/V2FoundationChecks.swift
+      ;;
+    links)
+      compile_and_run links \
+        Models/Schema/ContentKind.swift \
+        Models/Schema/EntryStatus.swift \
+        Services/Sources/SourceModels.swift \
+        Services/Network/HTTPTypes.swift \
+        Services/Network/Interceptors.swift \
+        Services/EntryLink.swift \
+        tests/EntryLinkChecks.swift
       ;;
     schema)
       compile_and_run schema \

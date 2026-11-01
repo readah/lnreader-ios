@@ -33,6 +33,9 @@ final class SourceManager {
 
     init() {
         hidesAdultSources = UserDefaults.standard.bool(forKey: Self.hideAdultSourcesKey)
+        // Not from the launch task: a link can open an entry before that task
+        // (which awaits the sync pull) has run.
+        registerNativeSources()
     }
 
     // MARK: Registration

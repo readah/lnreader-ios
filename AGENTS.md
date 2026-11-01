@@ -116,6 +116,10 @@ the doc named in brackets has the reasoning. Start with `docs/V2_PROGRESS.md` fo
   buttons (no pull to refresh; pulling down goes back). Do not bury a real action in a
   one-item `…` menu; an overflow menu earns its place once it holds several.
   Chapter header: search and one sort/filter menu. [DETAIL_SCREEN]
+- **Toolbar actions run least to most likely used, left to right.** The right end of the bar is
+  the easiest corner for a right thumb, so the routine action takes it. On the detail screen
+  Refresh is rightmost, then Share, then the web view, and Migrate — once per broken source —
+  is furthest left.
 - **A migrated entry replaces the screen it came from.** After a single migration
   `EntryDetailView(entry:onReplace:)` calls `onReplace` with the new entry; the stacks that push
   it (Library, Updates, History) swap the top of their `NavigationPath`, so Back goes to the

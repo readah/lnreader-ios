@@ -220,11 +220,20 @@ struct EntryDetailView: View {
                 // Both are visible buttons. Migrate used to be the only item in a
                 // `…` menu, which hid the one action a broken source makes you
                 // look for.
+                //
+                // Least to most likely used, left to right: the right end is the
+                // easiest corner for a right thumb, so Refresh takes it.
                 if let localEntry, localEntry.inLibrary, !localEntry.isLocal {
                     migrateButton
                 }
                 if webURL != nil {
                     webViewButton
+                }
+                if let shareURL {
+                    ShareLink(item: shareURL) {
+                        Label("Share link", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel("Share link")
                 }
                 // Refresh is a toolbar button, not pull to refresh: pulling down
                 // dismisses this screen.
@@ -351,6 +360,24 @@ struct EntryDetailView: View {
     private var webURL: URL? {
         guard !bookPath.isEmpty else { return nil }
         return sourceManager.source(forKey: sourceKey)?.webURL(bookPath)
+    }
+
+    /// This entry as a shareable link; `nil` when it has no source to open again
+    /// (a local import, or a source this build no longer has).
+    private var shareURL: URL? {
+        guard sourceManager.source(forKey: sourceKey) != nil else { return nil }
+        return EntryLink(
+            sourceKey: sourceKey,
+            entryPath: bookPath,
+            kind: contentKind,
+            title: displayTitle
+        ).shareURL
+    }
+
+    /// The entry's kind; a link that carries none falls back to its source.
+    private var contentKind: ContentKind {
+        localEntry?.kind ?? sourceEntry?.kind
+            ?? sourceManager.source(forKey: sourceKey)?.kind ?? .novel
     }
 
     /// Open the entry's page on its site, in the app, sharing the scraper's
@@ -486,7 +513,7 @@ struct EntryDetailView: View {
     private var showsAllChapters: Bool { isManga }
 
     private var isManga: Bool {
-        (localEntry?.kind ?? sourceEntry?.kind ?? .novel) == .manga
+        contentKind == .manga
     }
 
     /// `orderedChapters` is newest-first; the slicing below depends on that, so
@@ -641,8 +668,17 @@ struct EntryDetailView: View {
 
         // `CatalogSource` covers both kinds: details and the chapter list are
         // shared, only the reader differs.
-        guard force || details == nil, let source = sourceManager.source(forKey: sourceKey) else {
+        guard force || details == nil else {
             isLoading = false
+            return
+        }
+        // No source is normal: a local import has none and still opens from the
+        // store. Only a bare link has nothing to show, so only it gets an error.
+        guard let source = sourceManager.source(forKey: sourceKey) else {
+            isLoading = false
+            if localEntry == nil, details == nil {
+                errorMessage = "This link is for a source this version doesn't have."
+            }
             return
         }
         if force {

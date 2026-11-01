@@ -6,6 +6,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct LibraryView: View {
+    /// An entry a `lnreader://entry` link asked for, pushed when it arrives.
+    @Binding var openedEntry: SourceEntry?
+
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) private var modelContext
@@ -131,6 +134,14 @@ struct LibraryView: View {
                 .id(novel.persistentModelID)
                 .bookZoom(from: novel.persistentModelID, in: bookTransitions)
             }
+            // A linked entry that is not in the library: nothing stored to push.
+            .navigationDestination(for: SourceEntry.self) { entry in
+                EntryDetailView(sourceEntry: entry)
+            }
+            // A link can arrive before or after this screen appears; one path,
+            // which clears the value so it cannot push twice.
+            .onChange(of: openedEntry) { openLinkedEntry() }
+            .task { openLinkedEntry() }
             .fileImporter(
                 isPresented: $showFileImporter,
                 allowedContentTypes: [UTType(filenameExtension: "epub"), .pdf].compactMap { $0 },
@@ -332,6 +343,13 @@ struct LibraryView: View {
 
     private func handleSelect(_ novel: Entry) {
         navigationPath.append(novel)
+    }
+
+    /// Push the entry a link asked for, once.
+    private func openLinkedEntry() {
+        guard let entry = openedEntry else { return }
+        openedEntry = nil
+        navigationPath.append(entry)
     }
 
     // MARK: - Filtering & Sorting
