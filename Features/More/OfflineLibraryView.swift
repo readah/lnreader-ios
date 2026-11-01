@@ -113,7 +113,7 @@ struct OfflineLibraryView: View {
         return Section("Downloaded") {
             ForEach(rows, id: \.entry.persistentModelID) { row in
                 NavigationLink {
-                    NovelDetailView(entry: row.entry)
+                    EntryDetailView(entry: row.entry)
                 } label: {
                     LabeledContent(row.entry.displayTitle, value: "\(row.items.count)")
                 }
@@ -162,7 +162,7 @@ private struct DownloadQueueRow: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(isActive ? "Pause download" : "Resume download")
             if let entry = item.chapter?.entry {
-                NavigationLink { NovelDetailView(entry: entry) } label: { details }
+                NavigationLink { EntryDetailView(entry: entry) } label: { details }
             } else {
                 details
             }

@@ -1,6 +1,6 @@
 // ChapterListView.swift
 // Sortable, filterable chapter list. Pagination and filtering are driven
-// from the parent (NovelDetailView); this view only renders what it receives.
+// from the parent (EntryDetailView); this view only renders what it receives.
 
 import SwiftUI
 
@@ -403,7 +403,7 @@ struct ChapterDirectoryView: View {
             List {
                 Section {
                     HStack(spacing: 12) {
-                        NovelCoverView(url: entry?.displayThumbnailURL ?? sourceEntry?.thumbnailURL, aspectRatio: LayoutConstants.coverAspectRatio).frame(width: 42, height: 60)
+                        EntryCoverView(url: entry?.displayThumbnailURL ?? sourceEntry?.thumbnailURL, aspectRatio: LayoutConstants.coverAspectRatio).frame(width: 42, height: 60)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entry?.displayTitle ?? sourceEntry?.title ?? "Chapters").font(.headline).lineLimit(2)
                             Text("\(chapters.count) chapters").font(.caption).foregroundStyle(.secondary)

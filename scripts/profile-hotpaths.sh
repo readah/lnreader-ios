@@ -21,7 +21,7 @@ xcrun swiftc -O -parse-as-library -swift-version 5 -disable-sandbox \
   Models/Schema/SchemaMigrationPlan.swift \
   Models/UserProfile.swift \
   Services/Sources/SourceKey.swift \
-  Features/Novel/ScanlatorRules.swift \
+  Features/Entry/ScanlatorRules.swift \
   tests/PerfHotPaths.swift \
   -o "$binary"
 

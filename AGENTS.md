@@ -117,7 +117,7 @@ the doc named in brackets has the reasoning. Start with `docs/V2_PROGRESS.md` fo
   one-item `…` menu; an overflow menu earns its place once it holds several.
   Chapter header: search and one sort/filter menu. [DETAIL_SCREEN]
 - **A migrated entry replaces the screen it came from.** After a single migration
-  `NovelDetailView(entry:onReplace:)` calls `onReplace` with the new entry; the stacks that push
+  `EntryDetailView(entry:onReplace:)` calls `onReplace` with the new entry; the stacks that push
   it (Library, Updates, History) swap the top of their `NavigationPath`, so Back goes to the
   library instead of to a book that just left it. A new stack that pushes the detail should pass
   a closure too — without one the screen just pops, which is the old behaviour. Do not route this

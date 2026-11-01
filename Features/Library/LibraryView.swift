@@ -124,7 +124,7 @@ struct LibraryView: View {
             .navigationDestination(for: Entry.self) { novel in
                 // A migrated entry takes the place of the one that left the
                 // library, so Back goes here rather than to a dead page.
-                NovelDetailView(entry: novel) { replacement in
+                EntryDetailView(entry: novel) { replacement in
                     if !navigationPath.isEmpty { navigationPath.removeLast() }
                     navigationPath.append(replacement)
                 }

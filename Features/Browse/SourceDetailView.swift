@@ -42,7 +42,7 @@ struct SourceDetailView: View {
     @ViewBuilder
     private func entryLink(_ entry: SourceEntry) -> some View {
         NavigationLink {
-            NovelDetailView(sourceEntry: entry)
+            EntryDetailView(sourceEntry: entry)
                 .bookZoom(from: entry.url, in: bookTransitions)
         } label: {
             if displayMode == .list {
@@ -280,7 +280,7 @@ struct BrowseEntryCell: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            NovelCoverView(
+            EntryCoverView(
                 url: entry.thumbnailURL,
                 aspectRatio: LayoutConstants.coverAspectRatio
             )
@@ -313,7 +313,7 @@ struct BrowseEntryRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            NovelCoverView(
+            EntryCoverView(
                 url: entry.thumbnailURL,
                 aspectRatio: LayoutConstants.coverAspectRatio
             )

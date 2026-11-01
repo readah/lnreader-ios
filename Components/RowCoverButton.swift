@@ -29,7 +29,7 @@ struct RowCoverButton: View {
 
     private var cover: some View {
         let shape = RoundedRectangle(cornerRadius: Self.corner)
-        return NovelCoverView(
+        return EntryCoverView(
             url: entry?.displayThumbnailURL,
             aspectRatio: LayoutConstants.coverAspectRatio
         )

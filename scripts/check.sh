@@ -104,7 +104,7 @@ run() {
         Services/ChapterOrder.swift \
         Services/Sources/ChapterSourceSync.swift \
         Services/ChapterVisibility.swift \
-        Features/Novel/ScanlatorRules.swift \
+        Features/Entry/ScanlatorRules.swift \
         tests/V2ChapterSyncChecks.swift
       ;;
     chapter-order)
@@ -138,7 +138,7 @@ run() {
         Services/Sources/ChapterSourceSync.swift \
         Services/ChapterOrder.swift \
         Services/ChapterVisibility.swift \
-        Features/Novel/ScanlatorRules.swift \
+        Features/Entry/ScanlatorRules.swift \
         Services/EntryMigration.swift \
         tests/MigrationChecks.swift
       ;;
@@ -158,7 +158,7 @@ run() {
       ;;
     scanlators)
       compile_and_run scanlators \
-        Features/Novel/ScanlatorRules.swift \
+        Features/Entry/ScanlatorRules.swift \
         tests/V2ScanlatorChecks.swift
       ;;
     reader-settings)
@@ -211,7 +211,7 @@ run() {
         Services/LibraryBackup.swift \
         Services/ChapterOrder.swift \
         Services/ChapterVisibility.swift \
-        Features/Novel/ScanlatorRules.swift \
+        Features/Entry/ScanlatorRules.swift \
         Services/OfflineChapters.swift \
         tests/OfflineLibraryChecks.swift
       ;;
@@ -232,7 +232,7 @@ run() {
         Services/Sources/SourceModels.swift \
         Services/ChapterOrder.swift \
         Services/ChapterVisibility.swift \
-        Features/Novel/ScanlatorRules.swift \
+        Features/Entry/ScanlatorRules.swift \
         Utilities/Gzip.swift \
         tests/MihonBackupChecks.swift
       ;;
@@ -260,7 +260,7 @@ run() {
         Services/SyncApply.swift \
         Services/ChapterOrder.swift \
         Services/ChapterVisibility.swift \
-        Features/Novel/ScanlatorRules.swift \
+        Features/Entry/ScanlatorRules.swift \
         tests/SyncApplyChecks.swift
       ;;
     player)

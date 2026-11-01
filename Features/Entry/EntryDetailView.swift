@@ -1,4 +1,4 @@
-// NovelDetailView.swift
+// EntryDetailView.swift
 // Entry detail screen supporting both library and browse modes.
 //
 // One view for both kinds: the header, metadata and chapter list are shared,
@@ -8,7 +8,7 @@
 import SwiftData
 import SwiftUI
 
-struct NovelDetailView: View {
+struct EntryDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(SourceManager.self) private var sourceManager
     @Environment(LibraryManager.self) private var libraryManager
@@ -113,9 +113,9 @@ struct NovelDetailView: View {
     }
 
     var body: some View {
-        NovelDetailScrollView(
+        EntryDetailScrollView(
             content: VStack(spacing: 0) {
-                NovelHeaderView(
+                EntryHeaderView(
                     transitionNamespace: chapterTransition,
                     name: displayTitle,
                     author: displayAuthor,
@@ -153,7 +153,7 @@ struct NovelDetailView: View {
                         description: Text(error)
                     )
                 } else {
-                    NovelInfoSection(
+                    EntryInfoSection(
                         summary: localEntry?.displaySummary ?? details?.description,
                         genres: displayGenres,
                         showFullDescription: $showFullDescription
@@ -774,7 +774,7 @@ enum ChapterRange: String, CaseIterable, Identifiable {
 }
 
 /// A performance-optimized ScrollView wrapper that isolates scroll offset tracking
-struct NovelDetailScrollView<Content: View>: View {
+struct EntryDetailScrollView<Content: View>: View {
     let content: Content
 
     var body: some View {

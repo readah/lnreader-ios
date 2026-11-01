@@ -142,7 +142,7 @@ from the trace.
 
 ### Phase 4: the same shape for other screens, as traces demand
 
-History, Updates, entry detail (`NovelDetailView`), Browse. Apply snapshot +
+History, Updates, entry detail (`EntryDetailView`), Browse. Apply snapshot +
 store only to a screen that appears in a trace or shows a body that is not
 trivially cheap. Do not convert speculatively.
 

@@ -17,7 +17,7 @@ struct MigrationOriginRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            NovelCoverView(url: entry.displayThumbnailURL)
+            EntryCoverView(url: entry.displayThumbnailURL)
                 .frame(width: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.displayTitle)
@@ -148,7 +148,7 @@ struct MigrationCandidateRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            NovelCoverView(url: candidate.entry.thumbnailURL)
+            EntryCoverView(url: candidate.entry.thumbnailURL)
                 .frame(width: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(candidate.entry.title)

@@ -1,11 +1,11 @@
-// NovelInfoSection.swift
+// EntryInfoSection.swift
 // Expandable description and genre tags.
 //
 // Author, status and source are in the hero, so they are not repeated here.
 
 import SwiftUI
 
-struct NovelInfoSection: View {
+struct EntryInfoSection: View {
     let summary: String?
     let genres: [String]
     @Binding var showFullDescription: Bool

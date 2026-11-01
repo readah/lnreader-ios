@@ -92,7 +92,7 @@ without a cost, so `totalCostLimit` did nothing and 200 full-resolution covers
 could sit in memory at ~8 MB each.
 
 Now `CoverDecode` downsamples with ImageIO to a 700 px long edge and forces the
-decode at creation, and the cache is byte-accounted. `NovelCoverView` also lost
+decode at creation, and the cache is byte-accounted. `EntryCoverView` also lost
 its per-cell `GeometryReader`, which was a layout pass per cell.
 
 Manga pages keep full resolution (they are read, not glanced at) but are decoded
@@ -101,7 +101,7 @@ scrolling back over a page no longer decodes it again.
 
 ### 5. The chapter list recomputed ordering on every body pass
 
-`NovelDetailView.orderedChapters` was a computed property: a scanlator pass plus
+`EntryDetailView.orderedChapters` was a computed property: a scanlator pass plus
 a full `localizedStandardCompare` sort, read two to three times per body
 evaluation. It is now state, rebuilt when the chapters or the scanlator
 preference change. `ChapterDisplay` also formatted a release date per chapter in

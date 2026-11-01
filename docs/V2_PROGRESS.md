@@ -115,7 +115,7 @@ Pure rules live in `Features/MangaReader/MangaReaderControls.swift`, checked hea
   chosen sources (the source it is in is never searched) → confirm, which shows from → to, how
   many read chapters have a counterpart, and the carry options → the screen reports what carried
   over instead of closing over it, and Done opens the entry it created: the stack swaps its top
-  for the new one (`NovelDetailView(entry:onReplace:)`), so Back goes to the library rather than
+  for the new one (`EntryDetailView(entry:onReplace:)`), so Back goes to the library rather than
   to a book that just left it. **Bulk:** hold a source in Browse (0.4 s, the same hold the
   library and chapter lists use; it opens the sheet directly — no context menu, whose dismissal
   overlay hangs on screen for a beat) → the source, its entry count and the destination order →
@@ -167,7 +167,7 @@ Not done from Mihon: downloaded-only mode, per-title size, split tall images.
 
 ## Chapter fetching is manual
 
-Opening an entry no longer refetches it. `NovelDetailView.fetchDetails` fetches on its own
+Opening an entry no longer refetches it. `EntryDetailView.fetchDetails` fetches on its own
 only when there is nothing stored to show: a browse result, or a library entry with no
 `lastUpdate`. A stored entry shows "Last fetched …" with a **Refresh** button; a failed
 refresh raises an alert and leaves the page up. `addToLibrary` stamps `lastUpdate` when

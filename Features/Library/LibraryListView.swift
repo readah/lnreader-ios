@@ -138,7 +138,7 @@ struct LibraryListRow: View {
                 .zIndex(10)
             }
 
-            NovelCoverView(
+            EntryCoverView(
                 url: novel.displayThumbnailURL,
                 aspectRatio: LayoutConstants.coverAspectRatio
             )

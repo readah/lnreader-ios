@@ -95,11 +95,11 @@ struct SourceResultSection: View {
                 LazyHStack(spacing: 12) {
                     ForEach(result.entries.prefix(10)) { entry in
                         NavigationLink {
-                            NovelDetailView(sourceEntry: entry)
+                            EntryDetailView(sourceEntry: entry)
                                 .bookZoom(from: entry.url, in: bookTransitions)
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                NovelCoverView(
+                                EntryCoverView(
                                     url: entry.thumbnailURL,
                                     aspectRatio: LayoutConstants.coverAspectRatio
                                 )

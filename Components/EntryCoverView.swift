@@ -1,10 +1,10 @@
-// NovelCoverView.swift
-// Async image view for novel covers with placeholder and loading states.
+// EntryCoverView.swift
+// Async image view for an entry's cover, with placeholder and loading states.
 
 import SwiftUI
 
-/// Displays a novel cover image loaded asynchronously with a styled placeholder.
-struct NovelCoverView: View {
+/// Displays an entry's cover image loaded asynchronously with a styled placeholder.
+struct EntryCoverView: View {
     let url: String?
     var aspectRatio: CGFloat = LayoutConstants.coverAspectRatio
     var cornerRadius: CGFloat = LayoutConstants.cornerRadius
@@ -60,9 +60,9 @@ struct NovelCoverView: View {
 
 #Preview {
     HStack {
-        NovelCoverView(url: "https://picsum.photos/300/420")
+        EntryCoverView(url: "https://picsum.photos/300/420")
             .frame(width: 120)
-        NovelCoverView(url: nil)
+        EntryCoverView(url: nil)
             .frame(width: 120)
     }
     .padding()

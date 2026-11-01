@@ -48,7 +48,7 @@ struct HistoryView: View {
             }
             .navigationDestination(for: Entry.self) { entry in
                 // A migrated entry takes the place of the one that left the library.
-                NovelDetailView(entry: entry) { replacement in
+                EntryDetailView(entry: entry) { replacement in
                     if !path.isEmpty { path.removeLast() }
                     path.append(replacement)
                 }

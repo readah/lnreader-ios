@@ -359,7 +359,7 @@ struct BookAudioDownloadsView: View {
     private var dashboard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 14) {
-                NovelCoverView(url: coverURL, cornerRadius: 8).frame(width: 58, height: 82)
+                EntryCoverView(url: coverURL, cornerRadius: 8).frame(width: 58, height: 82)
                 VStack(alignment: .leading, spacing: 5) {
                     Text(bookTitle).font(.headline).lineLimit(2)
                     Text("\(Set(bookRecords.filter(\.isAvailable).map { $0.rendition.chapterId }).count) chapters offline · \(ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file))")
@@ -857,7 +857,7 @@ struct TTSChapterAudioDetailView: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: 14) {
-            NovelCoverView(url: coverURL, cornerRadius: 10).frame(width: 56, height: 80)
+            EntryCoverView(url: coverURL, cornerRadius: 10).frame(width: 56, height: 80)
             VStack(alignment: .leading, spacing: 4) {
                 Text(chapter.title)
                     .font(.title3.bold())

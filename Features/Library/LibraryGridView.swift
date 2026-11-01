@@ -161,7 +161,7 @@ struct NovelGridCell: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .topLeading) {
-                NovelCoverView(
+                EntryCoverView(
                     url: novel.displayThumbnailURL,
                     aspectRatio: LayoutConstants.coverAspectRatio
                 )

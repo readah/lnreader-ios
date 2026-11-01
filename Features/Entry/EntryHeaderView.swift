@@ -1,10 +1,10 @@
-// NovelHeaderView.swift
+// EntryHeaderView.swift
 // Hero header: cover, title, byline, status line and the primary reading action.
 
 import SwiftUI
 import Glur
 
-struct NovelHeaderView<Actions: View>: View {
+struct EntryHeaderView<Actions: View>: View {
     var transitionNamespace: Namespace.ID? = nil
     let name: String
     let author: String?

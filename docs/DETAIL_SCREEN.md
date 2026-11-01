@@ -1,6 +1,6 @@
 # Entry detail screen layout
 
-How `NovelDetailView` (novels and manga) places its controls, and where a new one goes.
+How `EntryDetailView` (novels and manga) places its controls, and where a new one goes.
 
 ## What was wrong
 
@@ -21,7 +21,7 @@ Controls were added wherever there was room, so the screen had no rules:
 | **Hero** | Title, byline (author · artist), status · source, the one primary action (Start/Continue) | Exactly one prominent button |
 | **Action bar** (`EntryActionBar`) | Entry actions that carry state: Library, Tracking, Downloads, Audio. Plain glass buttons in the hero, in the same `GlassEffectContainer` as the primary button | Four |
 | **Toolbar** | Refresh, as its own button. Later a `…` menu after it for occasional entry actions: Migrate, Edit info, Categories, Share | Refresh plus one menu |
-| **About** (`NovelInfoSection`) | Summary and genres. Nothing tappable except "Show more" | — |
+| **About** (`EntryInfoSection`) | Summary and genres. Nothing tappable except "Show more" | — |
 | **Chapter header** | Controls for the list only: search, and one sort/filter menu (order, filter, scanlators) | Two buttons |
 
 Consequences:
@@ -46,7 +46,7 @@ Consequences:
 
 1. Does it show state the user should see at a glance (on/off, a status)? Make it a tile in
    `EntryActionBar`, if fewer than four are showing for that kind. Otherwise:
-2. Give it its own toolbar button in `NovelDetailView`, next to Refresh. **Migrate**
+2. Give it its own toolbar button in `EntryDetailView`, next to Refresh. **Migrate**
    (`migrateButton`, library entries from sources only) is the one there today. Do not put a
    single action inside a `…` menu: an overflow menu earns its place only once it holds
    several.

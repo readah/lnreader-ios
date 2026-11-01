@@ -490,7 +490,7 @@ struct BulkMigrateReviewView: View {
 
     private func reviewRow(_ row: BulkMigrationModel.Row) -> some View {
         HStack(spacing: 12) {
-            NovelCoverView(url: row.entry.displayThumbnailURL).frame(width: 40)
+            EntryCoverView(url: row.entry.displayThumbnailURL).frame(width: 40)
             VStack(alignment: .leading, spacing: 3) {
                 Text(row.entry.displayTitle).font(Typography.headline).lineLimit(1)
                 detail(row)
