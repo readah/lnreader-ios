@@ -142,19 +142,18 @@ final class KaganeSource: MangaSource {
             let ext = page.ext ?? "jxl"
             let url = "\(base)/api/v2/books/page/\(chapterID)/\(page.pageID).\(ext)"
                 + "?token=\(challenge.accessToken)"
-            return SourcePage(index: index, url: url)
+            return SourcePage(index: index, url: url, headers: Self.imageHeaders)
         }
     }
 
-    /// The image host 404s without the site's `Origin` (upstream: `imageFetch = Fetch.XHR`).
-    func imageRequest(_ page: SourcePage) async throws -> URLRequest {
-        guard let url = URL(string: page.url) else { throw HTTPError.invalidURL(page.url) }
-        var request = URLRequest(url: url)
-        request.setValue("https://kagane.moe", forHTTPHeaderField: "Origin")
-        request.setValue("https://kagane.moe/", forHTTPHeaderField: "Referer")
-        for (name, value) in page.headers { request.setValue(value, forHTTPHeaderField: name) }
-        return request
-    }
+    /// The image host answers `404 {"error": -7}` unless the request carries the site's
+    /// `Origin` (upstream: `imageFetch = Fetch.XHR`). It has to live on the page rather than in
+    /// `imageRequest`: the reader loads through `PageLoader`, which only sends `page.headers`,
+    /// and only downloads go through `imageRequest`.
+    private static let imageHeaders = [
+        "Origin": "https://kagane.moe",
+        "Referer": "https://kagane.moe/",
+    ]
 
     // MARK: - Reader gate
 

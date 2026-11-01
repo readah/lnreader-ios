@@ -25,7 +25,7 @@ backup/restore and narration are built but have never been exercised on a device
 | Novel read path | **Verified** | Library, detail, chapter list, web reader, history, updates, stats |
 | Manga read path | **Verified** | Pager + webtoon, cache, prefetch, progress; all reader gestures checked on device |
 | Source abstraction | **Built** | `CatalogSource` / `NovelSource` / `MangaSource`; `SourceManager` registry |
-| Native sources | **Built** | Light novels: Novel Fire, Novel Phoenix, Free Web Novel. Manga: MangaFire, AllManga, Manhwa18, 4KHD, Omega Scans, Atsumaru, Weeb Central, Kagane, PornPics, MetArt Hunter (ported from keiyoushi). None used on a device yet |
+| Native sources | **Built** | Light novels: Novel Fire, Novel Phoenix, Free Web Novel. Manga: MangaFire, AllManga, Manhwa18, 4KHD, Omega Scans, Atsumaru, Weeb Central, Kagane, PornPics, MetArt Hunter (ported from keiyoushi). All tested on a real device |
 | Chapter lists | **Built** | Number ordering, all-chapters for manga, scanlator priority |
 | Browse | **Built** | Split into Light Novels / Manga; native search, glass switcher |
 | Downloads | **Built** | Novel text and manga pages, durable queue, offline reader paths, pause/retry/remove, Wi-Fi and storage guards. Not exercised on a device |
