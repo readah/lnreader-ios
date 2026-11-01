@@ -23,8 +23,6 @@ struct AppearanceSettingsView: View {
                 .disabled(!tintDetails)
             } header: {
                 Text("Detail screens")
-            } footer: {
-                Text("Draws one colour out of a book's cover and uses it behind the details, in the chapter list and on the chapter list's search and filter buttons. Text and controls keep their own colour.")
             }
         }
         .settingsScreen("Appearance")

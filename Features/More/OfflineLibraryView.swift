@@ -90,8 +90,6 @@ struct OfflineLibraryView: View {
             Toggle("Keep bookmarked chapters", isOn: $keepBookmarked)
         } header: {
             Text("While reading")
-        } footer: {
-            Text("Download ahead queues the next chapters when you open one, using your Wi-Fi setting. Delete after reading removes a chapter’s download once you finish the chapter that many places after it. Remove when marked as read does the same when you mark chapters read from the chapter list.")
         }
     }
 
@@ -103,8 +101,6 @@ struct OfflineLibraryView: View {
             .onMove { source, destination in downloads.move(pending, from: source, to: destination) }
         } header: {
             Text("Queue · \(pending.count)")
-        } footer: {
-            Text("Swipe a download to cancel it or run it next. Tap Edit to reorder.")
         }
     }
 
@@ -242,7 +238,7 @@ struct LibraryUpdateSettingsView: View {
                 Text("Refresh")
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("iOS chooses when background work runs. Low Power Mode and Background App Refresh settings can delay it.")
+                    Text("iOS decides when this runs; Low Power Mode can delay it.")
                     if !schedulingError.isEmpty { Text(schedulingError) }
                 }
             }
@@ -298,7 +294,7 @@ struct LibraryBackupView: View {
             } header: {
                 Text("Encrypted backup")
             } footer: {
-                Text("Includes your library, categories, chapter reading state, history and settings. Turn off Include imported books to leave out their files, which are large and do not compress; their reading progress is still saved, but you would import the files again after a restore. Downloaded chapter media and audio can be downloaded again. Keep the recovery key separately from your backup. You need it to restore on another device.")
+                Text("Keep the recovery key apart from the backup; restoring on another device needs it. Imported book files are large, so leaving them out means importing them again after a restore.")
             }
             Section {
                 SecureField("Recovery key from the backup device", text: $importKey)
@@ -307,14 +303,14 @@ struct LibraryBackupView: View {
             } header: {
                 Text("Restore and merge")
             } footer: {
-                Text("Leave blank to use this device’s key. Existing title details and newer reading progress are kept.")
+                Text("Leave blank to use this device’s key.")
             }
             Section {
                 Button("Choose .tachibk backup") { importsMihon = true; importing = true }.disabled(busy)
             } header: {
                 Text("Import from another app")
             } footer: {
-                Text("Restores the manga library, categories, read chapters, history and trackers from a .tachibk backup made by Mihon, Tachiyomi, Yokai or Tachimanga. Titles already here keep their details and the further reading progress.")
+                Text("From Mihon, Tachiyomi, Yokai or Tachimanga.")
             }
             if busy { ProgressView("Working…") }
             if let message { Section { Text(message) } }

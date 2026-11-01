@@ -12,7 +12,6 @@ struct TTSSettingsView: View {
             Section {
                 NarrationVoicePicker(selected: $selected)
             } header: { Text("Default narrator") }
-              footer: { Text("Breeze narration is prepared with your selected provider. These narrators are voice designs made for LNReader. Preview a voice, then download chapters to listen offline.") }
             Section {
                 if let engine = library.engineState, engine.needsAttention {
                     Label(engine.message, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.secondary)
@@ -37,10 +36,7 @@ struct TTSSettingsView: View {
                 }
                 Button("Refresh voices and download previews") { Task { await library.refreshVoices() } }
             } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Audio stays until you delete it. Deleting chapter audio also clears its server preparation and cache. Offline deletions sync when you reconnect.")
-                    if let error = library.errorMessage { Text(error) }
-                }
+                if let error = library.errorMessage { Text(error) }
             }
         }
         .settingsScreen("Narration")

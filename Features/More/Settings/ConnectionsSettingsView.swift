@@ -28,8 +28,6 @@ struct ConnectionsSettingsView: View {
             commentsSection
             Section {
                 Toggle("Update progress automatically", isOn: $tracking.autoUpdate)
-            } footer: {
-                Text("When you finish a chapter of a tracked title, AniList is updated with your highest chapter read. Updates made offline are sent when you are back online.")
             }
         }
         .settingsScreen("Connections")
@@ -65,8 +63,6 @@ struct ConnectionsSettingsView: View {
             }
         } header: {
             Text("Tracking")
-        } footer: {
-            Text("AniList stores the reading progress and status of the titles you track.")
         }
     }
 
@@ -94,7 +90,7 @@ struct ConnectionsSettingsView: View {
         } header: {
             Text("Comments")
         } footer: {
-            Text("Signing in to a site lets you post and vote on chapter comments. Reading and downloading never need it.")
+            Text("Only needed to post and vote on comments.")
         }
     }
 

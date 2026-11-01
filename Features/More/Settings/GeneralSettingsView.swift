@@ -49,8 +49,6 @@ struct GeneralSettingsView: View {
                 Toggle("Source language", isOn: $showLanguageBadges)
             } header: {
                 Text("Library badges")
-            } footer: {
-                Text("New counts unread chapters found by a refresh, until you clear Updates.")
             }
 
             Section("Library") {
@@ -71,9 +69,6 @@ struct GeneralSettingsView: View {
             Toggle("Hide 18+ sources", isOn: $sourceManager.hidesAdultSources)
         } header: {
             Text("Browse")
-        } footer: {
-            Text("Removes adult sources from Browse, search and every source picker. "
-                + "Titles already in your library keep working.")
         }
     }
 
@@ -97,13 +92,6 @@ struct GeneralSettingsView: View {
             }
         } header: {
             Text("Haptics")
-        } footer: {
-            Text(!hapticsEnabled
-                ? "No vibration anywhere in the app."
-                : scrollHaptics
-                    ? "Scrolling ticks steadily as the page moves, chapter breaks and the ends of a chapter knock, "
-                        + "and hold to scroll ticks as its speed changes. Applies everywhere in the app."
-                    : "Scrolling is silent. Page turns, hold to scroll and buttons still vibrate.")
         }
     }
 

@@ -160,9 +160,7 @@ struct MoreView: View {
             Text("Cloud sync")
         } footer: {
             if syncManager.currentUser != nil {
-                Text("Sync now sends this device's library to the backend. "
-                    + "Download replaces matching titles with the backend's copy; "
-                    + "titles that only exist on this device are kept.")
+                Text("Download replaces matching titles with the backend's copy.")
             }
         }
         .confirmationDialog(

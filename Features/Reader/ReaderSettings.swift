@@ -648,8 +648,6 @@ struct ReaderSettings: View {
             }
         } header: {
             Text("Focus Integration")
-        } footer: {
-            Text("Show the active Focus mode (moon, work, sleep) near the top of the reader area.")
         }
     }
 
@@ -665,11 +663,7 @@ struct ReaderSettings: View {
         } header: {
             Text("Scrolling")
         } footer: {
-            Text(hapticsEnabled
-                ? "A soft swell as the page moves: rising as you read on, falling as you scroll "
-                    + "back, and stronger the faster you flick. The master switch and strength "
-                    + "live in Settings › General › Haptics."
-                : "All vibration is off in Settings › General › Haptics.")
+            if !hapticsEnabled { Text("Vibration is off in Settings › General › Haptics.") }
         }
     }
 
