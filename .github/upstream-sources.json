@@ -7,8 +7,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/en/allanime",
-      "ported_sha": "298d9afd601987afc336f50a831bac90c62cacb4",
-      "ported_at": "2026-09-12",
+      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/AllMangaSource.swift"
       ]
@@ -19,8 +19,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/en/atsumaru",
-      "ported_sha": "6e1f43a774d599729709a7c2d427fae1211bf7ac",
-      "ported_at": "2026-10-10",
+      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/AtsumaruSource.swift"
       ]
@@ -31,8 +31,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/all/fourkhd",
-      "ported_sha": "0451dd015d3722808795109faf3ac3672336bcba",
-      "ported_at": "2026-10-12",
+      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/FourKHDSource.swift"
       ]
@@ -43,8 +43,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "lib-multisrc/heancms",
-      "ported_sha": "5090577e89e28a70359b09cdd5a439282af41f14",
-      "ported_at": "2026-10-16",
+      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/HeanCmsSource.swift"
       ]
@@ -55,8 +55,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/all/kagane",
-      "ported_sha": "b1456c302bebd02b922eac556545af78efd6fa65",
-      "ported_at": "2026-10-29",
+      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/KaganeSource.swift"
       ]
@@ -67,8 +67,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/all/mangafire",
-      "ported_sha": "58b628f0f460f92b7109940c540612783fc92617",
-      "ported_at": "2026-10-25",
+      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/MangaFireSource.swift",
         "Services/Sources/Native/MangaFireVrf.swift"
@@ -80,8 +80,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/en/manhwa18",
-      "ported_sha": "66017bf7cfd4dc8e2bb4c775699e7087b3cef407",
-      "ported_at": "2026-09-29",
+      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/Manhwa18Source.swift"
       ]
@@ -92,8 +92,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "lib-multisrc/masonry",
-      "ported_sha": "9b78a3583c5f7d6a3c0b79907ac95f70de33ef3c",
-      "ported_at": "2026-08-31",
+      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/MasonrySource.swift"
       ]
@@ -116,8 +116,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/all/pornpics",
-      "ported_sha": "ce0c3b46989df8224bbf8bff72b76b07ba957648",
-      "ported_at": "2026-10-03",
+      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/PornPicsSource.swift"
       ]
@@ -128,8 +128,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/en/weebcentral",
-      "ported_sha": "9b78a3583c5f7d6a3c0b79907ac95f70de33ef3c",
-      "ported_at": "2026-08-31",
+      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/WeebCentralSource.swift"
       ]
