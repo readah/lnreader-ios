@@ -284,6 +284,7 @@ struct LibraryBackupView: View {
     @State private var message: String?
     @State private var pending: LibraryBackup.Snapshot?
     @State private var pendingMihon: MihonBackup.Backup?
+    @AppStorage("backup.includeLocalBooks") private var includeLocalBooks = true
     /// Which kind of file the file picker is currently choosing.
     @State private var importsMihon = false
     var body: some View {
@@ -292,11 +293,12 @@ struct LibraryBackupView: View {
                 SecureField("Recovery key", text: $recoveryKey).textInputAutocapitalization(.never).autocorrectionDisabled()
                 Button("Copy recovery key") { UIPasteboard.general.string = recoveryKey }
                     .disabled(recoveryKey.isEmpty)
+                Toggle("Include imported books", isOn: $includeLocalBooks)
                 Button("Export .lnbk backup") { export() }.disabled(busy || recoveryKey.isEmpty)
             } header: {
                 Text("Encrypted backup")
             } footer: {
-                Text("Includes your library, categories, chapter reading state, history, settings, and imported local books. Downloaded chapter media and audio can be downloaded again. Keep the recovery key separately from your backup. You need it to restore on another device.")
+                Text("Includes your library, categories, chapter reading state, history and settings. Turn off Include imported books to leave out their files, which are large and do not compress; their reading progress is still saved, but you would import the files again after a restore. Downloaded chapter media and audio can be downloaded again. Keep the recovery key separately from your backup. You need it to restore on another device.")
             }
             Section {
                 SecureField("Recovery key from the backup device", text: $importKey)
@@ -386,7 +388,7 @@ struct LibraryBackupView: View {
         Task {
             defer { busy = false }
             do {
-                let snapshot = try LibraryBackup.snapshot(context: context)
+                let snapshot = try LibraryBackup.snapshot(context: context, includeLocalFiles: includeLocalBooks)
                 let key = recoveryKey
                 let data = try await Task.detached {
                     try LibraryBackup.seal(JSONEncoder().encode(snapshot), recoveryKey: key)

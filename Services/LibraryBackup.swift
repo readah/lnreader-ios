@@ -13,9 +13,7 @@ enum LibraryBackup {
         let categories: [Group]
         let preferences: Data
         let localFiles: [String: Data]
-        let profiles: [Profile]
     }
-    struct Profile: Codable { let name: String; let avatar: Data? }
     struct Group: Codable { let name: String; let order: Int; let flags: Int }
     struct Book: Codable {
         let sourceKey: String; let url: String; let kind: ContentKind
@@ -102,22 +100,28 @@ enum LibraryBackup {
             }
         }
     }
-    @MainActor static func snapshot(context: ModelContext) throws -> Snapshot {
+    /// `includeLocalFiles` adds the imported books' files. Their entries and reading state are always
+    /// saved; the files are what makes a backup large.
+    @MainActor static func snapshot(context: ModelContext, includeLocalFiles: Bool = true) throws -> Snapshot {
         let entries = try context.fetch(FetchDescriptor<Entry>())
         let groups = try context.fetch(FetchDescriptor<Category>())
         let prefs = UserDefaults.standard.dictionaryRepresentation().filter { key, _ in prefixes.contains { key.hasPrefix($0) } }
         let preferences = try PropertyListSerialization.data(fromPropertyList: prefs, format: .binary, options: 0)
         var files: [String: Data] = [:]
         let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("LocalNovels")
+        let rootPath = root.resolvingSymlinksInPath().path
         var total = 0
-        if let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) {
+        if includeLocalFiles, let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) {
             for case let file as URL in enumerator {
                 let properties = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
                 guard properties.isRegularFile == true, properties.isSymbolicLink != true else { continue }
                 guard (properties.fileSize ?? 0) < limit / 2 - total else { throw CocoaError(.fileReadTooLarge) }
                 let data = try Data(contentsOf: file); total += data.count
                 guard total < limit / 2 else { throw CocoaError(.fileReadTooLarge) }
-                files[String(file.path.dropFirst(root.path.count + 1))] = data
+                // The enumerator may report /private/var where `root` says /var, so compare resolved paths.
+                let resolved = file.resolvingSymlinksInPath().path
+                guard resolved.hasPrefix(rootPath + "/") else { continue }
+                files[String(resolved.dropFirst(rootPath.count + 1))] = data
             }
         }
         return Snapshot(createdAt: .now, entries: entries.map { e in
@@ -137,7 +141,7 @@ enum LibraryBackup {
                         url: t.remoteURL, start: t.startDate, finish: t.finishDate)
                 })
         }, categories: groups.map { Group(name: $0.name, order: $0.order, flags: $0.flags) }, preferences: preferences,
-            localFiles: files, profiles: try context.fetch(FetchDescriptor<UserProfile>()).map { Profile(name: $0.name, avatar: $0.avatarData) })
+            localFiles: files)
     }
     @MainActor static func restore(_ snapshot: Snapshot, container: ModelContainer) throws -> Int {
         try validate(snapshot)
@@ -195,9 +199,6 @@ enum LibraryBackup {
                     t.startDate = track.start; t.finishDate = track.finish
                 }
             }
-        }
-        if try context.fetch(FetchDescriptor<UserProfile>()).isEmpty, let profile = snapshot.profiles.first {
-            context.insert(UserProfile(name: profile.name, avatarData: profile.avatar))
         }
         // Existing local files win. Do not overwrite books already imported on this device.
         let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("LocalNovels")

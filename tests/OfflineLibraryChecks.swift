@@ -28,7 +28,7 @@ import SwiftData
         try rejects { _ = try LibraryBackup.open(data, recoveryKey: Data(repeating: 0, count: 32).base64EncodedString()) }
         try rejects { _ = try LibraryBackup.open(Data("not a backup".utf8), recoveryKey: key) }
         let bad = LibraryBackup.Snapshot(createdAt: .now, entries: [], categories: [], preferences: snapshot.preferences,
-                                        localFiles: ["../escape/file": Data()], profiles: [])
+                                        localFiles: ["../escape/file": Data()])
         try rejects { try LibraryBackup.validate(bad) }
         let target = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
         _ = try LibraryBackup.restore(restored, container: target)

@@ -33,3 +33,7 @@ LNReader.xcodeproj/xcshareddata/xcschemes/
 
 # Per-developer signing (see Config/Local.xcconfig.example)
 Config/Local.xcconfig
+
+# test backup files
+*.lnbk
+*.tachibk
