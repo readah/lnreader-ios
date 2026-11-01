@@ -412,6 +412,9 @@ final class WebtoonViewController: UIViewController,
         }
         if !didRestore, itemCount > 0 {
             didRestore = true
+            // Measure first: unmeasured rows are stubs at y = 0, and the report
+            // below would read that as a strip scrolled to its end.
+            collectionView.layoutIfNeeded()
             if startIndex > 0 { jump(to: startIndex) }
             // A strip that fits on screen, or restores to offset 0, never scrolls.
             scrollViewDidScroll(collectionView)
@@ -463,8 +466,11 @@ final class WebtoonViewController: UIViewController,
         // one; the reader has still reached it.
         // Judged by the last row's own edge rather than the offset limit, which
         // is off by the insets and by rows that resized after loading.
-        if let last = items.indices.last, case .page = items[last],
+        // Only for a strip that scrolls: unmeasured, or shorter than the screen,
+        // the last row is on screen at offset 0 too.
+        if maxOffsetY > 0, let last = items.indices.last, case .page = items[last],
            let frame = layout.layoutAttributesForItem(at: IndexPath(item: last, section: 0))?.frame,
+           frame.height > 0,
            bottom >= frame.maxY - 2 || top >= maxOffsetY - 1 {
             current = last
         }
