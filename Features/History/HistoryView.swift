@@ -52,6 +52,7 @@ struct HistoryView: View {
                     if !path.isEmpty { path.removeLast() }
                     path.append(replacement)
                 }
+                .id(entry.persistentModelID)
             }
             .navigationTitle("History")
             .onChange(of: resumeTrigger) { resumeLatest() }

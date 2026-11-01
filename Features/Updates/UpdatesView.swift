@@ -92,6 +92,7 @@ struct UpdatesView: View {
                     if !path.isEmpty { path.removeLast() }
                     path.append(replacement)
                 }
+                .id(entry.persistentModelID)
             }
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {

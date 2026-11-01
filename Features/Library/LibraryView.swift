@@ -128,6 +128,7 @@ struct LibraryView: View {
                     if !navigationPath.isEmpty { navigationPath.removeLast() }
                     navigationPath.append(replacement)
                 }
+                .id(novel.persistentModelID)
                 .bookZoom(from: novel.persistentModelID, in: bookTransitions)
             }
             .fileImporter(
