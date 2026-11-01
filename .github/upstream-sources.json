@@ -7,7 +7,7 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/en/allanime",
-      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_sha": "da367bef58d36a349e540d4220326e37793dec59",
       "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/AllMangaSource.swift"
@@ -55,7 +55,7 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/all/kagane",
-      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
+      "ported_sha": "f51006dfdafe6eec5f184887b8b94c238bd9ac35",
       "ported_at": "2026-11-01",
       "files": [
         "Services/Sources/Native/KaganeSource.swift"

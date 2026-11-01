@@ -1,4 +1,4 @@
-// KaganeSource.swift - Kagane (kagane.cx), ported from keiyoushi's src/all/kagane.
+// KaganeSource.swift - Kagane (kagane.moe), ported from keiyoushi's src/all/kagane.
 //
 // A JSON API site behind a two-step reader gate: `/api/integrity` hands out a token that the
 // challenge call (`POST /api/v2/books/<chapterId>`) exchanges for an access token plus a manifest of
@@ -6,8 +6,8 @@
 //
 // Upstream ships one instance per language (18 of them) over a mirror list. The app has no mirror
 // support and one source per language would mean 18 entries in Browse, so this is the English
-// instance on `kagane.cx` — `kagane.si`, the first mirror upstream lists, did not answer when the
-// port was written. Entry urls are the bare series id and chapters `/series/<id>/reader/<bookId>`,
+// instance on `kagane.moe`, upstream's single default host (it used to list `kagane.cx`, `.moe`,
+// `.net` as mirrors). Entry urls are the bare series id and chapters `/series/<id>/reader/<bookId>`,
 // the shape the Kotlin extension stores.
 //
 // Preferences are not ported (no per-source settings screen); the port runs with upstream's
@@ -35,9 +35,9 @@ final class KaganeSource: MangaSource {
 
     private let site = SiteClient(
         sourceKey: SourceKey.makeBuiltin(id: "kagane"),
-        baseURL: "https://kagane.cx"
+        baseURL: "https://kagane.moe"
     )
-    private let apiURL = "https://kagane.cx/api/v2"
+    private let apiURL = "https://kagane.moe/api/v2"
     private let state = KaganeState()
 
     func filtersAreComplete(_ filters: [SourceFilter]) -> Bool {
@@ -146,6 +146,16 @@ final class KaganeSource: MangaSource {
         }
     }
 
+    /// The image host 404s without the site's `Origin` (upstream: `imageFetch = Fetch.XHR`).
+    func imageRequest(_ page: SourcePage) async throws -> URLRequest {
+        guard let url = URL(string: page.url) else { throw HTTPError.invalidURL(page.url) }
+        var request = URLRequest(url: url)
+        request.setValue("https://kagane.moe", forHTTPHeaderField: "Origin")
+        request.setValue("https://kagane.moe/", forHTTPHeaderField: "Referer")
+        for (name, value) in page.headers { request.setValue(value, forHTTPHeaderField: name) }
+        return request
+    }
+
     // MARK: - Reader gate
 
     /// `POST /api/v2/books/<id>` with an integrity token, cached per chapter for as long as its
@@ -168,8 +178,6 @@ final class KaganeSource: MangaSource {
     private func integrityToken() async throws -> String {
         if let cached = await state.integrityToken() { return cached }
 
-        // The token is issued against the cookies the home page sets.
-        _ = try? await site.send("/")
         let dto = try await site.postJSON("/api/integrity", [String: Any]()).decoded(IntegrityDTO.self)
         let expiry = Date(timeIntervalSince1970: dto.exp)
         await state.store(integrity: dto.token, expires: expiry)
