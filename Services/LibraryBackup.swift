@@ -38,7 +38,9 @@ enum LibraryBackup {
         let lastChapter: Double; let total: Int; let status: Int; let score: Double
         let url: String; let start: Date?; let finish: Date?
     }
-    static let header = Data([0x4c, 0x4e, 0x52, 0x42, 2])
+    /// Version 2 sealed raw JSON. Version 3 deflates the JSON first (encrypted bytes do not compress).
+    static let legacyHeader = Data([0x4c, 0x4e, 0x52, 0x42, 2])
+    static let header = Data([0x4c, 0x4e, 0x52, 0x42, 3])
     static let limit = 256 * 1024 * 1024
     static let prefixes = ["reader.", "manga.", "general.", "browse.", "downloads.", "scanlators."]
     static func key() throws -> String {
@@ -57,17 +59,22 @@ enum LibraryBackup {
     static func seal(_ plaintext: Data, recoveryKey: String) throws -> Data {
         guard let bytes = Data(base64Encoded: recoveryKey.trimmingCharacters(in: .whitespacesAndNewlines)), bytes.count == 32,
               plaintext.count <= limit else { throw CocoaError(.fileReadCorruptFile) }
-        let sealed = try AES.GCM.seal(plaintext, using: SymmetricKey(data: bytes), authenticating: header)
+        let packed = try (plaintext as NSData).compressed(using: .zlib) as Data
+        let sealed = try AES.GCM.seal(packed, using: SymmetricKey(data: bytes), authenticating: header)
         guard let combined = sealed.combined else { throw CocoaError(.fileWriteUnknown) }
         return header + combined
     }
     static func open(_ encrypted: Data, recoveryKey: String) throws -> Snapshot {
-        guard encrypted.count <= limit + 64, encrypted.starts(with: header),
+        let compressed = encrypted.starts(with: header)
+        guard encrypted.count <= limit + 64, compressed || encrypted.starts(with: legacyHeader),
               let key = Data(base64Encoded: recoveryKey.trimmingCharacters(in: .whitespacesAndNewlines)), key.count == 32 else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        let box = try AES.GCM.SealedBox(combined: encrypted.dropFirst(header.count))
-        let plaintext = try AES.GCM.open(box, using: SymmetricKey(data: key), authenticating: header)
+        let used = compressed ? header : legacyHeader
+        let box = try AES.GCM.SealedBox(combined: encrypted.dropFirst(used.count))
+        var plaintext = try AES.GCM.open(box, using: SymmetricKey(data: key), authenticating: used)
+        if compressed { plaintext = try (plaintext as NSData).decompressed(using: .zlib) as Data }
+        guard plaintext.count <= limit else { throw CocoaError(.fileReadTooLarge) }
         let snapshot = try JSONDecoder().decode(Snapshot.self, from: plaintext)
         guard snapshot.version == 2 else { throw CocoaError(.fileReadCorruptFile) }
         try validate(snapshot)
