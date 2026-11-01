@@ -89,6 +89,7 @@
 		706569663D252E73D671EB2D /* ScanlatorSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFAA342A4ECE74C98B08EB38 /* ScanlatorSettingsView.swift */; };
 		70AF3DCF891725ECA2575D6E /* CustomAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B15C949254CA69833D943AC /* CustomAsyncImage.swift */; };
 		75995F2F5AE6494AC92E1C43 /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179854008F9437120FBDEDDB /* GlassCard.swift */; };
+		5E1A7C0D2B4F48A1900000C1 /* ReaderSheetChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E1A7C0D2B4F48A1900000C2 /* ReaderSheetChrome.swift */; };
 		76AB4E1FBB6ED32F82E3CDFB /* TTSChapterSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20C2FE9D0133D8131081F47 /* TTSChapterSource.swift */; };
 		783C6021A7654C62A3259F0B /* MangaReaderSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF92F808187C51A5EFE24B6 /* MangaReaderSettings.swift */; };
 		7AAEBEF2A33430B43EBBB97D /* SourceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7BE97FD82780D085139CC2 /* SourceModels.swift */; };
@@ -239,6 +240,7 @@
 		1760A05DBF7E612169B36D46 /* NovelCoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovelCoverView.swift; sourceTree = "<group>"; };
 		11778C8CA624C5440462A96E /* RowCoverButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowCoverButton.swift; sourceTree = "<group>"; };
 		179854008F9437120FBDEDDB /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
+		5E1A7C0D2B4F48A1900000C2 /* ReaderSheetChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderSheetChrome.swift; sourceTree = "<group>"; };
 		1B7EA7CD78D6EB26DF7E50ED /* LibraryToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryToolbar.swift; sourceTree = "<group>"; };
 		1EB73A2B0DA83A8720F604A6 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		CEDC4639229F16ABA0A13719 /* MainThreadWatchdog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainThreadWatchdog.swift; sourceTree = "<group>"; };
@@ -429,6 +431,7 @@
 				623EA90F63B7AF0B5426E96B /* DeleteBadge.swift */,
 				F1B42540A8553644A4BA6829 /* EmptyStateView.swift */,
 				179854008F9437120FBDEDDB /* GlassCard.swift */,
+				5E1A7C0D2B4F48A1900000C2 /* ReaderSheetChrome.swift */,
 				3C527A04CDCEF84E8DEA8EFB /* LoadingView.swift */,
 				1760A05DBF7E612169B36D46 /* NovelCoverView.swift */,
 				11778C8CA624C5440462A96E /* RowCoverButton.swift */,
@@ -947,6 +950,7 @@
 				218DA02F0D96994063EC4DBF /* MainThreadWatchdog.swift in Sources */,
 				0D61A49ED5F1D91D3A515A14 /* GeneralSettingsView.swift in Sources */,
 				75995F2F5AE6494AC92E1C43 /* GlassCard.swift in Sources */,
+				5E1A7C0D2B4F48A1900000C1 /* ReaderSheetChrome.swift in Sources */,
 				A1B2C3D4E5F600112233AA01 /* GlassControls.swift in Sources */,
 				3A7C1E0000000000000000B1 /* CoverTint.swift in Sources */,
 				3A7C1E0000000000000000B2 /* AppearanceSettingsView.swift in Sources */,

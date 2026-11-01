@@ -53,7 +53,6 @@ struct MangaReaderView: View {
     @State private var readerSize: CGSize = .zero
     @State private var scroller = WebtoonScrollController()
     @State private var showReaderSettings = false
-    @State private var settingsDetent: PresentationDetent = MangaReaderSettingsSheet.compactDetent
     /// Volume keys, auto scroll and hold-to-scroll: one stored value for the user.
     @AppStorage(MangaControlSettings.storageKey) private var inputSettings = MangaControlSettings()
     @State private var currentIndex = 0
@@ -78,6 +77,9 @@ struct MangaReaderView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var isDismissing = false
     @State private var scanlatorSettings: ScanlatorSettings
+    @AppStorage(AppearanceTint.enabledKey) private var tintDetails = true
+    @AppStorage(AppearanceTint.strengthKey) private var tintStrength = AppearanceTint.defaultStrength
+    @State private var coverTint: Color?
 
     init(sourceKey: String, entryURL: String?, chapterURL: String, chapterName: String) {
         self.sourceKey = sourceKey
@@ -88,6 +90,21 @@ struct MangaReaderView: View {
         // A chapter opened outside a library entry has no series to remember,
         // so it is keyed by the chapter instead of sharing one empty-URL key.
         self._seriesSettings = State(initialValue: MangaSeriesSettings(key: "\(sourceKey)::\(entryURL ?? chapterURL)"))
+    }
+
+    private var localEntry: Entry? {
+        guard let entryURL else { return nil }
+        let key = sourceKey
+        let predicate = #Predicate<Entry> { $0.url == entryURL && $0.sourceKey == key }
+        var descriptor = FetchDescriptor<Entry>(predicate: predicate)
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor))?.first
+    }
+
+    private var displayCover: String? {
+        localEntry?.displayThumbnailURL
+            ?? storedChapters.first?.entry?.displayThumbnailURL
+            ?? chapterSourceEntry?.thumbnailURL
     }
 
     private var mode: MangaReadingMode {
@@ -150,20 +167,20 @@ struct MangaReaderView: View {
             await loadChapter()
             await loadChapterChoices()
         }
-        .sheet(isPresented: $showChapterSheet) { chapterSheet }
-        .onChange(of: showReaderSettings) { _, visible in
-            if visible {
-                settingsDetent = MangaReaderSettingsSheet.compactDetent
-            }
+        .task(id: tintDetails ? (displayCover ?? "") : "") {
+            coverTint = tintDetails ? await CoverTint.color(for: displayCover) : nil
         }
+        .environment(\.coverTint, coverTint)
+        .sheet(isPresented: $showChapterSheet) { chapterSheet }
         .sheet(isPresented: $showReaderSettings) {
             MangaReaderSettingsSheet(
                 series: seriesSettings,
-                controls: $inputSettings,
-                detent: $settingsDetent
+                controls: $inputSettings
             )
-            .presentationDetents([MangaReaderSettingsSheet.compactDetent, .large], selection: $settingsDetent)
-            .presentationDragIndicator(.visible)
+            // One height: More settings opens its own sheet. Deliberately no
+            // cover tint here — the settings should not borrow the artwork.
+            .presentationDetents([MangaReaderSettingsSheet.compactDetent])
+            .presentationDragIndicator(.hidden)
             .presentationCornerRadius(28)
         }
         .onAppear {
@@ -859,7 +876,7 @@ struct MangaReaderView: View {
         Group {
             if !chapterChoices.isEmpty {
                 ChapterDirectoryView(
-                    entry: storedChapters.first?.entry,
+                    entry: storedChapters.first?.entry ?? localEntry,
                     chapters: directoryChapters,
                     sourceKey: sourceKey,
                     currentChapterPath: chapterURL,
@@ -892,6 +909,7 @@ struct MangaReaderView: View {
                 }
             }
         }
+        .environment(\.coverTint, coverTint)
         .task { await loadChapterChoices() }
     }
 
@@ -922,6 +940,7 @@ struct MangaReaderView: View {
 private struct MangaPageSlider: View {
     @Binding var index: Int
     let pageCount: Int
+    @Environment(\.coverTint) private var coverTint
 
     private var progress: CGFloat {
         CGFloat(index) / CGFloat(max(pageCount - 1, 1))
@@ -935,7 +954,7 @@ private struct MangaPageSlider: View {
                     .frame(width: 24, alignment: .trailing)
                 ZStack(alignment: .leading) {
                     Capsule().fill(.white.opacity(0.25))
-                    Capsule().fill(.white)
+                    Capsule().fill(coverTint ?? .white)
                         .frame(width: max(6, trackWidth * progress))
                 }
                 .frame(maxWidth: .infinity)

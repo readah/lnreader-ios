@@ -46,7 +46,6 @@ struct ReaderView: View {
     @State private var isLoading = true
     @State private var chrome: ReaderChromeState = .control
     @State private var showSettings = false
-    @State private var settingsDetent: PresentationDetent = ReaderSettings.compactDetent
     @State private var showChapterList = false
     @State private var startTTSWhenReady = false
     @State private var errorMessage: String?
@@ -82,6 +81,8 @@ struct ReaderView: View {
     @AppStorage("reader.lineFocusLines") private var lineFocusLines = 1
     @AppStorage("reader.lineFocusDulling") private var lineFocusDulling = "mid"
     @AppStorage("reader.verticalPadding") private var verticalPadding: Double = 20
+    /// Set by the brightness slider in the themes sheet; drawn as a veil below.
+    @AppStorage(ReaderDim.key) private var dimLevel: Double = 0
     @AppStorage("tts.voice") private var ttsVoiceId: String = "breeze-warm"
     @AppStorage("tts.speed") private var ttsSpeed: Double = 1.0
 
@@ -99,7 +100,6 @@ struct ReaderView: View {
     }
 
     private func openSettings() {
-        settingsDetent = ReaderSettings.compactDetent
         showSettings = true
     }
 
@@ -161,11 +161,6 @@ struct ReaderView: View {
                 dismiss()
             })
             .onChange(of: chrome) { _, state in ttsBridge.setControlsVisible(state.isControl) }
-            .onChange(of: showSettings) { _, visible in
-                if visible {
-                    settingsDetent = ReaderSettings.compactDetent
-                }
-            }
             .sheet(isPresented: $showSettings) { settingsSheet }
             .fullScreenCover(isPresented: $showChapterList) { chapterListSheet }
             .sheet(isPresented: $showLoginSheet) { loginSheet }
@@ -258,6 +253,15 @@ struct ReaderView: View {
             // solid gradient band across the top is gone.
             chromeGlur
 
+            // Brightness. A veil over the page only: the toolbar and the
+            // settings sheet stay at full contrast so they are still usable
+            // at the dimmest setting.
+            Color.black
+                .opacity(dimLevel * ReaderDim.maxVeil)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
             // Reading and listening share the same top navigation.
             ReaderToolbar(
                 chapterName: currentChapterName,
@@ -301,6 +305,7 @@ struct ReaderView: View {
             .ignoresSafeArea(.keyboard)
             .allowsHitTesting(!chrome.isControl && !isCurrentSpeech)
             .padding(.top, 12)
+
         }
     }
 
@@ -337,12 +342,13 @@ struct ReaderView: View {
             lineFocusDulling: $lineFocusDulling,
             characterSpacing: $characterSpacing,
             wordSpacing: $wordSpacing,
-            grainIntensity: $grainIntensity,
-            detent: $settingsDetent
+            grainIntensity: $grainIntensity
         )
-        // Compact height by default; full height on drag up
-        .presentationDetents([ReaderSettings.compactDetent, .large], selection: $settingsDetent)
-        .presentationDragIndicator(.visible)
+        // One height: Customize opens its own sheet for everything else.
+        .presentationDetents([ReaderSettings.compactDetent])
+        // The sheet draws its own close button and title, so the grabber would
+        // only push that header down.
+        .presentationDragIndicator(.hidden)
         .presentationCornerRadius(28)
     }
 

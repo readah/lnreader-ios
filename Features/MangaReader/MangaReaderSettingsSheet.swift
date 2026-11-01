@@ -10,136 +10,219 @@ struct MangaReaderSettingsSheet: View {
     let series: MangaSeriesSettings
     /// Volume keys, auto scroll, hold to scroll: these follow the user.
     @Binding var controls: MangaControlSettings
-    /// Presentation detent controlling compact vs expanded sheet.
-    @Binding var detent: PresentationDetent
 
     @AppStorage(Haptics.enabledKey) private var hapticsEnabled = true
     @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = true
     @ObservedObject private var focusManager = FocusModeManager.shared
 
-    static let compactDetent: PresentationDetent = .height(260)
+    static let compactDetent: PresentationDetent = .height(420)
+
+    /// Everything the half sheet leaves out, on its own sheet.
+    @State private var showAllSettings = false
 
     init(
         series: MangaSeriesSettings,
-        controls: Binding<MangaControlSettings>,
-        detent: Binding<PresentationDetent> = .constant(.large)
+        controls: Binding<MangaControlSettings>
     ) {
         self.series = series
         self._controls = controls
-        self._detent = detent
-    }
-
-    private var isExpanded: Bool {
-        detent == .large
     }
 
     var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("Reader Settings")
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
-                            .fontWeight(.semibold)
-                    }
-                }
+        VStack(spacing: 0) {
+            ReaderSheetHeader(title: "Manga Settings") { dismiss() }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+
+            compactContent
         }
-        .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: isExpanded)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .systemGroupedBackground))
+        .sheet(isPresented: $showAllSettings) { allSettingsSheet }
     }
 
-    // MARK: - Content
+    /// The rest of the settings, on a sheet of their own rather than growing
+    /// this one.
+    private var allSettingsSheet: some View {
+        VStack(spacing: 0) {
+            ReaderSheetHeader(title: "Manga Settings") { showAllSettings = false }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
 
-    @ViewBuilder
-    private var content: some View {
-        if isExpanded {
-            VStack(spacing: 0) {
-                // Sticky Reading Mode Visualizations at the top
-                readingModeHeader
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 12)
-                    .background(Color(uiColor: .systemGroupedBackground))
-
-                Form {
-                    if series.resolved.readingMode == .pager {
-                        directionSection
-                    }
-                    tapSection
-                    if series.resolved.readingMode == .webtoon {
-                        stripSection
-                    }
-                    volumeSection
-                    if series.resolved.readingMode == .webtoon {
-                        autoScrollSection
-                        holdSection
-                    }
-                    hapticsSection
-                    focusSection
-                    scopeSection
-                }
-            }
-            .transition(.opacity)
-        } else {
-            VStack(spacing: 12) {
-                readingModeHeader
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-
-                Form {
-                    Section {
-                        useForAllToggle
-                    } footer: {
-                        Text("Apply this reading layout to every title in your library.")
-                    }
-                }
-                .scrollDisabled(true)
-
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(uiColor: .systemGroupedBackground))
-            .transition(.opacity)
+            expandedContent
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .systemGroupedBackground))
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+        .presentationCornerRadius(28)
     }
 
-    // MARK: - Top Mode Visualizations
+    // MARK: - Half Sheet
 
-    private var readingModeHeader: some View {
+    /// Everything worth changing mid-chapter, and nothing else: how the pages
+    /// flow, where taps land, and the two scrolling aids.
+    private var compactContent: some View {
+        VStack(spacing: 0) {
+            readingModeCards
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+
+            tapZoneCard
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+
+            quickRows
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+
+            SheetActionButton(title: "More settings", systemImage: "slider.horizontal.3") {
+                showAllSettings = true
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+
+            Spacer(minLength: 0)
+        }
+        .transition(.opacity)
+    }
+
+    /// The layout as five words you can see at once, and the invert switch
+    /// underneath. No menu: the choice is the point of the row.
+    private var tapZoneCard: some View {
+        VStack(spacing: 12) {
+            Picker("Tap zones", selection: tapZoneBinding) {
+                ForEach(MangaTapZoneLayout.allCases) { layout in
+                    Text(layout.shortName).tag(layout)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            Toggle(isOn: invertTapZones) {
+                Text("Invert tap zones")
+                    .font(.system(size: 15))
+            }
+            .tint(AppTheme.controlFill)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+    }
+
+    private var tapZoneBinding: Binding<MangaTapZoneLayout> {
+        Binding(
+            get: { series.resolved.tapZones },
+            set: {
+                series.setTapZones($0)
+                if !series.hasOverrides { series.makeDefault() }
+            }
+        )
+    }
+
+    private var readingModeCards: some View {
         HStack(spacing: 12) {
-            ReadingModeCard(
-                mode: .pager,
-                isSelected: series.resolved.readingMode == .pager
-            ) {
-                withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
-                    series.setReadingMode(.pager)
-                    if !series.hasOverrides {
-                        series.makeDefault()
-                    }
-                }
-            }
-
-            ReadingModeCard(
-                mode: .webtoon,
-                isSelected: series.resolved.readingMode == .webtoon
-            ) {
-                withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
-                    series.setReadingMode(.webtoon)
-                    if !series.hasOverrides {
-                        series.makeDefault()
+            ForEach(MangaReadingMode.allCases) { mode in
+                ReadingModeCard(
+                    mode: mode,
+                    isSelected: series.resolved.readingMode == mode
+                ) {
+                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                        series.setReadingMode(mode)
+                        if !series.hasOverrides { series.makeDefault() }
                     }
                 }
             }
         }
+    }
+
+    /// Auto scroll style and hold to scroll in one card: the two things a
+    /// reader reaches for while the strip is already moving.
+    private var quickRows: some View {
+        VStack(spacing: 0) {
+            Menu {
+                Picker("Scroll style", selection: $controls.autoScrollStyle) {
+                    ForEach(AutoScrollStyle.allCases) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "play.circle")
+                        .font(.system(size: 15))
+                        .frame(width: 22)
+                        .foregroundStyle(.secondary)
+
+                    Text("Auto scroll")
+                        .font(.system(size: 15))
+
+                    Spacer(minLength: 8)
+
+                    Text(controls.autoScrollStyle.displayName)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+                .foregroundStyle(.primary)
+                .frame(height: 40)
+                .contentShape(.rect)
+            }
+
+            Divider()
+                .padding(.leading, 32)
+
+            Toggle(isOn: $controls.holdScrollEnabled) {
+                HStack(spacing: 10) {
+                    Image(systemName: "hand.point.up.left")
+                        .font(.system(size: 15))
+                        .frame(width: 22)
+                        .foregroundStyle(.secondary)
+
+                    Text("Hold to scroll")
+                        .font(.system(size: 15))
+                }
+            }
+            .tint(AppTheme.controlFill)
+            .frame(height: 40)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 2)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+    }
+
+    // MARK: - Full Sheet
+
+    private var expandedContent: some View {
+        Form {
+            if series.resolved.readingMode == .pager {
+                directionSection
+            }
+            tapSection
+            if series.resolved.readingMode == .webtoon {
+                stripSection
+            }
+            volumeSection
+            if series.resolved.readingMode == .webtoon {
+                autoScrollSection
+                holdSection
+            }
+            hapticsSection
+            focusSection
+            scopeSection
+        }
+        .transition(.opacity)
     }
 
     // MARK: - Page Direction (Paged Mode)
 
     private var directionSection: some View {
-        Section("Page Direction") {
+        Section {
             HStack(spacing: 12) {
                 directionCard(
                     title: "Left to Right",
-                    subtitle: "Standard order (1 → 2)",
                     icon: "arrow.right",
                     isSelected: series.resolved.direction == .leftToRight
                 ) {
@@ -151,7 +234,6 @@ struct MangaReaderSettingsSheet: View {
 
                 directionCard(
                     title: "Right to Left",
-                    subtitle: "Manga format (2 ← 1)",
                     icon: "arrow.left",
                     isSelected: series.resolved.direction == .rightToLeft
                 ) {
@@ -163,12 +245,17 @@ struct MangaReaderSettingsSheet: View {
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             .listRowBackground(Color.clear)
+        } header: {
+            SettingsSectionHeader(
+                title: "Page Direction",
+                info: "Which way the pages run. Right to left is the manga format: "
+                    + "page 2 sits to the left of page 1."
+            )
         }
     }
 
     private func directionCard(
         title: String,
-        subtitle: String,
         icon: String,
         isSelected: Bool,
         action: @escaping () -> Void
@@ -179,16 +266,10 @@ struct MangaReaderSettingsSheet: View {
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(isSelected ? .primary : .secondary)
 
-                VStack(spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
-
-                    Text(subtitle)
-                        .font(Typography.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
@@ -198,23 +279,17 @@ struct MangaReaderSettingsSheet: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isSelected ? AppTheme.controlFill : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? (AppTheme.primaryFill) : Color.clear, lineWidth: 2)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: - Tap Zones
 
     private var tapSection: some View {
-        Section("Navigation & Tap Zones") {
-            TapZoneVisualizer(
-                layout: series.resolved.tapZones,
-                inverted: series.resolved.invertTapZones
-            )
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            .listRowBackground(Color.clear)
-
+        Section {
             Picker("Tap layout", selection: Binding(
                 get: { series.resolved.tapZones },
                 set: {
@@ -227,21 +302,32 @@ struct MangaReaderSettingsSheet: View {
                 }
             }
 
-            Toggle("Invert tap zones", isOn: Binding(
-                get: { series.resolved.invertTapZones },
-                set: {
-                    series.setInvertTapZones($0)
-                    if !series.hasOverrides { series.makeDefault() }
-                }
-            ))
-            .tint(AppTheme.controlFill)
+            Toggle("Invert tap zones", isOn: invertTapZones)
+                .tint(AppTheme.controlFill)
+        } header: {
+            SettingsSectionHeader(
+                title: "Tap Zones",
+                info: "Where a tap lands on the page. The outer areas turn the page and the "
+                    + "middle opens the menu; each layout arranges them differently. Invert "
+                    + "swaps back and forward."
+            )
         }
+    }
+
+    private var invertTapZones: Binding<Bool> {
+        Binding(
+            get: { series.resolved.invertTapZones },
+            set: {
+                series.setInvertTapZones($0)
+                if !series.hasOverrides { series.makeDefault() }
+            }
+        )
     }
 
     // MARK: - Webtoon Strip
 
     private var stripSection: some View {
-        Section("Webtoon Strip") {
+        Section {
             sliderRow(
                 "Strip width",
                 symbol: "rectangle.portrait.split.2x1",
@@ -256,13 +342,19 @@ struct MangaReaderSettingsSheet: View {
                     Text(option.displayName).tag(option)
                 }
             }
+        } header: {
+            SettingsSectionHeader(
+                title: "Webtoon Strip",
+                info: "Strip width frames the art in still margins, so less of the field of "
+                    + "view moves. Momentum is how far the strip glides after a flick."
+            )
         }
     }
 
     // MARK: - Hardware Buttons
 
     private var volumeSection: some View {
-        Section("Hardware Buttons") {
+        Section {
             Toggle("Volume buttons turn pages", isOn: $controls.volumeKeys)
                 .tint(AppTheme.controlFill)
 
@@ -270,13 +362,18 @@ struct MangaReaderSettingsSheet: View {
                 Toggle("Invert volume buttons", isOn: $controls.volumeKeysInverted)
                     .tint(AppTheme.controlFill)
             }
+        } header: {
+            SettingsSectionHeader(
+                title: "Hardware Buttons",
+                info: "Volume up goes back and volume down goes forward, unless inverted."
+            )
         }
     }
 
     // MARK: - Auto Scroll
 
     private var autoScrollSection: some View {
-        Section("Auto Scroll") {
+        Section {
             Picker("Scroll style", selection: $controls.autoScrollStyle) {
                 ForEach(AutoScrollStyle.allCases) { style in
                     Text(style.displayName).tag(style)
@@ -291,13 +388,19 @@ struct MangaReaderSettingsSheet: View {
                 step: 5,
                 valueText: "\(Int(controls.autoScrollSpeed)) pt/s"
             )
+        } header: {
+            SettingsSectionHeader(
+                title: "Auto Scroll",
+                info: "Continuous crawls at the set pace. A screen at a time rests while you "
+                    + "read, then moves a whole screenful at the same average pace."
+            )
         }
     }
 
     // MARK: - Hold to Scroll
 
     private var holdSection: some View {
-        Section("Hold to Scroll") {
+        Section {
             Toggle("Hold to scroll", isOn: $controls.holdScrollEnabled)
                 .tint(AppTheme.controlFill)
 
@@ -343,6 +446,12 @@ struct MangaReaderSettingsSheet: View {
                     Text("Swipe Down").tag(false)
                 }
             }
+        } header: {
+            SettingsSectionHeader(
+                title: "Hold to Scroll",
+                info: "Hold a finger down to scroll at the base speed, then drag to speed up "
+                    + "or slow down. Min and max are how far a drag can take it."
+            )
         }
     }
 
@@ -357,13 +466,14 @@ struct MangaReaderSettingsSheet: View {
                     if on { Haptics.shared.scroll(ScrollFeel.detent(speed: 800)) }
                 }
         } header: {
-            Text("Scrolling")
-        } footer: {
-            Text(hapticsEnabled
-                ? "A soft swell as you scroll: rising as you read on, falling as you scroll back, "
-                    + "and stronger the faster you flick. The master switch and strength live in "
-                    + "Settings › General › Haptics."
-                : "All vibration is off in Settings › General › Haptics.")
+            SettingsSectionHeader(
+                title: "Scrolling",
+                info: hapticsEnabled
+                    ? "A soft swell as you scroll: rising as you read on, falling as you scroll "
+                        + "back, and stronger the faster you flick. The master switch and strength "
+                        + "live in Settings › General › Haptics."
+                    : "All vibration is off in Settings › General › Haptics."
+            )
         }
     }
 
@@ -384,9 +494,11 @@ struct MangaReaderSettingsSheet: View {
                 FocusStatusRow(focusManager: focusManager)
             }
         } header: {
-            Text("Focus Integration")
-        } footer: {
-            Text("Show the active Focus mode near the top of the page while the controls are hidden.")
+            SettingsSectionHeader(
+                title: "Focus Integration",
+                info: "Show the active Focus mode near the top of the page while the controls "
+                    + "are hidden."
+            )
         }
     }
 
@@ -403,7 +515,7 @@ struct MangaReaderSettingsSheet: View {
     // MARK: - Scope & Defaults
 
     private var scopeSection: some View {
-        Section("Settings Scope") {
+        Section {
             useForAllToggle
 
             if series.hasOverrides {
@@ -413,6 +525,12 @@ struct MangaReaderSettingsSheet: View {
                     }
                 }
             }
+        } header: {
+            SettingsSectionHeader(
+                title: "Settings Scope",
+                info: "Use for all series makes this layout the default for every title in "
+                    + "your library. Resetting drops this series' own changes."
+            )
         }
     }
 
@@ -447,17 +565,25 @@ struct MangaReaderSettingsSheet: View {
             LabeledContent {
                 Text(valueText).monospacedDigit()
             } label: {
-                Label(title, systemImage: symbol)
+                Label {
+                    Text(title)
+                } icon: {
+                    Image(systemName: symbol)
+                        .foregroundStyle(.secondary)
+                }
             }
             Slider(value: value, in: range, step: step)
+                .tint(AppTheme.controlFill)
                 .accessibilityLabel(title)
                 .accessibilityValue(valueText)
         }
     }
 }
 
-// MARK: - ReadingModeCard Component
+// MARK: - Reading Mode Card
 
+/// One of the two ways a chapter can flow: a single symbol and its name. The
+/// little page mockups that used to be here read as clutter at this size.
 struct ReadingModeCard: View {
     let mode: MangaReadingMode
     let isSelected: Bool
@@ -466,162 +592,30 @@ struct ReadingModeCard: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 8) {
-                // Visualization graphic
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color(.secondarySystemBackground))
-                        .frame(height: 64)
+                Image(systemName: mode.iconName)
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .frame(height: 26)
 
-                    if mode == .pager {
-                        // Mini dual pages
-                        HStack(spacing: 6) {
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .stroke(Color.secondary.opacity(0.4), lineWidth: 1.5)
-                                .frame(width: 32, height: 42)
-                                .overlay(
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        RoundedRectangle(cornerRadius: 1).fill(Color.secondary.opacity(0.4)).frame(width: 18, height: 2)
-                                        RoundedRectangle(cornerRadius: 1).fill(Color.secondary.opacity(0.3)).frame(width: 22, height: 2)
-                                        RoundedRectangle(cornerRadius: 1).fill(Color.secondary.opacity(0.3)).frame(width: 14, height: 2)
-                                    }
-                                )
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .stroke(Color.secondary.opacity(0.4), lineWidth: 1.5)
-                                .frame(width: 32, height: 42)
-                                .overlay(
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        RoundedRectangle(cornerRadius: 1).fill(Color.secondary.opacity(0.4)).frame(width: 20, height: 2)
-                                        RoundedRectangle(cornerRadius: 1).fill(Color.secondary.opacity(0.3)).frame(width: 16, height: 2)
-                                        RoundedRectangle(cornerRadius: 1).fill(Color.secondary.opacity(0.3)).frame(width: 22, height: 2)
-                                    }
-                                )
-                        }
-                    } else {
-                        // Mini vertical scrolling strip
-                        VStack(spacing: 3) {
-                            Image(systemName: "chevron.compact.up")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(.secondary.opacity(0.6))
-
-                            VStack(spacing: 2) {
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .stroke(Color.secondary.opacity(0.4), lineWidth: 1)
-                                    .frame(width: 44, height: 10)
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .stroke(Color.secondary.opacity(0.4), lineWidth: 1)
-                                    .frame(width: 44, height: 10)
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .stroke(Color.secondary.opacity(0.4), lineWidth: 1)
-                                    .frame(width: 44, height: 10)
-                            }
-
-                            Image(systemName: "chevron.compact.down")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(.secondary.opacity(0.6))
-                        }
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.top, 8)
-
-                VStack(spacing: 2) {
-                    Text(mode.displayName)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
-
-                    Text(mode == .pager ? "Horizontal pages" : "Continuous strip")
-                        .font(Typography.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.bottom, 8)
+                Text(mode.displayName)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
             }
             .frame(maxWidth: .infinity)
+            .frame(height: 70)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(
+                        Color(.secondarySystemGroupedBackground)
+                    )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isSelected ? AppTheme.controlFill : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? (AppTheme.primaryFill) : Color.clear, lineWidth: 2)
             )
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - TapZoneVisualizer Component
-
-struct TapZoneVisualizer: View {
-    let layout: MangaTapZoneLayout
-    let inverted: Bool
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(.tertiarySystemFill))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                )
-
-            switch layout {
-            case .standard:
-                HStack(spacing: 2) {
-                    zoneBox(inverted ? "Next" : "Prev", icon: inverted ? "chevron.right" : "chevron.left")
-                    zoneBox("Menu", icon: "slider.horizontal.3", isMenu: true)
-                    zoneBox(inverted ? "Prev" : "Next", icon: inverted ? "chevron.left" : "chevron.right")
-                }
-            case .lShaped:
-                VStack(spacing: 2) {
-                    zoneBox(inverted ? "Next" : "Prev", icon: inverted ? "chevron.up" : "chevron.left", height: 20)
-                    HStack(spacing: 2) {
-                        zoneBox(inverted ? "Next" : "Prev", icon: inverted ? "chevron.right" : "chevron.left")
-                        zoneBox("Menu", icon: "slider.horizontal.3", isMenu: true)
-                        zoneBox(inverted ? "Prev" : "Next", icon: inverted ? "chevron.left" : "chevron.right")
-                    }
-                    zoneBox(inverted ? "Prev" : "Next", icon: inverted ? "chevron.down" : "chevron.right", height: 20)
-                }
-            case .kindlish:
-                VStack(spacing: 2) {
-                    zoneBox("Menu", icon: "slider.horizontal.3", isMenu: true, height: 18)
-                    HStack(spacing: 2) {
-                        zoneBox(inverted ? "Next" : "Prev", icon: inverted ? "chevron.right" : "chevron.left")
-                        zoneBox(inverted ? "Prev" : "Next", icon: inverted ? "chevron.left" : "chevron.right")
-                    }
-                }
-            case .edge:
-                HStack(spacing: 2) {
-                    zoneBox(inverted ? "Next" : "Prev", icon: inverted ? "chevron.right" : "chevron.left", flex: 1)
-                    zoneBox("Menu", icon: "slider.horizontal.3", isMenu: true, flex: 2.5)
-                    zoneBox(inverted ? "Prev" : "Next", icon: inverted ? "chevron.left" : "chevron.right", flex: 1)
-                }
-            case .disabled:
-                zoneBox("Menu Only (Taps do not turn pages)", icon: "hand.tap", isMenu: true)
-            }
-        }
-        .frame(height: 72)
-        .padding(.vertical, 4)
-    }
-
-    private func zoneBox(
-        _ title: String,
-        icon: String,
-        isMenu: Bool = false,
-        flex: CGFloat = 1,
-        height: CGFloat? = nil
-    ) -> some View {
-        VStack(spacing: 2) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
-            Text(title)
-                .font(.system(size: 9, weight: .medium))
-        }
-        .foregroundStyle(isMenu ? Color.secondary : Color.primary)
-        .frame(maxWidth: .infinity, maxHeight: height ?? .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(isMenu ? Color.secondary.opacity(0.12) : Color(.secondarySystemFill))
-        )
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

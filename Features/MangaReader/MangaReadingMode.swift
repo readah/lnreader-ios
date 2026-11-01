@@ -18,8 +18,8 @@ enum MangaReadingMode: String, Codable, CaseIterable, Identifiable {
 
     var iconName: String {
         switch self {
-        case .pager: "rectangle.portrait.on.rectangle.portrait"
-        case .webtoon: "rectangle.portrait.fill"
+        case .pager: "book.pages"
+        case .webtoon: "scroll"
         }
     }
 }

@@ -49,6 +49,17 @@ enum ReaderAppearance {
     }()
 }
 
+/// The brightness slider in the themes sheet.
+///
+/// Stored as 0…1 and applied as a black veil over the page: it dims the text
+/// for night reading without touching the toolbar or the sheet, and it never
+/// changes the system brightness the way a real brightness control would.
+enum ReaderDim {
+    static let key = "reader.dimLevel"
+    /// The veil at full slider travel. Below 1 so text stays legible.
+    static let maxVeil: Double = 0.55
+}
+
 enum AppMotion {
     static func gentle(reduceMotion: Bool) -> Animation? {
         reduceMotion ? nil : .snappy(duration: 0.3, extraBounce: 0.03)

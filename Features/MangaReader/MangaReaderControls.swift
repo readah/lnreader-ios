@@ -45,6 +45,17 @@ enum MangaTapZoneLayout: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Short enough for a segmented control.
+    var shortName: String {
+        switch self {
+        case .standard: "Default"
+        case .lShaped: "L-shape"
+        case .kindlish: "Kindle"
+        case .edge: "Edges"
+        case .disabled: "Off"
+        }
+    }
+
     var summary: String {
         switch self {
         case .standard: "Left and right thirds turn the page"
