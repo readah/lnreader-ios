@@ -44,8 +44,10 @@ struct ReaderSettings: View {
     @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = true
     @ObservedObject private var focusManager = FocusModeManager.shared
 
+    static let compactDetent: PresentationDetent = .height(215)
+
     private var isExpanded: Bool {
-        isEmbedded || detent != .medium
+        isEmbedded || detent == .large
     }
 
     init(
@@ -248,11 +250,11 @@ struct ReaderSettings: View {
             }
             .transition(.opacity)
         } else {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
                 themesGrid
+                    .padding(.top, 4)
                 Spacer()
             }
-            .padding(.top, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(settingsBackground)
             .transition(.opacity)

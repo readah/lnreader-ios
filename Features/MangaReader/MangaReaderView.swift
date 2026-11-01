@@ -53,7 +53,7 @@ struct MangaReaderView: View {
     @State private var readerSize: CGSize = .zero
     @State private var scroller = WebtoonScrollController()
     @State private var showReaderSettings = false
-    @State private var settingsDetent: PresentationDetent = .medium
+    @State private var settingsDetent: PresentationDetent = MangaReaderSettingsSheet.compactDetent
     /// Volume keys, auto scroll and hold-to-scroll: one stored value for the user.
     @AppStorage(MangaControlSettings.storageKey) private var inputSettings = MangaControlSettings()
     @State private var currentIndex = 0
@@ -153,7 +153,7 @@ struct MangaReaderView: View {
         .sheet(isPresented: $showChapterSheet) { chapterSheet }
         .onChange(of: showReaderSettings) { _, visible in
             if visible {
-                settingsDetent = .medium
+                settingsDetent = MangaReaderSettingsSheet.compactDetent
             }
         }
         .sheet(isPresented: $showReaderSettings) {
@@ -162,7 +162,7 @@ struct MangaReaderView: View {
                 controls: $inputSettings,
                 detent: $settingsDetent
             )
-            .presentationDetents([.medium, .large], selection: $settingsDetent)
+            .presentationDetents([MangaReaderSettingsSheet.compactDetent, .large], selection: $settingsDetent)
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(28)
         }

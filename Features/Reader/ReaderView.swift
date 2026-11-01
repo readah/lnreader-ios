@@ -46,7 +46,7 @@ struct ReaderView: View {
     @State private var isLoading = true
     @State private var chrome: ReaderChromeState = .control
     @State private var showSettings = false
-    @State private var settingsDetent: PresentationDetent = .medium
+    @State private var settingsDetent: PresentationDetent = ReaderSettings.compactDetent
     @State private var showChapterList = false
     @State private var startTTSWhenReady = false
     @State private var errorMessage: String?
@@ -99,7 +99,7 @@ struct ReaderView: View {
     }
 
     private func openSettings() {
-        settingsDetent = .medium
+        settingsDetent = ReaderSettings.compactDetent
         showSettings = true
     }
 
@@ -163,7 +163,7 @@ struct ReaderView: View {
             .onChange(of: chrome) { _, state in ttsBridge.setControlsVisible(state.isControl) }
             .onChange(of: showSettings) { _, visible in
                 if visible {
-                    settingsDetent = .medium
+                    settingsDetent = ReaderSettings.compactDetent
                 }
             }
             .sheet(isPresented: $showSettings) { settingsSheet }
@@ -340,9 +340,8 @@ struct ReaderView: View {
             grainIntensity: $grainIntensity,
             detent: $settingsDetent
         )
-        // Full height by default, so every setting fits without scrolling;
-        // half height is one drag down, same as the manga reader's sheet.
-        .presentationDetents([.medium, .large], selection: $settingsDetent)
+        // Compact height by default; full height on drag up
+        .presentationDetents([ReaderSettings.compactDetent, .large], selection: $settingsDetent)
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
     }
