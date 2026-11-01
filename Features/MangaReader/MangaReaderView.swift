@@ -342,7 +342,16 @@ struct MangaReaderView: View {
                 HStack {
                     glassCircleButton("chevron.left", label: "Close reader") { dismiss() }
                     Spacer()
-                    settingsButton
+                    HStack(spacing: 8) {
+                        // Auto scroll only moves the webtoon strip.
+                        if mode == .webtoon {
+                            glassCircleButton(
+                                "play.circle",
+                                label: "Start auto scroll"
+                            ) { toggleAutoScroll() }
+                        }
+                        settingsButton
+                    }
                 }
 
                 Button { showChapterSheet = true } label: {
