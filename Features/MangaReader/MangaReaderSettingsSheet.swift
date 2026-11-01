@@ -200,17 +200,15 @@ struct MangaReaderSettingsSheet: View {
             if series.resolved.readingMode == .pager {
                 directionSection
             }
-            tapSection
+            controlsSection
             if series.resolved.readingMode == .webtoon {
                 stripSection
             }
-            volumeSection
             if series.resolved.readingMode == .webtoon {
                 autoScrollSection
                 holdSection
             }
-            hapticsSection
-            focusSection
+            environmentSection
             scopeSection
         }
         .transition(.opacity)
@@ -286,9 +284,9 @@ struct MangaReaderSettingsSheet: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    // MARK: - Tap Zones
+    // MARK: - Controls (tap zones and volume buttons)
 
-    private var tapSection: some View {
+    private var controlsSection: some View {
         Section {
             Picker("Tap layout", selection: Binding(
                 get: { series.resolved.tapZones },
@@ -304,12 +302,21 @@ struct MangaReaderSettingsSheet: View {
 
             Toggle("Invert tap zones", isOn: invertTapZones)
                 .tint(AppTheme.controlFill)
+
+            Toggle("Volume buttons turn pages", isOn: $controls.volumeKeys)
+                .tint(AppTheme.controlFill)
+
+            if controls.volumeKeys {
+                Toggle("Invert volume buttons", isOn: $controls.volumeKeysInverted)
+                    .tint(AppTheme.controlFill)
+            }
         } header: {
             SettingsSectionHeader(
-                title: "Tap Zones",
+                title: "Controls",
                 info: "Where a tap lands on the page. The outer areas turn the page and the "
                     + "middle opens the menu; each layout arranges them differently. Invert "
-                    + "swaps back and forward."
+                    + "swaps back and forward. Volume up goes back and volume down goes "
+                    + "forward, unless inverted."
             )
         }
     }
@@ -347,25 +354,6 @@ struct MangaReaderSettingsSheet: View {
                 title: "Webtoon Strip",
                 info: "Strip width frames the art in still margins, so less of the field of "
                     + "view moves. Momentum is how far the strip glides after a flick."
-            )
-        }
-    }
-
-    // MARK: - Hardware Buttons
-
-    private var volumeSection: some View {
-        Section {
-            Toggle("Volume buttons turn pages", isOn: $controls.volumeKeys)
-                .tint(AppTheme.controlFill)
-
-            if controls.volumeKeys {
-                Toggle("Invert volume buttons", isOn: $controls.volumeKeysInverted)
-                    .tint(AppTheme.controlFill)
-            }
-        } header: {
-            SettingsSectionHeader(
-                title: "Hardware Buttons",
-                info: "Volume up goes back and volume down goes forward, unless inverted."
             )
         }
     }
@@ -455,9 +443,9 @@ struct MangaReaderSettingsSheet: View {
         }
     }
 
-    // MARK: - Scrolling & Haptics
+    // MARK: - Haptics & Focus
 
-    private var hapticsSection: some View {
+    private var environmentSection: some View {
         Section {
             Toggle("Scroll haptics", isOn: $scrollHaptics)
                 .tint(AppTheme.controlFill)
@@ -465,22 +453,7 @@ struct MangaReaderSettingsSheet: View {
                 .onChange(of: scrollHaptics) { _, on in
                     if on { Haptics.shared.scroll(ScrollFeel.detent(speed: 800)) }
                 }
-        } header: {
-            SettingsSectionHeader(
-                title: "Scrolling",
-                info: hapticsEnabled
-                    ? "A soft swell as you scroll: rising as you read on, falling as you scroll "
-                        + "back, and stronger the faster you flick. The master switch and strength "
-                        + "live in Settings › General › Haptics."
-                    : "All vibration is off in Settings › General › Haptics."
-            )
-        }
-    }
 
-    // MARK: - Focus Integration
-
-    private var focusSection: some View {
-        Section {
             Picker("Active Focus display", selection: focusOverride) {
                 Text("Off").tag("none")
                 Text("System auto").tag("auto")
@@ -495,9 +468,14 @@ struct MangaReaderSettingsSheet: View {
             }
         } header: {
             SettingsSectionHeader(
-                title: "Focus Integration",
-                info: "Show the active Focus mode near the top of the page while the controls "
-                    + "are hidden."
+                title: "Haptics & Focus",
+                info: (hapticsEnabled
+                    ? "Scroll haptics are a soft swell as you scroll, stronger the faster you "
+                        + "flick. The master switch and strength live in Settings › General › "
+                        + "Haptics. "
+                    : "All vibration is off in Settings › General › Haptics. ")
+                    + "The Focus display shows the active Focus mode near the top of the page "
+                    + "while the controls are hidden."
             )
         }
     }
