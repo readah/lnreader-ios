@@ -15,6 +15,25 @@ enum MangaTapAction: Equatable {
     case previous
     case next
     case menu
+
+    /// The same tap with the sides swapped. The menu never moves.
+    var reversed: MangaTapAction {
+        switch self {
+        case .previous: .next
+        case .next: .previous
+        case .menu: .menu
+        }
+    }
+}
+
+/// One region of the reader screen, and what a tap inside it does.
+///
+/// These rectangles are the layout: `action(at:)` looks a tap up in them and the
+/// settings sheet draws them, so the picture a reader is shown cannot disagree
+/// with the tap they make.
+struct MangaTapZone: Equatable {
+    let action: MangaTapAction
+    let rect: CGRect
 }
 
 /// How the screen is divided into tap targets in paged mode.
@@ -24,7 +43,8 @@ enum MangaTapAction: Equatable {
 enum MangaTapZoneLayout: String, Codable, CaseIterable, Identifiable {
     /// Left third previous, right third next, middle opens the menu.
     case standard
-    /// Top and left previous, bottom and right next, centre opens the menu.
+    /// The whole bottom row and right column next, the rest of the top row and
+    /// left column previous, centre opens the menu.
     case lShaped
     /// Left third previous, everything else next, a strip along the top opens the menu.
     case kindlish
@@ -66,6 +86,71 @@ enum MangaTapZoneLayout: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// The Kindle layout's menu strip, as a share of the screen height.
+    static let kindleMenuHeight: CGFloat = 0.12
+    /// The Edges layout's page-turn strips, as a share of the screen width.
+    static let edgeStripWidth: CGFloat = 0.2
+
+    /// The screen cut into tap targets for a reader of `size`: disjoint
+    /// rectangles that cover all of it.
+    ///
+    /// `inverted` and `rightToLeft` are applied here, so each zone's action is
+    /// what a tap on it does right now. Two reversals cancel: an inverted layout
+    /// on a right-to-left series is the left-to-right layout again.
+    func zones(
+        in size: CGSize,
+        inverted: Bool = false,
+        rightToLeft: Bool = false
+    ) -> [MangaTapZone] {
+        guard size.width > 0, size.height > 0 else { return [] }
+        let w = size.width
+        let h = size.height
+        let thirdW = w / 3
+        let thirdH = h / 3
+
+        let base: [MangaTapZone]
+        switch self {
+        case .standard:
+            base = [
+                MangaTapZone(action: .previous, rect: CGRect(x: 0, y: 0, width: thirdW, height: h)),
+                MangaTapZone(action: .menu, rect: CGRect(x: thirdW, y: 0, width: thirdW, height: h)),
+                MangaTapZone(action: .next, rect: CGRect(x: 2 * thirdW, y: 0, width: thirdW, height: h)),
+            ]
+        case .lShaped:
+            // Two Ls around a centre square. Forward owns the whole bottom row
+            // and the whole right column — the easy sweep for a right thumb —
+            // so back gets what is left of the top row and left column. A
+            // corner belongs to the band that runs through it: bottom-left
+            // goes forward.
+            base = [
+                MangaTapZone(action: .previous, rect: CGRect(x: 0, y: 0, width: 2 * thirdW, height: thirdH)),
+                MangaTapZone(action: .previous, rect: CGRect(x: 0, y: thirdH, width: thirdW, height: thirdH)),
+                MangaTapZone(action: .menu, rect: CGRect(x: thirdW, y: thirdH, width: thirdW, height: thirdH)),
+                MangaTapZone(action: .next, rect: CGRect(x: 2 * thirdW, y: 0, width: thirdW, height: 2 * thirdH)),
+                MangaTapZone(action: .next, rect: CGRect(x: 0, y: 2 * thirdH, width: w, height: thirdH)),
+            ]
+        case .kindlish:
+            let top = h * Self.kindleMenuHeight
+            base = [
+                MangaTapZone(action: .menu, rect: CGRect(x: 0, y: 0, width: w, height: top)),
+                MangaTapZone(action: .previous, rect: CGRect(x: 0, y: top, width: thirdW, height: h - top)),
+                MangaTapZone(action: .next, rect: CGRect(x: thirdW, y: top, width: w - thirdW, height: h - top)),
+            ]
+        case .edge:
+            let strip = w * Self.edgeStripWidth
+            base = [
+                MangaTapZone(action: .previous, rect: CGRect(x: 0, y: 0, width: strip, height: h)),
+                MangaTapZone(action: .menu, rect: CGRect(x: strip, y: 0, width: w - 2 * strip, height: h)),
+                MangaTapZone(action: .next, rect: CGRect(x: w - strip, y: 0, width: strip, height: h)),
+            ]
+        case .disabled:
+            base = [MangaTapZone(action: .menu, rect: CGRect(origin: .zero, size: size))]
+        }
+
+        guard inverted != rightToLeft else { return base }
+        return base.map { MangaTapZone(action: $0.action.reversed, rect: $0.rect) }
+    }
+
     /// The action for a tap at `point` in a reader of `size`.
     func action(
         at point: CGPoint,
@@ -73,38 +158,8 @@ enum MangaTapZoneLayout: String, Codable, CaseIterable, Identifiable {
         inverted: Bool = false,
         rightToLeft: Bool = false
     ) -> MangaTapAction {
-        guard size.width > 0, size.height > 0 else { return .menu }
-        let x = point.x / size.width
-        let y = point.y / size.height
-
-        let base: MangaTapAction
-        switch self {
-        case .standard:
-            base = x < 1.0 / 3 ? .previous : (x > 2.0 / 3 ? .next : .menu)
-        case .lShaped:
-            if y < 1.0 / 3 || x < 1.0 / 3 {
-                base = .previous
-            } else if x > 2.0 / 3 || y > 2.0 / 3 {
-                base = .next
-            } else {
-                base = .menu
-            }
-        case .kindlish:
-            if y < 0.12 { base = .menu } else { base = x < 1.0 / 3 ? .previous : .next }
-        case .edge:
-            base = x < 0.2 ? .previous : (x > 0.8 ? .next : .menu)
-        case .disabled:
-            return .menu
-        }
-
-        // Two reversals cancel: an inverted layout on a right-to-left series
-        // is the left-to-right layout again.
-        guard inverted != rightToLeft else { return base }
-        switch base {
-        case .previous: return .next
-        case .next: return .previous
-        case .menu: return .menu
-        }
+        zones(in: size, inverted: inverted, rightToLeft: rightToLeft)
+            .first { $0.rect.contains(point) }?.action ?? .menu
     }
 }
 

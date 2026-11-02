@@ -88,7 +88,8 @@ struct MangaReaderSettingsSheet: View {
     }
 
     /// The layout as five words you can see at once, and the invert switch
-    /// underneath. No menu: the choice is the point of the row.
+    /// underneath. No menu: the choice is the point of the row. The picture of
+    /// the zones lives in the full settings sheet, where there is room for it.
     private var tapZoneCard: some View {
         VStack(spacing: 12) {
             Picker("Tap zones", selection: tapZoneBinding) {
@@ -113,9 +114,11 @@ struct MangaReaderSettingsSheet: View {
     private var tapZoneBinding: Binding<MangaTapZoneLayout> {
         Binding(
             get: { series.resolved.tapZones },
-            set: {
-                series.setTapZones($0)
-                if !series.hasOverrides { series.makeDefault() }
+            set: { layout in
+                withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                    series.setTapZones(layout)
+                    if !series.hasOverrides { series.makeDefault() }
+                }
             }
         )
     }
@@ -288,17 +291,30 @@ struct MangaReaderSettingsSheet: View {
 
     private var controlsSection: some View {
         Section {
-            Picker("Tap layout", selection: Binding(
-                get: { series.resolved.tapZones },
-                set: {
-                    series.setTapZones($0)
-                    if !series.hasOverrides { series.makeDefault() }
-                }
-            )) {
+            // On the section's own row, not a clear one: the picture belongs to
+            // the picker under it, and a card of its own above the group read
+            // as something that had landed there by accident.
+            TapZoneDiagram(
+                layout: series.resolved.tapZones,
+                inverted: series.resolved.invertTapZones,
+                rightToLeft: series.resolved.direction == .rightToLeft
+            )
+            .frame(maxWidth: .infinity)
+            .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 10, trailing: 16))
+            // The row's separator would start at the picture's leading edge, a
+            // third of the way in. The picture needs no rule under it.
+            .listRowSeparator(.hidden)
+            .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: series.resolved)
+
+            // Segmented, so the picture above stays visible while the layout is
+            // chosen. A menu would cover the very thing being chosen.
+            Picker("Tap zones", selection: tapZoneBinding) {
                 ForEach(MangaTapZoneLayout.allCases) { layout in
-                    Text(layout.displayName).tag(layout)
+                    Text(layout.shortName).tag(layout)
                 }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
 
             Toggle("Invert tap zones", isOn: invertTapZones)
                 .tint(AppTheme.controlFill)
@@ -313,8 +329,8 @@ struct MangaReaderSettingsSheet: View {
         } header: {
             SettingsSectionHeader(
                 title: "Controls",
-                info: "Where a tap lands on the page. The outer areas turn the page and the "
-                    + "middle opens the menu; each layout arranges them differently. Invert "
+                info: "Where a tap lands on the page. Red turns back, blue turns forward and "
+                    + "the rest opens the menu; each layout arranges them differently. Invert "
                     + "swaps back and forward. Volume up goes back and volume down goes "
                     + "forward, unless inverted."
             )
@@ -595,5 +611,117 @@ struct ReadingModeCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+// MARK: - Tap Zone Diagram
+
+/// The reader screen as a picture: one translucent box per tap target, red for
+/// back, blue for forward, the menu left almost bare.
+///
+/// Drawn from `MangaTapZoneLayout.zones(in:)` — the same rectangles
+/// `action(at:)` tests a tap against — so the picture cannot promise something
+/// the tap will not do. The colours belong to the action, not to the side, so
+/// inverting swaps which side is red instead of lying about it.
+struct TapZoneDiagram: View {
+    let layout: MangaTapZoneLayout
+    var inverted = false
+    var rightToLeft = false
+
+    /// A phone's proportions. This is the only picture of the zones in the app,
+    /// so it is drawn large enough to read at a glance.
+    var size = CGSize(width: 180, height: 230)
+
+    /// Labels and corners grow with the screen, so a bigger picture is readable
+    /// rather than just bigger.
+    private var scale: CGFloat { size.width / 110 }
+
+    private var zones: [MangaTapZone] {
+        layout.zones(in: size, inverted: inverted, rightToLeft: rightToLeft)
+    }
+
+    /// One label per action, in the largest box that carries it: the L layout is
+    /// drawn from five boxes but has three names.
+    private var anchors: [MangaTapZone] {
+        var largest: [MangaTapAction: MangaTapZone] = [:]
+        for zone in zones {
+            let area = zone.rect.width * zone.rect.height
+            if let kept = largest[zone.action],
+               kept.rect.width * kept.rect.height >= area { continue }
+            largest[zone.action] = zone
+        }
+        return zones.filter { largest[$0.action] == $0 }
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Color(white: 0.09)
+
+            ForEach(Array(zones.enumerated()), id: \.offset) { _, zone in
+                Rectangle()
+                    .fill(zone.action.zoneFill)
+                    .frame(width: zone.rect.width, height: zone.rect.height)
+                    .offset(x: zone.rect.minX, y: zone.rect.minY)
+            }
+
+            ForEach(Array(anchors.enumerated()), id: \.offset) { _, zone in
+                label(for: zone)
+                    .frame(width: zone.rect.width, height: zone.rect.height)
+                    .offset(x: zone.rect.minX, y: zone.rect.minY)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(.rect(cornerRadius: 14 * scale, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14 * scale, style: .continuous)
+                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    @ViewBuilder
+    private func label(for zone: MangaTapZone) -> some View {
+        let narrow = zone.rect.width < 34 * scale
+        if zone.action == .menu {
+            if !narrow { zoneText("Menu") }
+        } else if narrow {
+            // An edge strip is too thin for a word.
+            Image(systemName: zone.action == .previous ? "chevron.left" : "chevron.right")
+                .font(.system(size: 10 * scale, weight: .bold))
+                .foregroundStyle(.white.opacity(0.85))
+        } else {
+            zoneText(zone.action == .previous ? "Back" : "Next")
+        }
+    }
+
+    private func zoneText(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10 * scale, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.92))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .padding(.horizontal, 2 * scale)
+            .shadow(color: .black.opacity(0.35), radius: scale, y: 0.5 * scale)
+    }
+
+    private var accessibilitySummary: String {
+        guard zones.contains(where: { $0.action != .menu }) else {
+            return "\(layout.displayName): every tap opens the menu."
+        }
+        return "\(layout.displayName): red turns back, blue turns forward, the rest opens the menu."
+    }
+}
+
+private extension MangaTapAction {
+    /// Back is red and forward is blue, the two colours a reader tells apart at
+    /// a glance. The menu stays almost bare, so the page-turn regions are what
+    /// stands out.
+    var zoneFill: Color {
+        switch self {
+        case .previous: Color.red.opacity(0.34)
+        case .next: Color.blue.opacity(0.34)
+        case .menu: Color.white.opacity(0.07)
+        }
     }
 }
