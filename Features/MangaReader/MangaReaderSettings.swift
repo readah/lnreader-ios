@@ -42,6 +42,15 @@ struct MangaReaderPreferences: Equatable {
         )
     }
 
+    /// Reset the app-wide manga reader defaults back to built-ins.
+    static func resetDefaults(_ store: UserDefaults = .standard) {
+        store.removeObject(forKey: MangaReaderSettingsKey.readingMode)
+        store.removeObject(forKey: MangaReaderSettingsKey.direction)
+        store.removeObject(forKey: MangaReaderSettingsKey.tapZones)
+        store.removeObject(forKey: MangaReaderSettingsKey.invertTapZones)
+        store.removeObject(forKey: MangaControlSettings.storageKey)
+    }
+
     /// Overrides win; anything not overridden comes from `defaults`.
     func applying(_ overrides: MangaReaderOverrides) -> MangaReaderPreferences {
         MangaReaderPreferences(

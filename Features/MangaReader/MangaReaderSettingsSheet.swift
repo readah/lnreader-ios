@@ -11,10 +11,6 @@ struct MangaReaderSettingsSheet: View {
     /// Volume keys, auto scroll, hold to scroll: these follow the user.
     @Binding var controls: MangaControlSettings
 
-    @AppStorage(Haptics.enabledKey) private var hapticsEnabled = true
-    @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = true
-    @ObservedObject private var focusManager = FocusModeManager.shared
-
     static let compactDetent: PresentationDetent = .height(420)
 
     /// Everything the half sheet leaves out, on its own sheet.
@@ -88,8 +84,7 @@ struct MangaReaderSettingsSheet: View {
     }
 
     /// The layout as five words you can see at once, and the invert switch
-    /// underneath. No menu: the choice is the point of the row. The picture of
-    /// the zones lives in the full settings sheet, where there is room for it.
+    /// underneath.
     private var tapZoneCard: some View {
         VStack(spacing: 12) {
             Picker("Tap zones", selection: tapZoneBinding) {
@@ -117,7 +112,17 @@ struct MangaReaderSettingsSheet: View {
             set: { layout in
                 withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
                     series.setTapZones(layout)
-                    if !series.hasOverrides { series.makeDefault() }
+                }
+            }
+        )
+    }
+
+    private var invertTapZones: Binding<Bool> {
+        Binding(
+            get: { series.resolved.invertTapZones },
+            set: { invert in
+                withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                    series.setInvertTapZones(invert)
                 }
             }
         )
@@ -132,7 +137,6 @@ struct MangaReaderSettingsSheet: View {
                 ) {
                     withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
                         series.setReadingMode(mode)
-                        if !series.hasOverrides { series.makeDefault() }
                     }
                 }
             }
@@ -199,25 +203,166 @@ struct MangaReaderSettingsSheet: View {
     // MARK: - Full Sheet
 
     private var expandedContent: some View {
+        MangaReaderSettingsContent(
+            readingMode: Binding(
+                get: { series.resolved.readingMode },
+                set: { mode in
+                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                        series.setReadingMode(mode)
+                    }
+                }
+            ),
+            direction: Binding(
+                get: { series.resolved.direction },
+                set: { dir in
+                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                        series.setDirection(dir)
+                    }
+                }
+            ),
+            tapZones: Binding(
+                get: { series.resolved.tapZones },
+                set: { layout in
+                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                        series.setTapZones(layout)
+                    }
+                }
+            ),
+            invertTapZones: Binding(
+                get: { series.resolved.invertTapZones },
+                set: { invert in
+                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                        series.setInvertTapZones(invert)
+                    }
+                }
+            ),
+            controls: $controls,
+            unconditional: false,
+            layoutScope: {
+                scopeSection
+            }
+        )
+    }
+
+    // MARK: - Scope & Defaults
+
+    private var scopeSection: some View {
+        Section {
+            if series.hasOverrides {
+                Button("Use for all series") {
+                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                        series.makeDefault()
+                    }
+                }
+
+                Button("Reset this series to default", role: .destructive) {
+                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                        series.reset()
+                    }
+                }
+            } else {
+                Text("This series uses the default layout")
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            SettingsSectionHeader(
+                title: "Settings Scope",
+                info: "Use for all series makes this layout the default for every title in "
+                    + "your library. Resetting drops this series' own changes."
+            )
+        }
+    }
+}
+
+// MARK: - Shared Manga Reader Settings Content
+
+struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View {
+    @Binding var readingMode: MangaReadingMode
+    @Binding var direction: MangaPagingDirection
+    @Binding var tapZones: MangaTapZoneLayout
+    @Binding var invertTapZones: Bool
+    @Binding var controls: MangaControlSettings
+    var unconditional: Bool = false
+    @ViewBuilder var layoutScope: () -> LayoutScope
+    @ViewBuilder var bottomContent: () -> BottomContent
+
+    @AppStorage(Haptics.enabledKey) private var hapticsEnabled = true
+    @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = true
+    @ObservedObject private var focusManager = FocusModeManager.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(
+        readingMode: Binding<MangaReadingMode>,
+        direction: Binding<MangaPagingDirection>,
+        tapZones: Binding<MangaTapZoneLayout>,
+        invertTapZones: Binding<Bool>,
+        controls: Binding<MangaControlSettings>,
+        unconditional: Bool = false,
+        @ViewBuilder layoutScope: @escaping () -> LayoutScope = { EmptyView() },
+        @ViewBuilder bottomContent: @escaping () -> BottomContent = { EmptyView() }
+    ) {
+        self._readingMode = readingMode
+        self._direction = direction
+        self._tapZones = tapZones
+        self._invertTapZones = invertTapZones
+        self._controls = controls
+        self.unconditional = unconditional
+        self.layoutScope = layoutScope
+        self.bottomContent = bottomContent
+    }
+
+    var body: some View {
         Form {
-            if series.resolved.readingMode == .pager {
+            readingModeSection
+
+            if unconditional || readingMode == .pager {
                 directionSection
             }
-            controlsSection
-            if series.resolved.readingMode == .webtoon {
+
+            tapZonesSection
+
+            layoutScope()
+
+            volumeButtonsSection
+
+            if unconditional || readingMode == .webtoon {
                 stripSection
-            }
-            if series.resolved.readingMode == .webtoon {
                 autoScrollSection
                 holdSection
             }
+
             environmentSection
-            scopeSection
+
+            bottomContent()
         }
         .transition(.opacity)
     }
 
-    // MARK: - Page Direction (Paged Mode)
+    // MARK: - Sections
+
+    private var readingModeSection: some View {
+        Section {
+            HStack(spacing: 12) {
+                ForEach(MangaReadingMode.allCases) { mode in
+                    ReadingModeCard(
+                        mode: mode,
+                        isSelected: readingMode == mode
+                    ) {
+                        withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                            readingMode = mode
+                        }
+                    }
+                }
+            }
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            .listRowBackground(Color.clear)
+        } header: {
+            SettingsSectionHeader(
+                title: "Reading Mode",
+                info: "How the chapter flows. Paged turns one screen at a time; Webtoon scrolls continuously."
+            )
+        }
+    }
 
     private var directionSection: some View {
         Section {
@@ -225,22 +370,20 @@ struct MangaReaderSettingsSheet: View {
                 directionCard(
                     title: "Left to Right",
                     icon: "arrow.right",
-                    isSelected: series.resolved.direction == .leftToRight
+                    isSelected: direction == .leftToRight
                 ) {
                     withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
-                        series.setDirection(.leftToRight)
-                        if !series.hasOverrides { series.makeDefault() }
+                        direction = .leftToRight
                     }
                 }
 
                 directionCard(
                     title: "Right to Left",
                     icon: "arrow.left",
-                    isSelected: series.resolved.direction == .rightToLeft
+                    isSelected: direction == .rightToLeft
                 ) {
                     withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
-                        series.setDirection(.rightToLeft)
-                        if !series.hasOverrides { series.makeDefault() }
+                        direction = .rightToLeft
                     }
                 }
             }
@@ -249,7 +392,7 @@ struct MangaReaderSettingsSheet: View {
         } header: {
             SettingsSectionHeader(
                 title: "Page Direction",
-                info: "Which way the pages run. Right to left is the manga format: "
+                info: "Which way the pages run in paged mode. Right to left is the manga format: "
                     + "page 2 sits to the left of page 1."
             )
         }
@@ -276,7 +419,7 @@ struct MangaReaderSettingsSheet: View {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
+                    .fill(Color(.secondarySystemGroupedBackground))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -287,28 +430,19 @@ struct MangaReaderSettingsSheet: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    // MARK: - Controls (tap zones and volume buttons)
-
-    private var controlsSection: some View {
+    private var tapZonesSection: some View {
         Section {
-            // On the section's own row, not a clear one: the picture belongs to
-            // the picker under it, and a card of its own above the group read
-            // as something that had landed there by accident.
             TapZoneDiagram(
-                layout: series.resolved.tapZones,
-                inverted: series.resolved.invertTapZones,
-                rightToLeft: series.resolved.direction == .rightToLeft
+                layout: tapZones,
+                inverted: invertTapZones,
+                rightToLeft: direction == .rightToLeft
             )
             .frame(maxWidth: .infinity)
             .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 10, trailing: 16))
-            // The row's separator would start at the picture's leading edge, a
-            // third of the way in. The picture needs no rule under it.
             .listRowSeparator(.hidden)
-            .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: series.resolved)
+            .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: tapZones)
 
-            // Segmented, so the picture above stays visible while the layout is
-            // chosen. A menu would cover the very thing being chosen.
-            Picker("Tap zones", selection: tapZoneBinding) {
+            Picker("Tap zones", selection: $tapZones) {
                 ForEach(MangaTapZoneLayout.allCases) { layout in
                     Text(layout.shortName).tag(layout)
                 }
@@ -316,9 +450,20 @@ struct MangaReaderSettingsSheet: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            Toggle("Invert tap zones", isOn: invertTapZones)
+            Toggle("Invert tap zones", isOn: $invertTapZones)
                 .tint(AppTheme.controlFill)
+        } header: {
+            SettingsSectionHeader(
+                title: "Tap Zones",
+                info: "Where a tap lands on the page. Red turns back, blue turns forward and "
+                    + "the rest opens the menu; each layout arranges them differently. Invert "
+                    + "swaps back and forward."
+            )
+        }
+    }
 
+    private var volumeButtonsSection: some View {
+        Section {
             Toggle("Volume buttons turn pages", isOn: $controls.volumeKeys)
                 .tint(AppTheme.controlFill)
 
@@ -328,26 +473,11 @@ struct MangaReaderSettingsSheet: View {
             }
         } header: {
             SettingsSectionHeader(
-                title: "Controls",
-                info: "Where a tap lands on the page. Red turns back, blue turns forward and "
-                    + "the rest opens the menu; each layout arranges them differently. Invert "
-                    + "swaps back and forward. Volume up goes back and volume down goes "
-                    + "forward, unless inverted."
+                title: "Volume Buttons",
+                info: "Volume up goes back and volume down goes forward, unless inverted."
             )
         }
     }
-
-    private var invertTapZones: Binding<Bool> {
-        Binding(
-            get: { series.resolved.invertTapZones },
-            set: {
-                series.setInvertTapZones($0)
-                if !series.hasOverrides { series.makeDefault() }
-            }
-        )
-    }
-
-    // MARK: - Webtoon Strip
 
     private var stripSection: some View {
         Section {
@@ -374,8 +504,6 @@ struct MangaReaderSettingsSheet: View {
         }
     }
 
-    // MARK: - Auto Scroll
-
     private var autoScrollSection: some View {
         Section {
             Picker("Scroll style", selection: $controls.autoScrollStyle) {
@@ -400,8 +528,6 @@ struct MangaReaderSettingsSheet: View {
             )
         }
     }
-
-    // MARK: - Hold to Scroll
 
     private var holdSection: some View {
         Section {
@@ -459,8 +585,6 @@ struct MangaReaderSettingsSheet: View {
         }
     }
 
-    // MARK: - Haptics & Focus
-
     private var environmentSection: some View {
         Section {
             Toggle("Scroll haptics", isOn: $scrollHaptics)
@@ -506,51 +630,6 @@ struct MangaReaderSettingsSheet: View {
         )
     }
 
-    // MARK: - Scope & Defaults
-
-    private var scopeSection: some View {
-        Section {
-            useForAllToggle
-
-            if series.hasOverrides {
-                Button("Reset this series to default", role: .destructive) {
-                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
-                        series.reset()
-                    }
-                }
-            }
-        } header: {
-            SettingsSectionHeader(
-                title: "Settings Scope",
-                info: "Use for all series makes this layout the default for every title in "
-                    + "your library. Resetting drops this series' own changes."
-            )
-        }
-    }
-
-    // MARK: - Helpers
-
-    private var useForAllToggle: some View {
-        Toggle("Use for all series", isOn: Binding(
-            get: { !series.hasOverrides },
-            set: { applyToAll in
-                withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
-                    if applyToAll {
-                        series.makeDefault()
-                    } else {
-                        series.setReadingMode(series.resolved.readingMode)
-                        series.setDirection(series.resolved.direction)
-                        series.setTapZones(series.resolved.tapZones)
-                        series.setInvertTapZones(series.resolved.invertTapZones)
-                    }
-                }
-            }
-        ))
-        .tint(AppTheme.controlFill)
-    }
-
-    /// A labelled slider as one Form row: title and value on top, slider below.
-    /// Identical to ReaderSettings sliderRow.
     private func sliderRow(
         _ title: LocalizedStringKey, symbol: String, value: Binding<Double>,
         range: ClosedRange<Double>, step: Double = 1, valueText: String

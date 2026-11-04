@@ -16,6 +16,7 @@ struct V2ReaderSettingsChecks {
         checkSeriesAreIndependent()
         checkResetClearsStorage()
         checkMakeDefault()
+        checkResetGlobalDefaults()
         checkForwardCompatibleDecoding()
         checkTapZoneOverrides()
         checkTapZones()
@@ -102,6 +103,35 @@ struct V2ReaderSettingsChecks {
         precondition(!a.hasOverrides, "promoting to default drops the override")
         let b = MangaSeriesSettings(key: "s::b", defaults: defaults)
         precondition(b.resolved.readingMode == .webtoon, "other series follow the new default")
+    }
+
+    private static func checkResetGlobalDefaults() {
+        let defaults = freshDefaults()
+        defaults.set("webtoon", forKey: MangaReaderSettingsKey.readingMode)
+        defaults.set("rightToLeft", forKey: MangaReaderSettingsKey.direction)
+        defaults.set("edge", forKey: MangaReaderSettingsKey.tapZones)
+        defaults.set(true, forKey: MangaReaderSettingsKey.invertTapZones)
+        var controls = MangaControlSettings()
+        controls.volumeKeys = true
+        defaults.set(controls.rawValue, forKey: MangaControlSettings.storageKey)
+
+        precondition(MangaReaderPreferences.defaults(defaults) == MangaReaderPreferences(
+            readingMode: .webtoon,
+            direction: .rightToLeft,
+            tapZones: .edge,
+            invertTapZones: true
+        ), "custom global defaults applied")
+
+        MangaReaderPreferences.resetDefaults(defaults)
+
+        precondition(MangaReaderPreferences.defaults(defaults) == MangaReaderPreferences(
+            readingMode: .pager,
+            direction: .leftToRight,
+            tapZones: .standard,
+            invertTapZones: false
+        ), "defaults reset to built-ins")
+        precondition(defaults.string(forKey: MangaControlSettings.storageKey) == nil,
+                     "controls reset")
     }
 
     private static func checkForwardCompatibleDecoding() {

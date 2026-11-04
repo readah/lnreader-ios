@@ -24,7 +24,7 @@ struct AdvancedSettingsView: View {
                 resetReaderSettings()
             }
         } message: {
-            Text("Font, line height, and padding will return to defaults.")
+            Text("Font, line height, padding, and manga reader defaults will return to defaults.")
         }
     }
 
@@ -43,5 +43,6 @@ struct AdvancedSettingsView: View {
         for key in keys {
             defaults.removeObject(forKey: key)
         }
+        MangaReaderPreferences.resetDefaults(defaults)
     }
 }

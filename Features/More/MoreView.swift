@@ -219,7 +219,7 @@ struct MoreView: View {
         Section("Settings") {
             link("General", subtitle: "Library & defaults", symbol: "gearshape") { GeneralSettingsView() }
             link("Appearance", subtitle: "Cover tint", symbol: "paintpalette") { AppearanceSettingsView() }
-            link("Reader", subtitle: "Typography & layout", symbol: "textformat.size") { ReaderSettingsView() }
+            link("Reader", subtitle: "Novel & manga", symbol: "textformat.size") { ReaderSettingsView() }
             link("TTS", subtitle: "Voices & servers", symbol: "waveform") { TTSSettingsView() }
             link("Advanced", subtitle: "Diagnostics & cache", symbol: "slider.horizontal.3") { AdvancedSettingsView() }
         }
