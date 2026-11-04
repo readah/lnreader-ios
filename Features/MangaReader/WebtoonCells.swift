@@ -18,10 +18,11 @@ final class WebtoonPageCell: UICollectionViewCell {
     override init(frame: CGRect) {
         super.init(frame: frame)
         contentView.backgroundColor = .black
+        contentView.clipsToBounds = true
+        clipsToBounds = true
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
         imageView.frame = contentView.bounds
-        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         contentView.addSubview(imageView)
 
         spinner.color = .white
@@ -55,11 +56,29 @@ final class WebtoonPageCell: UICollectionViewCell {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if let image = imageView.image, image.size.width > 0 {
+            // Anchor to the top of the cell: webtoon strips connect vertically,
+            // so an image must not center vertically when its slot resizes.
+            let targetHeight = contentView.bounds.width * (image.size.height / image.size.width)
+            imageView.frame = CGRect(
+                x: 0,
+                y: 0,
+                width: contentView.bounds.width,
+                height: max(contentView.bounds.height, targetHeight)
+            )
+        } else {
+            imageView.frame = contentView.bounds
+        }
+    }
+
     override func prepareForReuse() {
         super.prepareForReuse()
         task?.cancel()
         task = nil
         imageView.image = nil
+        imageView.frame = contentView.bounds
         failure.isHidden = true
         spinner.stopAnimating()
     }
@@ -74,10 +93,12 @@ final class WebtoonPageCell: UICollectionViewCell {
 
         if let cached = PageImageCache.shared.object(forKey: page.url as NSString) {
             imageView.image = cached
+            setNeedsLayout()
             spinner.stopAnimating()
             return
         }
         imageView.image = nil
+        setNeedsLayout()
         spinner.startAnimating()
 
         task = Task { @MainActor [weak self] in
@@ -93,6 +114,7 @@ final class WebtoonPageCell: UICollectionViewCell {
                 }
                 PageImageCache.store(decoded, forKey: page.url)
                 self?.imageView.image = decoded
+                self?.setNeedsLayout()
                 self?.spinner.stopAnimating()
             } catch {
                 guard !Task.isCancelled else { return }

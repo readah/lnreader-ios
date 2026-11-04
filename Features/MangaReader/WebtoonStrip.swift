@@ -246,7 +246,7 @@ final class WebtoonViewController: UIViewController,
             return nil
         } : nil
         UIView.performWithoutAnimation {
-            // Indices in one batch: deletes and reloads against the old rows,
+            // Indices in one batch: deletes against the old rows,
             // inserts against the new.
             collectionView.performBatchUpdates {
                 if removedRows > 0 {
@@ -255,8 +255,11 @@ final class WebtoonViewController: UIViewController,
                 if built.count > kept {
                     collectionView.insertItems(at: (kept..<built.count).map { IndexPath(item: $0, section: 0) })
                 }
-                if let refreshed { collectionView.reloadItems(at: [refreshed]) }
             }
+        }
+        if let refreshed, let cell = collectionView.cellForItem(at: refreshed) as? WebtoonEndCell,
+           case let .divider(_, title, loading) = items[refreshed.item] {
+            cell.show(title: title, loading: loading)
         }
         if removedRows > 0 {
             collectionView.contentOffset.y = max(target, 0)
@@ -389,7 +392,7 @@ final class WebtoonViewController: UIViewController,
             let delta = height(forItem: index, width: width) - old.height
             guard abs(delta) >= 0.5 else { continue }
             changed = true
-            if old.minY < top { adjustment += delta }
+            if old.maxY <= top { adjustment += delta }
         }
         guard changed else { return }
 
