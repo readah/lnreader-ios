@@ -693,6 +693,16 @@ struct MangaReaderView: View {
         scroller.momentum = inputSettings.momentum
         scroller.hold = inputSettings.hold
         scroller.isHoldEnabled = inputSettings.holdScrollEnabled
+        scroller.holdGoesForward = { point in
+            let preferences = seriesSettings.resolved
+            // Only the back zone scrolls back; the menu zone and a layout
+            // without zones keep the default, forward.
+            return preferences.tapZones.action(
+                at: point,
+                in: readerSize,
+                inverted: preferences.invertTapZones
+            ) != .previous
+        }
         scroller.onScrollActivity = { scheduleChromeHide() }
         scroller.onReachedEnd = {
             // Out of pages: bring the controls back so the next chapter is one tap away.
