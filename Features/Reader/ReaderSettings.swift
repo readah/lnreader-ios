@@ -26,7 +26,6 @@ struct ReaderSettings: View {
     @State private var localVerticalPadding: Double
     @State private var localCharacterSpacing: Double
     @State private var localWordSpacing: Double
-    @State private var localMargins: Double
     @State private var localFontFamily: String
     @State private var localBackgroundColorHex: String
     @State private var localTextColorHex: String
@@ -36,6 +35,8 @@ struct ReaderSettings: View {
     @State private var localLineFocusDulling: String
     @State private var localGrainIntensity: Double
     @State private var localFocusOverride: String
+    @State private var isPreviewExpanded = false
+    @State private var showResetNovelDialog = false
     
     @AppStorage("reader.justifyText") private var justifyText = true
     @AppStorage("reader.keepScreenOn") private var keepScreenOn = true
@@ -100,9 +101,6 @@ struct ReaderSettings: View {
         self._localLineFocusDulling = State(initialValue: lineFocusDulling.wrappedValue)
         self._localGrainIntensity = State(initialValue: grainIntensity.wrappedValue)
         self._localFocusOverride = State(initialValue: FocusModeManager.shared.overrideType)
-        
-        let paddingVal = horizontalPadding.wrappedValue
-        self._localMargins = State(initialValue: (paddingVal / 48.0) * 100.0)
     }
 
     private let fontFamilies = [
@@ -322,14 +320,13 @@ struct ReaderSettings: View {
         VStack(spacing: 0) {
             ReaderSheetHeader(
                 title: "Customize Theme",
-                foreground: resolvedLocalTextColor,
+                foreground: .primary,
                 onClose: { finishCustomize(keep: false) },
                 onConfirm: { finishCustomize(keep: true) }
             )
             .padding(.horizontal, 16)
             .padding(.top, 10)
-            .padding(.bottom, 10)
-            .background(resolvedLocalBackgroundColor)
+            .padding(.bottom, 4)
 
             previewBlock
 
@@ -400,7 +397,6 @@ struct ReaderSettings: View {
             localWordSpacing = draft.wordSpacing
             localGrainIntensity = draft.grain
             localFocusOverride = draft.focus
-            localMargins = (draft.horizontalPadding / 48.0) * 100.0
         }
         commitChanges()
         self.draft = nil
@@ -410,230 +406,213 @@ struct ReaderSettings: View {
     /// The settings the half sheet leaves out.
     private var settingsForm: some View {
         Form {
-            Section("Theme & Colors") {
-                themesGrid
-                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-
-                Toggle("Paper texture", isOn: Binding(get: { localGrainIntensity > 0 }, set: { localGrainIntensity = $0 ? 10 : 0 }))
-                    .tint(AppTheme.controlFill)
-                if localGrainIntensity > 0 {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("GRAIN INTENSITY")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.secondary)
-
-                        HStack(spacing: 12) {
-                            Image(systemName: "circle.dotted")
-                                .font(.system(size: 15))
-                                .foregroundColor(.secondary)
-                                .frame(width: 24)
-
-                            Slider(value: $localGrainIntensity, in: 0...100, step: 5)
-                                .tint(.primary)
-
-                            Text("\(Int(localGrainIntensity))%")
-                                .font(.system(size: 13, weight: .medium, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .frame(width: 42, alignment: .trailing)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
-                ColorPicker("Word highlight", selection: Binding(
-                    get: { Color(hex: ReaderAppearance.highlightHex(background: localBackgroundColorHex, custom: highlightColorHex)) ?? .green },
-                    set: { if let hex = $0.toHex() { highlightColorHex = hex } }
-                ), supportsOpacity: false)
-                if !highlightColorHex.isEmpty {
-                    Button("Use theme highlight") { highlightColorHex = "" }
-                }
-                HStack {
-                    Text("Highlight strength")
-                    Slider(value: $highlightOpacity, in: 0.1...0.65, step: 0.05)
-                }
-            }
-
-            Section("Spacing & Margins") {
-                groupedLayoutSection
-            }
-
+            themesSection
             typographySection
-            moreLayoutSection
+            spacingSection
             lineFocusSection
             focusSection
             scrollingSection
+            if isEmbedded {
+                resetSection
+            }
         }
         .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: localLineFocusEnabled)
+        .confirmationDialog(
+            "Reset novel settings?",
+            isPresented: $showResetNovelDialog,
+            titleVisibility: .visible
+        ) {
+            Button("Reset novel settings", role: .destructive) {
+                resetNovelDefaults()
+            }
+        } message: {
+            Text("Typography, spacing, colors, and line focus will return to defaults.")
+        }
+    }
+
+    // MARK: - Sections
+
+    private var themesSection: some View {
+        Section("Themes & Colors") {
+            themesGrid
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+
+            ColorPicker("Custom background", selection: customBgColorBinding)
+            ColorPicker("Custom text color", selection: customTextColorBinding)
+
+            if !localBackgroundColorHex.isEmpty || !localTextColorHex.isEmpty {
+                Button("Reset to theme colors") {
+                    localBackgroundColorHex = ""
+                    localTextColorHex = ""
+                    commitChanges()
+                }
+            }
+
+            Toggle("Paper texture", isOn: Binding(
+                get: { localGrainIntensity > 0 },
+                set: { localGrainIntensity = $0 ? 10 : 0 }
+            ))
+            .tint(AppTheme.controlFill)
+
+            if localGrainIntensity > 0 {
+                sliderRow(
+                    "Grain intensity",
+                    symbol: "circle.dotted",
+                    value: $localGrainIntensity,
+                    range: 0...100,
+                    step: 5,
+                    valueText: "\(Int(localGrainIntensity))%"
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            ColorPicker("Word highlight", selection: Binding(
+                get: { Color(hex: ReaderAppearance.highlightHex(background: localBackgroundColorHex, custom: highlightColorHex)) ?? .green },
+                set: { if let hex = $0.toHex() { highlightColorHex = hex } }
+            ), supportsOpacity: false)
+
+            if !highlightColorHex.isEmpty {
+                Button("Use theme highlight") { highlightColorHex = "" }
+            }
+
+            sliderRow(
+                "Highlight strength",
+                symbol: "highlighter",
+                value: $highlightOpacity,
+                range: 0.1...0.65,
+                step: 0.05,
+                valueText: "\(Int((highlightOpacity * 100).rounded()))%"
+            )
+        }
     }
 
     private var themesGrid: some View {
         ScrollView(.horizontal) {
-          HStack(spacing: 12) {
-            ForEach(presets) { preset in
-                ThemePickerCard(
-                    preset: preset,
-                    isSelected: isSelected(preset)
-                ) {
-                    selectTheme(preset)
+            HStack(spacing: 12) {
+                ForEach(presets) { preset in
+                    ThemePickerCard(
+                        preset: preset,
+                        isSelected: isSelected(preset)
+                    ) {
+                        selectTheme(preset)
+                    }
+                    .frame(width: 108)
+                    .accessibilityAddTraits(isSelected(preset) ? .isSelected : [])
                 }
-                .frame(width: 108)
-                .accessibilityAddTraits(isSelected(preset) ? .isSelected : [])
             }
-          }
-          .padding(.horizontal, 16)
-          .padding(.vertical, 4)
-          .scrollTargetLayout()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+            .scrollTargetLayout()
         }
         .scrollTargetBehavior(.viewAligned)
         .scrollIndicators(.hidden)
         .padding(.vertical, 4)
     }
 
-    private var groupedLayoutSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // LINE SPACING
-            VStack(alignment: .leading, spacing: 6) {
-                Text("LINE SPACING")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.secondary)
-                
-                HStack(spacing: 12) {
-                    Image(systemName: "arrow.up.and.down.text.horizontal")
-                        .font(.system(size: 15))
-                        .foregroundColor(.secondary)
-                        .frame(width: 24)
-                    
-                    Slider(value: $localLineHeight, in: 1.0...2.5, step: 0.05)
-                        .tint(.primary)
-                    
-                    Text(String(format: "%.2f", localLineHeight))
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .frame(width: 42, alignment: .trailing)
-                }
-            }
-            
-            Divider()
-                .background(Color.secondary.opacity(0.2))
-            
-            // CHARACTER SPACING
-            VStack(alignment: .leading, spacing: 6) {
-                Text("CHARACTER SPACING")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.secondary)
-                
-                HStack(spacing: 12) {
-                    Image(systemName: "arrow.left.and.right")
-                        .font(.system(size: 15))
-                        .foregroundColor(.secondary)
-                        .frame(width: 24)
-                    
-                    Slider(value: $localCharacterSpacing, in: -5...30, step: 1)
-                        .tint(.primary)
-                    
-                    Text("\(Int(localCharacterSpacing))%")
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .frame(width: 42, alignment: .trailing)
-                }
-            }
-            
-            Divider()
-                .background(Color.secondary.opacity(0.2))
-            
-            // WORD SPACING
-            VStack(alignment: .leading, spacing: 6) {
-                Text("WORD SPACING")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.secondary)
-                
-                HStack(spacing: 12) {
-                    Image(systemName: "text.alignleft")
-                        .font(.system(size: 15))
-                        .foregroundColor(.secondary)
-                        .frame(width: 24)
-                    
-                    Slider(value: $localWordSpacing, in: 0...50, step: 2)
-                        .tint(.primary)
-                    
-                    Text("\(Int(localWordSpacing))%")
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .frame(width: 42, alignment: .trailing)
-                }
-            }
-            
-            Divider()
-                .background(Color.secondary.opacity(0.2))
-            
-            // MARGINS
-            VStack(alignment: .leading, spacing: 6) {
-                Text("MARGINS")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.secondary)
-                
-                HStack(spacing: 12) {
-                    Image(systemName: "square")
-                        .font(.system(size: 15))
-                        .foregroundColor(.secondary)
-                        .frame(width: 24)
-                    
-                    Slider(value: $localMargins, in: 0...100, step: 5)
-                        .tint(.primary)
-                        .onChange(of: localMargins) { _, newValue in
-                            localHorizontalPadding = (newValue / 100.0) * 48.0
-                        }
-                    
-                    Text("\(Int(localMargins))%")
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .frame(width: 42, alignment: .trailing)
-                }
-            }
-        }
-        .padding(.vertical, 8)
-    }
-
     private var typographySection: some View {
-        Section("Typography") {
-            Picker("Font", selection: $localFontFamily) {
+        Section("Typography & Reading") {
+            Picker("Font family", selection: $localFontFamily) {
                 ForEach(fontFamilies, id: \.self) { font in
                     Text(font)
-                        .font(.custom(font, size: 15))
+                        .font(font == "System" ? .body : .custom(font, size: 15))
                         .tag(font)
                 }
             }
 
-            VStack(alignment: .leading) {
-                Text("Font Size: \(Int(localFontSize))px")
-                    .font(Typography.caption)
-                Slider(value: $localFontSize, in: 12...32, step: 1)
-                    .tint(.primary)
-            }
+            sliderRow(
+                "Font size",
+                symbol: "textformat.size",
+                value: $localFontSize,
+                range: 12...32,
+                step: 1,
+                valueText: "\(Int(localFontSize)) pt"
+            )
+
+            Toggle("Bionic reading", isOn: $localBionicReading)
+                .tint(AppTheme.controlFill)
+
+            Toggle("Justify text", isOn: $justifyText)
+                .tint(AppTheme.controlFill)
+
+            Toggle("Keep screen on", isOn: $keepScreenOn)
+                .tint(AppTheme.controlFill)
         }
     }
 
-    private var moreLayoutSection: some View {
-        Section("Custom Layout & Colors") {
-            VStack(alignment: .leading) {
-                Text("Vertical Padding: \(Int(localVerticalPadding))px")
-                    .font(Typography.caption)
-                Slider(value: $localVerticalPadding, in: 0...80, step: 4)
-                    .tint(.primary)
+    private var spacingSection: some View {
+        Section("Spacing & Margins") {
+            sliderRow(
+                "Line spacing",
+                symbol: "arrow.up.and.down.text.horizontal",
+                value: $localLineHeight,
+                range: 1.0...2.5,
+                step: 0.05,
+                valueText: String(format: "%.2fx", localLineHeight)
+            )
+
+            sliderRow(
+                "Margins",
+                symbol: "arrow.left.and.right",
+                value: $localHorizontalPadding,
+                range: 0...48,
+                step: 2,
+                valueText: "\(Int((localHorizontalPadding / 48.0) * 100))%"
+            )
+
+            sliderRow(
+                "Vertical padding",
+                symbol: "arrow.up.and.down",
+                value: $localVerticalPadding,
+                range: 0...80,
+                step: 4,
+                valueText: "\(Int(localVerticalPadding)) pt"
+            )
+
+            sliderRow(
+                "Character spacing",
+                symbol: "character.cursor.ibeam",
+                value: $localCharacterSpacing,
+                range: -5...30,
+                step: 1,
+                valueText: "\(Int(localCharacterSpacing))%"
+            )
+
+            sliderRow(
+                "Word spacing",
+                symbol: "text.word.spacing",
+                value: $localWordSpacing,
+                range: 0...50,
+                step: 2,
+                valueText: "\(Int(localWordSpacing))%"
+            )
+        }
+    }
+
+    private var lineFocusSection: some View {
+        Section("Line Focus") {
+            Toggle("Line focus ruler", isOn: $localLineFocusEnabled.animation(AppMotion.gentle(reduceMotion: reduceMotion)))
+                .tint(AppTheme.controlFill)
+
+            if localLineFocusEnabled {
+                Picker("Focused lines", selection: $localLineFocusLines) {
+                    Text("1 Line").tag(1)
+                    Text("2 Lines").tag(2)
+                    Text("3 Lines").tag(3)
+                }
+                .pickerStyle(.segmented)
+
+                Picker("Background dimming", selection: $localLineFocusDulling) {
+                    Text("Low").tag("low")
+                    Text("Medium").tag("mid")
+                    Text("High").tag("high")
+                }
+                .pickerStyle(.segmented)
             }
-            
-            Toggle("Bionic Reading", isOn: $localBionicReading).tint(AppTheme.controlFill)
-            Toggle("Justify Text", isOn: $justifyText).tint(AppTheme.controlFill)
-            Toggle("Keep Screen On", isOn: $keepScreenOn).tint(AppTheme.controlFill)
-            
-            ColorPicker("Custom Background", selection: customBgColorBinding)
-            ColorPicker("Custom Text Color", selection: customTextColorBinding)
         }
     }
 
     private var focusSection: some View {
-        Section {
+        Section("Focus Integration") {
             Picker("Active Focus display", selection: $localFocusOverride) {
                 Text("Off").tag("none")
                 Text("System auto").tag("auto")
@@ -646,8 +625,6 @@ struct ReaderSettings: View {
             if localFocusOverride == "auto" {
                 FocusStatusRow(focusManager: focusManager)
             }
-        } header: {
-            Text("Focus Integration")
         }
     }
 
@@ -657,7 +634,6 @@ struct ReaderSettings: View {
                 .tint(AppTheme.controlFill)
                 .disabled(!hapticsEnabled)
                 .onChange(of: scrollHaptics) { _, on in
-                    // Switching it on plays one tick, so the feel is right there.
                     if on { Haptics.shared.scroll(ScrollFeel.detent(speed: 800)) }
                 }
         } header: {
@@ -667,41 +643,57 @@ struct ReaderSettings: View {
         }
     }
 
-    private var lineFocusSection: some View {
-        Section("Line Focus") {
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle("Line Focus Mode", isOn: $localLineFocusEnabled.animation(AppMotion.gentle(reduceMotion: reduceMotion))).tint(AppTheme.controlFill)
-                
-                if localLineFocusEnabled {
-                    VStack(alignment: .leading, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Focused Lines")
-                                .font(Typography.caption)
-                                .foregroundColor(.secondary)
-                            Picker("Focused Lines", selection: $localLineFocusLines) {
-                                Text("1 Line").tag(1)
-                                Text("2 Lines").tag(2)
-                                Text("3 Lines").tag(3)
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Background Dulling")
-                                .font(Typography.caption)
-                                .foregroundColor(.secondary)
-                            Picker("Background Dulling", selection: $localLineFocusDulling) {
-                                Text("Low").tag("low")
-                                Text("Medium").tag("mid")
-                                Text("High").tag("high")
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
+    private var resetSection: some View {
+        Section {
+            Button("Reset novel defaults", role: .destructive) {
+                showResetNovelDialog = true
             }
         }
+    }
+
+    private func sliderRow(
+        _ title: LocalizedStringKey, symbol: String, value: Binding<Double>,
+        range: ClosedRange<Double>, step: Double = 1, valueText: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            LabeledContent {
+                Text(valueText).monospacedDigit()
+            } label: {
+                Label {
+                    Text(title)
+                } icon: {
+                    Image(systemName: symbol)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Slider(value: value, in: range, step: step)
+                .tint(AppTheme.controlFill)
+                .accessibilityLabel(title)
+                .accessibilityValue(valueText)
+        }
+    }
+
+    private func resetNovelDefaults() {
+        localFontSize = 18
+        localLineHeight = 1.6
+        localFontFamily = "Georgia"
+        localHorizontalPadding = 16
+        localVerticalPadding = 20
+        localBackgroundColorHex = ""
+        localTextColorHex = ""
+        localBionicReading = false
+        localLineFocusEnabled = false
+        localLineFocusLines = 1
+        localLineFocusDulling = "mid"
+        localCharacterSpacing = 0.0
+        localWordSpacing = 0.0
+        localGrainIntensity = 10.0
+        justifyText = true
+        keepScreenOn = true
+        highlightColorHex = ""
+        highlightOpacity = 0.26
+        commitChanges()
+        Haptics.shared.notify(.warning)
     }
 
     private func resolvedLineFocusOpacity(dulling: String) -> Double {
@@ -717,34 +709,32 @@ struct ReaderSettings: View {
         let passage = "The quick brown fox jumps over the lazy dog. This preview shows how "
             + "your text will look: the shape of the letters, the space between the lines, "
             + "and the width of the margins. Change something and watch it move."
-        // Twice, so the block is full at every size and the overflow is clipped
-        // at the fold the way the system reader's preview is.
         let sample = passage + " " + passage
         let highlightedWord = "brown"
-        
+
         var result = AttributedString()
         let words = sample.components(separatedBy: " ")
-        
+
         for (index, word) in words.enumerated() {
             if index > 0 {
                 result.append(AttributedString(" "))
             }
-            
+
             let isHighlighted = (word.lowercased() == highlightedWord)
-            
+
             if localBionicReading {
                 let len = word.count
                 let boldLen = len <= 3 ? (len == 3 ? 2 : 1) : Int(ceil(Double(len) * 0.5))
                 let boldPart = String(word.prefix(boldLen))
                 let normalPart = String(word.dropFirst(boldLen))
-                
+
                 var boldAttr = AttributedString(boldPart)
                 boldAttr.inlinePresentationIntent = .stronglyEmphasized
                 if isHighlighted {
                     boldAttr.backgroundColor = highlightColor
                 }
                 result.append(boldAttr)
-                
+
                 if !normalPart.isEmpty {
                     var normalAttr = AttributedString(normalPart)
                     if isHighlighted {
@@ -760,37 +750,88 @@ struct ReaderSettings: View {
                 result.append(wordAttr)
             }
         }
-        
+
         return result
     }
 
-    /// The live preview, drawn the way the system reader draws it: a big sample
-    /// letter, then real text in the chosen face, on the theme's own paper,
-    /// running off the bottom edge instead of sitting in a card.
+    /// The live preview, rendered as a compact, partially sticky card with live typography,
+    /// margins, colors, and line focus. Tapping "More" expands the preview to a full paragraph.
     private var previewBlock: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Aa")
-                .font(sampleFont(46))
-                .foregroundStyle(resolvedLocalTextColor.opacity(0.4))
-                .padding(.horizontal, 20)
-                .padding(.top, 4)
+        VStack(spacing: 0) {
+            // Header bar inside preview card
+            HStack(spacing: 6) {
+                Text(localFontFamily)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(resolvedLocalTextColor.opacity(0.7))
 
-            Text(previewAttributedText)
-                .font(sampleFont(localFontSize))
-                .lineSpacing((localLineHeight - 1.0) * localFontSize)
-                .tracking(localCharacterSpacing * 0.1)
-                .foregroundStyle(resolvedLocalTextColor)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .overlay { lineFocusVeil }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
+                Text("•")
+                    .font(.system(size: 10))
+                    .foregroundStyle(resolvedLocalTextColor.opacity(0.4))
 
-            Spacer(minLength: 0)
+                Text("\(Int(localFontSize)) pt")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(resolvedLocalTextColor.opacity(0.7))
+
+                if localBionicReading {
+                    Text("• Bionic")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(resolvedLocalTextColor.opacity(0.6))
+                }
+
+                Spacer(minLength: 8)
+
+                Button {
+                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                        isPreviewExpanded.toggle()
+                    }
+                    Haptics.shared.selection()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(isPreviewExpanded ? "Less" : "More")
+                            .font(.system(size: 11, weight: .medium))
+                        Image(systemName: isPreviewExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundStyle(resolvedLocalTextColor.opacity(0.65))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(resolvedLocalTextColor.opacity(0.08), in: .capsule)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isPreviewExpanded ? "Collapse preview" : "Expand preview")
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+
+            // Live text sample
+            VStack(alignment: .leading, spacing: 0) {
+                Text(previewAttributedText)
+                    .font(sampleFont(localFontSize))
+                    .lineSpacing((localLineHeight - 1.0) * localFontSize)
+                    .tracking(localCharacterSpacing * 0.1)
+                    .foregroundStyle(resolvedLocalTextColor)
+                    .multilineTextAlignment(justifyText ? .leading : .leading)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .overlay { lineFocusVeil }
+            }
+            .padding(.horizontal, max(12, min(32, (localHorizontalPadding / 48.0) * 32.0)))
+            .padding(.bottom, 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .clipped()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 330, alignment: .top)
+        .frame(maxWidth: .infinity)
+        .frame(height: isPreviewExpanded ? 220 : 100)
         .background(paper)
-        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppTheme.hairline, lineWidth: 1)
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+        .background(Color(uiColor: .systemGroupedBackground))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Preview of your reading text")
     }
