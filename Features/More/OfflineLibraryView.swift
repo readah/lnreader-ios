@@ -587,7 +587,7 @@ final class BackupManager {
 
                 await MainActor.run {
                     let mgr = BackupManager.shared
-                    mgr.progress?.completed = mgr.progress?.total ?? 1
+                    if let total = mgr.progress?.total { mgr.progress?.completed = total }
                     mgr.progress?.localFiles = snapshot.localFiles.count
                     mgr.progress?.finishedAt = Date()
                     mgr.progress?.inFlight = []
@@ -643,7 +643,7 @@ final class BackupManager {
 
                 await MainActor.run {
                     let mgr = BackupManager.shared
-                    mgr.progress?.completed = mgr.progress?.total ?? 1
+                    if let total = mgr.progress?.total { mgr.progress?.completed = total }
                     mgr.progress?.finishedAt = Date()
                     mgr.progress?.inFlight = []
                     Haptics.shared.notify(.success)
@@ -687,7 +687,7 @@ final class BackupManager {
                     if Task.isCancelled {
                         mgr.progress?.wasCancelled = true
                     } else {
-                        mgr.progress?.completed = mgr.progress?.total ?? snapshot.entries.count
+                        if let total = mgr.progress?.total { mgr.progress?.completed = total }
                         mgr.progress?.added = summary.added
                         mgr.progress?.merged = summary.merged
                         mgr.progress?.chapters = summary.chapters
@@ -736,7 +736,7 @@ final class BackupManager {
                     if Task.isCancelled {
                         mgr.progress?.wasCancelled = true
                     } else {
-                        mgr.progress?.completed = mgr.progress?.total ?? backup.manga.count
+                        if let total = mgr.progress?.total { mgr.progress?.completed = total }
                         mgr.progress?.added = summary.added
                         mgr.progress?.merged = summary.merged
                         mgr.progress?.chapters = summary.chapters
