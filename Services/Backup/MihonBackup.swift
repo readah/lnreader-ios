@@ -316,8 +316,10 @@ enum MihonBackup {
     }
 
     private static func encode(_ track: Track, into writer: inout ProtobufWriter) {
-        if track.syncId != 0 { writer.int(1, Int64(track.syncId)) }
-        if track.libraryId != 0 { writer.int(2, track.libraryId) }
+        // `syncId` and `libraryId` have no default in Mihon's BackupTracking, so
+        // kotlinx.serialization treats them as required: always write both, even at 0.
+        writer.int(1, Int64(track.syncId))
+        writer.int(2, track.libraryId)
         if track.mediaId != 0 { writer.int(3, track.mediaId) }
         writer.string(4, track.url)
         writer.string(5, track.title)
@@ -391,9 +393,9 @@ enum MihonBackup {
             manga.memo = entry.memo == "{}" ? "" : entry.memo
             manga.categoryOrders = entry.categories.map { Int64($0.order) }
 
-            // Sort chapters by sourceOrder ascending (oldest to newest in LNReader).
-            // Mihon numbers sourceOrder 0 for newest, N-1 for oldest.
-            let sortedChapters = entry.chapters.sorted { $0.sourceOrder < $1.sourceOrder }
+            // Oldest to newest via ChapterOrder. Mihon numbers sourceOrder 0 for newest,
+            // N-1 for oldest.
+            let sortedChapters = ChapterOrder.oldestFirst(Array(entry.chapters))
             let chapterCount = sortedChapters.count
             for (idx, ch) in sortedChapters.enumerated() {
                 var chapter = Chapter()
