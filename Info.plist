@@ -98,6 +98,23 @@
 				</array>
 			</dict>
 		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Tachiyomi backup</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.tachiyomi.tachibk</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>tachibk</string>
+				</array>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>

@@ -1,7 +1,8 @@
-// Gzip.swift - Reads .gz data with Apple's Compression framework.
+// Gzip.swift - Reads and writes .gz data with Apple's Compression framework.
 
 import Compression
 import Foundation
+import zlib
 
 enum Gzip {
 
@@ -69,6 +70,44 @@ enum Gzip {
                 }
             }
         }
+    }
+
+    /// Compress `payload` into gzip format (.gz) with RFC 1952 header,
+    /// raw DEFLATE compressed stream, and 8-byte trailer (CRC-32 + ISIZE).
+    static func compress(_ payload: Data) throws -> Data {
+        var output = Data([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff])
+
+        let capacity = max(payload.count + payload.count / 10 + 1024, 1024)
+        var buffer = [UInt8](repeating: 0, count: capacity)
+        let size: Int
+        if payload.isEmpty {
+            var dummy: UInt8 = 0
+            size = compression_encode_buffer(&buffer, capacity, &dummy, 0, nil, COMPRESSION_ZLIB)
+        } else {
+            size = payload.withUnsafeBytes { ptr in
+                guard let base = ptr.bindMemory(to: UInt8.self).baseAddress else { return 0 }
+                return compression_encode_buffer(&buffer, capacity, base, payload.count, nil, COMPRESSION_ZLIB)
+            }
+        }
+        guard size > 0 else { throw GzipError.corrupt }
+        output.append(buffer, count: size)
+
+        let crc: UInt32
+        if payload.isEmpty {
+            crc = 0
+        } else {
+            crc = payload.withUnsafeBytes { ptr in
+                guard let base = ptr.bindMemory(to: Bytef.self).baseAddress else { return 0 }
+                return UInt32(crc32(0, base, uInt(payload.count))).littleEndian
+            }
+        }
+        var crcBytes = crc
+        output.append(Data(bytes: &crcBytes, count: 4))
+
+        var isize = UInt32(truncatingIfNeeded: payload.count).littleEndian
+        output.append(Data(bytes: &isize, count: 4))
+
+        return output
     }
 
     /// Offset of the first DEFLATE byte, after the optional header fields.

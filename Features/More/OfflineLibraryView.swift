@@ -364,9 +364,17 @@ private struct PerTitleUpdateRow: View {
 
 extension UTType {
     static var lnreaderBackup: UTType { UTType(exportedAs: "com.lnreader.backup", conformingTo: .data) }
+    static var tachibkBackup: UTType { UTType(exportedAs: "org.tachiyomi.tachibk", conformingTo: .data) }
 }
 struct LibraryBackupDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.lnreaderBackup] }
+    var data: Data
+    init(data: Data) { self.data = data }
+    init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
+}
+struct TachibkBackupDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.tachibkBackup, .data] }
     var data: Data
     init(data: Data) { self.data = data }
     init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
@@ -408,12 +416,14 @@ struct BackupDocumentPicker: UIViewControllerRepresentable {
 }
 enum BackupOperationKind: Equatable {
     case export
+    case exportTachibk
     case restoreLN
     case restoreMihon
 
     var title: String {
         switch self {
         case .export: "Backup export"
+        case .exportTachibk: "Tachibk export"
         case .restoreLN: "LNReader restore"
         case .restoreMihon: "Mihon import"
         }
@@ -447,13 +457,14 @@ struct BackupProgress: Equatable {
         if isCancelling { return "Stopping…" }
         if isFinished {
             switch kind {
-            case .export: return "Backup created"
+            case .export, .exportTachibk: return "Backup created"
             case .restoreLN: return "Restore complete"
             case .restoreMihon: return "Import complete"
             }
         }
         switch kind {
         case .export: return "Exporting backup · \(completed) of \(total)"
+        case .exportTachibk: return "Exporting .tachibk · \(completed) of \(total)"
         case .restoreLN: return "Restoring backup · \(completed) of \(total)"
         case .restoreMihon: return "Importing backup · \(completed) of \(total)"
         }
@@ -464,7 +475,7 @@ struct BackupProgress: Equatable {
         if isFinished {
             var parts: [String] = []
             switch kind {
-            case .export:
+            case .export, .exportTachibk:
                 parts.append("\(completed) titles")
                 if localFiles > 0 { parts.append("\(localFiles) local files") }
             case .restoreLN, .restoreMihon:
@@ -582,6 +593,61 @@ final class BackupManager {
                     mgr.progress?.inFlight = []
                     Haptics.shared.notify(.success)
                     let doc = LibraryBackupDocument(data: sealed)
+                    onExportReady(doc)
+                }
+            } catch {
+                await MainActor.run {
+                    let mgr = BackupManager.shared
+                    if Task.isCancelled {
+                        mgr.progress?.wasCancelled = true
+                    } else {
+                        mgr.progress?.error = error.localizedDescription
+                        Haptics.shared.notify(.error)
+                    }
+                    mgr.progress?.finishedAt = Date()
+                    mgr.progress?.inFlight = []
+                }
+            }
+        }
+    }
+
+    func exportTachibk(
+        container: ModelContainer,
+        onExportReady: @escaping (TachibkBackupDocument) -> Void
+    ) {
+        guard !isRunning else { return }
+
+        progress = BackupProgress(kind: .exportTachibk, total: 1)
+        activeTask = Task.detached(priority: .userInitiated) {
+            do {
+                let context = ModelContext(container)
+                let mangaCount = (try? context.fetch(FetchDescriptor<Entry>()).filter { $0.kind == .manga }.count) ?? 0
+                await MainActor.run {
+                    BackupManager.shared.progress?.total = max(1, mangaCount)
+                }
+
+                let data = try MihonBackup.export(context: context) { completed, total, current in
+                    Task { @MainActor in
+                        BackupManager.shared.reportProgress(completed: completed, total: total, current: current)
+                    }
+                }
+
+                if Task.isCancelled {
+                    await MainActor.run {
+                        BackupManager.shared.progress?.wasCancelled = true
+                        BackupManager.shared.progress?.finishedAt = Date()
+                        BackupManager.shared.progress?.inFlight = []
+                    }
+                    return
+                }
+
+                await MainActor.run {
+                    let mgr = BackupManager.shared
+                    mgr.progress?.completed = mgr.progress?.total ?? 1
+                    mgr.progress?.finishedAt = Date()
+                    mgr.progress?.inFlight = []
+                    Haptics.shared.notify(.success)
+                    let doc = TachibkBackupDocument(data: data)
                     onExportReady(doc)
                 }
             } catch {
@@ -1072,7 +1138,9 @@ struct LibraryBackupView: View {
     @State private var recoveryKey = ""
     @State private var importKey = ""
     @State private var document: LibraryBackupDocument?
+    @State private var tachibkDocument: TachibkBackupDocument?
     @State private var exporting = false
+    @State private var exportingTachibk = false
     @State private var importing = false
     @State private var picked: URL?
     @State private var readingFile = false
@@ -1128,15 +1196,17 @@ struct LibraryBackupView: View {
             }
 
             Section {
+                Button("Export .tachibk backup") { exportTachibk() }
+                    .disabled(backupManager.isRunning || readingFile)
                 Button("Choose .tachibk backup") {
                     importsMihon = true
                     importing = true
                 }
                 .disabled(backupManager.isRunning || readingFile)
             } header: {
-                Text("Import from another app")
+                Text("Mihon / Tachiyomi (.tachibk)")
             } footer: {
-                Text("From Mihon, Tachiyomi, Yokai or Tachimanga.")
+                Text("Export or import backups compatible with Mihon, Tachiyomi, Yokai or Tachimanga.")
             }
         }
         .settingsScreen("Backup & restore")
@@ -1157,8 +1227,18 @@ struct LibraryBackupView: View {
                 readErrorMessage = "Export failed: \(error.localizedDescription)"
             }
         }
+        .fileExporter(
+            isPresented: $exportingTachibk,
+            document: tachibkDocument,
+            contentType: .tachibkBackup,
+            defaultFilename: "mihon_\(Date().formatted(.iso8601.year().month().day())).tachibk"
+        ) { result in
+            if case .failure(let error) = result {
+                readErrorMessage = "Export failed: \(error.localizedDescription)"
+            }
+        }
         .sheet(isPresented: $importing, onDismiss: openPicked) {
-            BackupDocumentPicker(types: [.lnreaderBackup, .data]) { url in
+            BackupDocumentPicker(types: [.lnreaderBackup, .tachibkBackup, .data]) { url in
                 picked = url
                 importing = false
             }
@@ -1198,6 +1278,14 @@ struct LibraryBackupView: View {
         backupManager.export(container: container, includeLocalBooks: includeLocal, recoveryKey: key) { doc in
             document = doc
             exporting = true
+        }
+    }
+
+    private func exportTachibk() {
+        let container = context.container
+        backupManager.exportTachibk(container: container) { doc in
+            tachibkDocument = doc
+            exportingTachibk = true
         }
     }
 

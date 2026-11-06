@@ -87,7 +87,13 @@ enum MihonBackup {
 
     enum BackupError: LocalizedError {
         case empty
-        var errorDescription: String? { "The backup has no titles in it." }
+        case noManga
+        var errorDescription: String? {
+            switch self {
+            case .empty: "The backup has no titles in it."
+            case .noManga: "The library has no manga titles to export into a .tachibk backup."
+            }
+        }
     }
 
     // MARK: - Decoding
@@ -223,6 +229,217 @@ enum MihonBackup {
             }
         }
         if id != 0 { names[id] = name }
+    }
+
+    // MARK: - Encoding
+
+    /// Encodes a `Backup` message to raw protobuf bytes.
+    static func encode(_ backup: Backup) -> Data {
+        var writer = ProtobufWriter()
+        for manga in backup.manga {
+            writer.message(1) { m in
+                encode(manga, into: &m)
+            }
+        }
+        for category in backup.categories {
+            writer.message(2) { c in
+                encode(category, into: &c)
+            }
+        }
+        for (id, name) in backup.sourceNames.sorted(by: { $0.key < $1.key }) {
+            writer.message(101) { s in
+                encodeSource(id: id, name: name, into: &s)
+            }
+        }
+        return writer.bytes
+    }
+
+    private static func encode(_ manga: Manga, into writer: inout ProtobufWriter) {
+        if manga.source != 0 { writer.int(1, manga.source) }
+        writer.string(2, manga.url)
+        writer.string(3, manga.title)
+        writer.string(4, manga.artist)
+        writer.string(5, manga.author)
+        writer.string(6, manga.description)
+        for genre in manga.genres {
+            writer.string(7, genre)
+        }
+        if manga.status != 0 { writer.int(8, Int64(manga.status)) }
+        writer.string(9, manga.thumbnailURL)
+        if manga.dateAdded > 0 { writer.int(13, manga.dateAdded) }
+        for chapter in manga.chapters {
+            writer.message(16) { c in
+                encode(chapter, into: &c)
+            }
+        }
+        for order in manga.categoryOrders {
+            writer.int(17, order)
+        }
+        for track in manga.tracks {
+            writer.message(18) { t in
+                encode(track, into: &t)
+            }
+        }
+        // In Mihon protobuf, favorite defaults to true (field absent).
+        // Only emit if explicitly false.
+        if !manga.favorite {
+            writer.bool(100, false)
+        }
+        if manga.viewerFlags != 0 { writer.int(103, Int64(manga.viewerFlags)) }
+        for history in manga.history {
+            writer.message(104) { h in
+                encode(history, into: &h)
+            }
+        }
+        if manga.updateStrategy != 0 { writer.int(105, Int64(manga.updateStrategy)) }
+        if !manga.memo.isEmpty && manga.memo != "{}" {
+            writer.string(112, manga.memo)
+        }
+    }
+
+    private static func encode(_ chapter: Chapter, into writer: inout ProtobufWriter) {
+        writer.string(1, chapter.url)
+        writer.string(2, chapter.name)
+        writer.string(3, chapter.scanlator)
+        if chapter.read { writer.bool(4, true) }
+        if chapter.bookmark { writer.bool(5, true) }
+        if chapter.lastPageRead > 0 { writer.int(6, Int64(chapter.lastPageRead)) }
+        if chapter.dateFetch > 0 { writer.int(7, chapter.dateFetch) }
+        if chapter.dateUpload > 0 { writer.int(8, chapter.dateUpload) }
+        if chapter.number >= 0 || chapter.number.isFinite {
+            writer.float(9, chapter.number)
+        }
+        if chapter.sourceOrder != 0 { writer.int(10, Int64(chapter.sourceOrder)) }
+        if !chapter.memo.isEmpty && chapter.memo != "{}" {
+            writer.string(13, chapter.memo)
+        }
+    }
+
+    private static func encode(_ track: Track, into writer: inout ProtobufWriter) {
+        if track.syncId != 0 { writer.int(1, Int64(track.syncId)) }
+        if track.libraryId != 0 { writer.int(2, track.libraryId) }
+        if track.mediaId != 0 { writer.int(3, track.mediaId) }
+        writer.string(4, track.url)
+        writer.string(5, track.title)
+        if track.lastChapterRead != 0 { writer.float(6, track.lastChapterRead) }
+        if track.totalChapters != 0 { writer.int(7, Int64(track.totalChapters)) }
+        if track.score != 0 { writer.float(8, track.score) }
+        if track.status != 0 { writer.int(9, Int64(track.status)) }
+        if track.startedMs > 0 { writer.int(10, track.startedMs) }
+        if track.finishedMs > 0 { writer.int(11, track.finishedMs) }
+        if track.mediaId != 0 { writer.int(100, track.mediaId) }
+    }
+
+    private static func encode(_ history: History, into writer: inout ProtobufWriter) {
+        writer.string(1, history.chapterURL)
+        if history.lastReadMs > 0 { writer.int(2, history.lastReadMs) }
+        if history.durationMs > 0 { writer.int(3, history.durationMs) }
+    }
+
+    private static func encode(_ category: Category, into writer: inout ProtobufWriter) {
+        writer.string(1, category.name)
+        writer.int(2, Int64(category.order))
+    }
+
+    private static func encodeSource(id: Int64, name: String, into writer: inout ProtobufWriter) {
+        writer.string(1, name)
+        writer.int(2, id)
+    }
+
+    // MARK: - Export
+
+    /// Snapshot manga entries and categories from `context` into a gzipped `.tachibk` payload.
+    ///
+    /// Runs on whichever thread calls it with its own `ModelContext` (must be run off the main actor).
+    static func export(
+        context: ModelContext,
+        onProgress: (@Sendable (Int, Int, String) -> Void)? = nil
+    ) throws -> Data {
+        let allEntries = try context.fetch(FetchDescriptor<Entry>())
+        let mangaEntries = allEntries.filter { $0.kind == .manga }
+        guard !mangaEntries.isEmpty else { throw BackupError.noManga }
+
+        let categories = try context.fetch(FetchDescriptor<SchemaV2.Category>())
+        var backup = Backup()
+        backup.categories = categories
+            .sorted(by: { $0.order < $1.order })
+            .map { Category(name: $0.name, order: $0.order) }
+
+        let total = mangaEntries.count
+        for (index, entry) in mangaEntries.enumerated() {
+            if Task.isCancelled { break }
+            onProgress?(index + 1, total, entry.title)
+
+            let sourceID = NativeSourceIDs.sourceID(for: entry.sourceKey)
+            let sourceName = NativeSourceIDs.sourceName(for: entry.sourceKey, id: sourceID)
+            backup.sourceNames[sourceID] = sourceName
+
+            var manga = Manga()
+            manga.source = sourceID
+            manga.url = entry.url
+            manga.title = entry.title
+            manga.artist = entry.artist ?? ""
+            manga.author = entry.author ?? ""
+            manga.description = entry.summary ?? ""
+            manga.genres = entry.genres
+            manga.status = entry.status.rawValue
+            manga.thumbnailURL = entry.thumbnailURL ?? ""
+            manga.dateAdded = Int64(entry.dateAdded.timeIntervalSince1970 * 1000)
+            manga.favorite = entry.inLibrary
+            manga.viewerFlags = entry.viewerFlags
+            manga.updateStrategy = entry.updateStrategy.rawValue
+            manga.memo = entry.memo == "{}" ? "" : entry.memo
+            manga.categoryOrders = entry.categories.map { Int64($0.order) }
+
+            // Sort chapters by sourceOrder ascending (oldest to newest in LNReader).
+            // Mihon numbers sourceOrder 0 for newest, N-1 for oldest.
+            let sortedChapters = entry.chapters.sorted { $0.sourceOrder < $1.sourceOrder }
+            let chapterCount = sortedChapters.count
+            for (idx, ch) in sortedChapters.enumerated() {
+                var chapter = Chapter()
+                chapter.url = ch.url
+                chapter.name = ch.name
+                chapter.scanlator = ch.scanlator ?? ""
+                chapter.read = ch.read
+                chapter.bookmark = ch.bookmark
+                chapter.lastPageRead = ch.lastPageRead
+                if let df = ch.dateFetch { chapter.dateFetch = Int64(df.timeIntervalSince1970 * 1000) }
+                if let du = ch.dateUpload { chapter.dateUpload = Int64(du.timeIntervalSince1970 * 1000) }
+                chapter.number = ch.chapterNumber.isFinite ? Float(ch.chapterNumber) : -1
+                chapter.sourceOrder = max(0, chapterCount - 1 - idx)
+                chapter.memo = ch.memo == "{}" ? "" : ch.memo
+                manga.chapters.append(chapter)
+
+                if let hist = ch.history {
+                    var h = History()
+                    h.chapterURL = ch.url
+                    h.lastReadMs = Int64(hist.lastRead.timeIntervalSince1970 * 1000)
+                    h.durationMs = Int64(hist.timeRead * 1000)
+                    manga.history.append(h)
+                }
+            }
+
+            for tr in entry.tracks {
+                var track = Track()
+                track.syncId = tr.syncId
+                track.libraryId = tr.libraryId ?? 0
+                track.mediaId = tr.remoteId
+                track.url = tr.remoteURL
+                track.title = tr.title
+                track.lastChapterRead = Float(tr.lastChapterRead)
+                track.totalChapters = tr.totalChapters
+                track.score = Float(tr.score)
+                track.status = tr.status
+                if let start = tr.startDate { track.startedMs = Int64(start.timeIntervalSince1970 * 1000) }
+                if let fin = tr.finishDate { track.finishedMs = Int64(fin.timeIntervalSince1970 * 1000) }
+                manga.tracks.append(track)
+            }
+
+            backup.manga.append(manga)
+        }
+
+        let protobuf = encode(backup)
+        return try Gzip.compress(protobuf)
     }
 
     // MARK: - Summary

@@ -63,7 +63,7 @@ and migration behavior is unchanged.
 The local format is `LNRB | 2 | AES-GCM combined box`, authenticating the five-byte
 header. Its payload is versioned JSON. This is a distinct envelope version from the
 plan's Argon2/protobuf proposal, so it cannot silently misread that future format.
-**More → Backup & restore → Import from another app** reads `.tachibk` files from Mihon, Tachiyomi forks, Yokai and Tachimanga (see below). Exporting a `.tachibk` is still deferred. There
+**More → Backup & restore → Mihon / Tachiyomi (.tachibk)** reads and exports `.tachibk` files compatible with Mihon, Tachiyomi forks, Yokai and Tachimanga (see below). There
 is no cloud backup endpoint in this change.
 
 Import authenticates and validates the snapshot before presenting the merge action.

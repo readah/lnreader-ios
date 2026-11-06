@@ -31,7 +31,7 @@ backup/restore and narration are built but have never been exercised on a device
 | Downloads | **Built** | Novel text and manga pages, durable queue, offline reader paths, pause/retry/remove, Wi-Fi and storage guards. Not exercised on a device |
 | Update scheduling | **Built** | App refresh, continued/processing tasks, per-title policy, notifications, new-chapter downloads. Not exercised on a device |
 | Trackers | **AniList built** | Implicit-flow login, bind/edit sheet on detail, auto-update on finish, offline queue. Others not started |
-| Backup / restore | **Built (local)** | Encrypted `.lnbk` snapshots, recovery key, merge restore; `.tachibk` import. Export to `.tachibk` and cloud sync remain deferred. Not exercised on a device |
+| Backup / restore | **Built (local)** | Encrypted `.lnbk` snapshots, recovery key, merge restore; `.tachibk` import and export. Cloud sync remains deferred. Not exercised on a device |
 | Library | **Verified** | Filters, per-category sort / display / update scope, badges — all checked on device. No category editor yet |
 | Chapter fetching | **Verified** | Opening an entry no longer refetches; last-fetched time and a Refresh button |
 | Entry links | **Built** | The detail screen shares a `lnreader://entry` link (source key + source-relative url + kind + title, see `Services/EntryLink.swift`); opening one pushes that entry onto the library stack. Custom scheme only — no universal link, so the link is tappable in Messages and Safari but not everywhere. Not exercised on a device |
@@ -189,8 +189,8 @@ Full detail in [OFFLINE_LIBRARY.md](OFFLINE_LIBRARY.md); the shape:
   notifications and new-chapter downloads.
 - **Backup.** AES-256-GCM `.lnbk` with a random Keychain recovery key; merge restore that
   keeps existing details and newer progress. Media, audio, source packages and credentials
-  are excluded. `.tachibk` import reads Mihon/Yokai/Tachimanga files; `.tachibk` **export**
-  and cloud sync are still deferred.
+  are excluded. `.tachibk` import/export handles Mihon/Yokai/Tachimanga files; cloud sync is
+  still deferred.
 
 ## Trackers
 

@@ -132,6 +132,7 @@
 		ABCD26890000000000000003 /* Features/More/OfflineLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD26880000000000000003 /* Features/More/OfflineLibraryView.swift */; };
 		ABCD26890000000000000004 /* Services/OfflineChapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD26880000000000000004 /* Services/OfflineChapters.swift */; };
 		ABCD26890000000000000101 /* Services/Backup/ProtobufReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD26880000000000000101 /* Services/Backup/ProtobufReader.swift */; };
+		ABCD26890000000000000104 /* Services/Backup/ProtobufWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD26880000000000000104 /* Services/Backup/ProtobufWriter.swift */; };
 		ABCD26890000000000000102 /* Services/Backup/MihonBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD26880000000000000102 /* Services/Backup/MihonBackup.swift */; };
 		ABCD26890000000000000103 /* Utilities/Gzip.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD26880000000000000103 /* Utilities/Gzip.swift */; };
 		ABCD26890000000000000200 /* Features/Updates/LibraryUpdateBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD26880000000000000200 /* Features/Updates/LibraryUpdateBanner.swift */; };
@@ -332,6 +333,7 @@
 		ABCD26880000000000000003 /* Features/More/OfflineLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/More/OfflineLibraryView.swift; sourceTree = SOURCE_ROOT; };
 		ABCD26880000000000000004 /* Services/OfflineChapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/OfflineChapters.swift; sourceTree = SOURCE_ROOT; };
 		ABCD26880000000000000101 /* Services/Backup/ProtobufReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/Backup/ProtobufReader.swift; sourceTree = SOURCE_ROOT; };
+		ABCD26880000000000000104 /* Services/Backup/ProtobufWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/Backup/ProtobufWriter.swift; sourceTree = SOURCE_ROOT; };
 		ABCD26880000000000000102 /* Services/Backup/MihonBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/Backup/MihonBackup.swift; sourceTree = SOURCE_ROOT; };
 		ABCD26880000000000000103 /* Utilities/Gzip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities/Gzip.swift; sourceTree = SOURCE_ROOT; };
 		ABCD26880000000000000200 /* Features/Updates/LibraryUpdateBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Updates/LibraryUpdateBanner.swift; sourceTree = SOURCE_ROOT; };
@@ -544,6 +546,7 @@
 			isa = PBXGroup;
 			children = (
 				ABCD26880000000000000101 /* Services/Backup/ProtobufReader.swift */,
+				ABCD26880000000000000104 /* Services/Backup/ProtobufWriter.swift */,
 				ABCD26880000000000000102 /* Services/Backup/MihonBackup.swift */,
 				ABCD26880000000000000103 /* Utilities/Gzip.swift */,
 				ABCD26880000000000000200 /* Features/Updates/LibraryUpdateBanner.swift */,
@@ -908,6 +911,7 @@
 				A1B2C3D40000000000000014 /* WeebCentralSource.swift in Sources */,
 				A1B2C3D40000000000000016 /* KaganeSource.swift in Sources */,
 				ABCD26890000000000000101 /* Services/Backup/ProtobufReader.swift in Sources */,
+				ABCD26890000000000000104 /* Services/Backup/ProtobufWriter.swift in Sources */,
 				ABCD26890000000000000102 /* Services/Backup/MihonBackup.swift in Sources */,
 				ABCD26890000000000000103 /* Utilities/Gzip.swift in Sources */,
 				ABCD26890000000000000200 /* Features/Updates/LibraryUpdateBanner.swift in Sources */,

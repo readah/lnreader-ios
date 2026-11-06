@@ -238,6 +238,7 @@ run() {
         Services/Sources/SourceKey.swift \
         Services/Sources/Native/NativeSourceIDs.swift \
         Services/Backup/ProtobufReader.swift \
+        Services/Backup/ProtobufWriter.swift \
         Services/Backup/MihonBackup.swift \
         Services/Sources/SourceModels.swift \
         Services/ChapterOrder.swift \

@@ -8,50 +8,6 @@ import Compression
 import Foundation
 import SwiftData
 
-// MARK: - Protobuf writer (test only)
-
-private struct Writer {
-    var bytes = Data()
-
-    private mutating func varint(_ value: UInt64) {
-        var v = value
-        while v >= 0x80 { bytes.append(UInt8(v & 0x7f) | 0x80); v >>= 7 }
-        bytes.append(UInt8(v))
-    }
-    private mutating func key(_ field: Int, _ wire: Int) { varint(UInt64(field << 3 | wire)) }
-
-    mutating func int(_ field: Int, _ value: Int64) { key(field, 0); varint(UInt64(bitPattern: value)) }
-    mutating func bool(_ field: Int, _ value: Bool) { int(field, value ? 1 : 0) }
-    mutating func float(_ field: Int, _ value: Float) {
-        key(field, 5)
-        var bits = value.bitPattern.littleEndian
-        bytes.append(Data(bytes: &bits, count: 4))
-    }
-    mutating func string(_ field: Int, _ value: String) { message(field, Data(value.utf8)) }
-    mutating func message(_ field: Int, _ data: Data) {
-        key(field, 2); varint(UInt64(data.count)); bytes.append(data)
-    }
-    mutating func message(_ field: Int, _ build: (inout Writer) -> Void) {
-        var inner = Writer(); build(&inner); message(field, inner.bytes)
-    }
-}
-
-private func gzip(_ payload: Data) -> Data {
-    var out = Data([0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 0xff])
-    let capacity = payload.count + payload.count / 10 + 1024
-    var buffer = [UInt8](repeating: 0, count: capacity)
-    let size = payload.withUnsafeBytes { source in
-        compression_encode_buffer(&buffer, capacity,
-                                  source.bindMemory(to: UInt8.self).baseAddress!, payload.count,
-                                  nil, COMPRESSION_ZLIB)
-    }
-    out.append(contentsOf: buffer[0..<size])
-    out.append(Data(count: 4))                                  // CRC32, not verified by the reader
-    var length = UInt32(truncatingIfNeeded: payload.count).littleEndian
-    out.append(Data(bytes: &length, count: 4))
-    return out
-}
-
 // MARK: - Fixtures
 
 private let mangaFireID: Int64 = 6_084_907_896_154_116_083
@@ -59,7 +15,7 @@ private let allMangaID: Int64 = 4_709_139_914_729_853_090
 private let unknownID: Int64 = 1_234_567
 
 private func sampleBackup() -> Data {
-    var backup = Writer()
+    var backup = ProtobufWriter()
 
     backup.message(1) { m in
         m.int(1, mangaFireID)
@@ -123,12 +79,16 @@ private func sampleBackup() -> Data {
 struct MihonBackupChecks {
 
     static func main() throws {
+        try checkGzipCompress()
         try checkDecode()
+        try checkEncodeRoundTrip()
         try checkRestoreAndMerge()
+        try checkExportFromStore()
+        try checkExportRejectsNoManga()
         try checkGzipSafety()
         try checkRejectsGarbage()
         if let path = ProcessInfo.processInfo.environment["TACHIBK_SAMPLE"] { try checkRealBackup(path) }
-        print("PASS: .tachibk — decode, restore, merge, idempotent re-import, gzip limits, bad input")
+        print("PASS: .tachibk — compress, encode, export, decode, restore, merge, idempotent re-import, gzip limits, bad input")
     }
 
     private static func expect(_ condition: @autoclosure () throws -> Bool, _ message: String) rethrows {
@@ -145,7 +105,7 @@ struct MihonBackupChecks {
     // MARK: decode
 
     private static func checkDecode() throws {
-        let backup = try MihonBackup.decode(gzip(sampleBackup()))
+        let backup = try MihonBackup.decode(try Gzip.compress(sampleBackup()))
         expect(backup.manga.count == 2, "two titles decoded")
         expect(backup.categories.map(\.name) == ["stash", "hiatus"], "categories decoded in file order")
         expect(backup.sourceNames[mangaFireID] == "MangaFire", "source names decoded")
@@ -174,7 +134,7 @@ struct MihonBackupChecks {
     // MARK: restore
 
     private static func checkRestoreAndMerge() throws {
-        let backup = try MihonBackup.decode(gzip(sampleBackup()))
+        let backup = try MihonBackup.decode(try Gzip.compress(sampleBackup()))
         let container = try makeContainer()
         let summary = try MihonBackup.restore(backup, into: container)
         expect(summary.added == 2 && summary.merged == 0 && summary.chapters == 4, "first restore adds everything")
@@ -248,9 +208,155 @@ struct MihonBackupChecks {
 
     // MARK: gzip
 
+    private static func checkGzipCompress() throws {
+        // Empty payload
+        let emptyZipped = try Gzip.compress(Data())
+        expect(Gzip.isGzip(emptyZipped), "empty payload is valid gzip")
+        let emptyRoundTrip = try Gzip.decompress(emptyZipped, limit: 1024)
+        expect(emptyRoundTrip.isEmpty, "empty payload decompress round trip")
+
+        // Arbitrary payload
+        let text = "Mihon backup exporter test payload with some length and variety: 1234567890!@#$%^&*()".data(using: .utf8)!
+        let compressed = try Gzip.compress(text)
+        expect(Gzip.isGzip(compressed), "compressed data is gzip")
+        let restored = try Gzip.decompress(compressed, limit: 1024 * 1024)
+        expect(restored == text, "text decompress round trip matches byte for byte")
+    }
+
+    private static func checkEncodeRoundTrip() throws {
+        let original = try MihonBackup.decode(try Gzip.compress(sampleBackup()))
+        let reencoded = MihonBackup.encode(original)
+        let redecoded = try MihonBackup.decode(reencoded)
+
+        expect(redecoded.manga.count == original.manga.count, "manga count matches after encode round trip")
+        expect(redecoded.categories.count == original.categories.count, "category count matches")
+        expect(redecoded.sourceNames.count == original.sourceNames.count, "source names count matches")
+
+        let first = redecoded.manga[0]
+        expect(first.title == "Overgeared" && first.url == "/manga/overgeared.728q1", "title and url match")
+        expect(first.author == "Park Saenal, Rhyuji" && first.artist == "Park Saenal", "author and artist match")
+        expect(first.genres == ["Action", "Fantasy"], "genres match")
+        expect(first.favorite == true, "favorite matches")
+        expect(first.chapters.count == 3, "chapters count matches")
+        expect(first.chapters[0].read && !first.chapters[1].read, "read state matches")
+        expect(first.chapters[1].lastPageRead == 7, "lastPageRead matches")
+        expect(first.tracks.count == 1 && first.tracks[0].score == 8.5, "track score matches")
+        expect(first.history.count == 1 && first.history[0].durationMs == 120_000, "history matches")
+    }
+
+    private static func checkExportFromStore() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        // Insert category
+        let cat = SchemaV2.Category(name: "Reading", order: 0)
+        context.insert(cat)
+
+        // Insert manga entry
+        let entry = Entry(kind: .manga, sourceKey: "builtin:mangafire", url: "/manga/solo-leveling", title: "Solo Leveling")
+        entry.author = "Chugong"
+        entry.artist = "DUBU"
+        entry.summary = "A hunter awakens."
+        entry.genres = ["Action", "Fantasy"]
+        entry.status = .completed
+        entry.thumbnailURL = "https://example.com/sl.jpg"
+        entry.inLibrary = true
+        entry.categories.append(cat)
+        context.insert(entry)
+
+        // Insert chapters
+        let c1 = SchemaV2.Chapter(url: "/manga/solo-leveling/c1", name: "Chapter 1", chapterNumber: 1, sourceOrder: 0)
+        c1.read = true
+        c1.progress = 100
+        context.insert(c1)
+        c1.entry = entry
+
+        let h1 = SchemaV2.History(chapterURL: c1.url, lastRead: Date(timeIntervalSince1970: 1_700_000_000))
+        h1.timeRead = 300
+        context.insert(h1)
+        h1.chapter = c1
+        c1.history = h1
+
+        let c2 = SchemaV2.Chapter(url: "/manga/solo-leveling/c2", name: "Chapter 2", chapterNumber: 2, sourceOrder: 1)
+        c2.bookmark = true
+        c2.lastPageRead = 15
+        context.insert(c2)
+        c2.entry = entry
+
+        // Insert tracking
+        let track = SchemaV2.Track(syncId: 2, remoteId: 105398, title: "Solo Leveling")
+        track.score = 9.0
+        track.lastChapterRead = 1
+        track.remoteURL = "https://anilist.co/manga/105398"
+        context.insert(track)
+        track.entry = entry
+
+        try context.save()
+
+        // Export as .tachibk data
+        final class ProgressBox: @unchecked Sendable { var reported = false }
+        let progressBox = ProgressBox()
+        let exportedData = try MihonBackup.export(context: context) { completed, total, current in
+            expect(total == 1 && completed == 1, "progress reported")
+            progressBox.reported = true
+        }
+        expect(progressBox.reported, "onProgress was invoked")
+        expect(Gzip.isGzip(exportedData), "exported data is valid gzip")
+
+        // Decode exported data with MihonBackup.decode
+        let decoded = try MihonBackup.decode(exportedData)
+        expect(decoded.manga.count == 1, "1 manga exported")
+        expect(decoded.categories.map(\.name) == ["Reading"], "category exported")
+        expect(decoded.sourceNames[6_084_907_896_154_116_083] == "MangaFire", "MangaFire source id and name mapped")
+
+        let m = decoded.manga[0]
+        expect(m.title == "Solo Leveling" && m.author == "Chugong" && m.artist == "DUBU", "metadata exported")
+        expect(m.status == EntryStatus.completed.rawValue, "status exported")
+        expect(m.favorite, "favorite is true")
+        expect(m.categoryOrders == [0], "category reference preserved")
+        expect(m.chapters.count == 2, "2 chapters exported")
+
+        // Verify chapter ordering: LNReader chapter 0 is oldest, so in Mihon it has sourceOrder 1; chapter 1 has sourceOrder 0
+        let ch1 = try unwrap(m.chapters.first { $0.url == "/manga/solo-leveling/c1" })
+        expect(ch1.read && ch1.sourceOrder == 1, "chapter 1 read and inverted sourceOrder")
+        let ch2 = try unwrap(m.chapters.first { $0.url == "/manga/solo-leveling/c2" })
+        expect(ch2.bookmark && ch2.lastPageRead == 15 && ch2.sourceOrder == 0, "chapter 2 bookmark and lastPageRead")
+
+        // Verify history & tracking
+        expect(m.history.count == 1 && m.history[0].lastReadMs == 1_700_000_000_000, "history exported")
+        expect(m.tracks.count == 1 && m.tracks[0].mediaId == 105398 && m.tracks[0].score == 9.0, "tracking exported")
+
+        // Restore into fresh container
+        let restoreContainer = try makeContainer()
+        let summary = try MihonBackup.restore(decoded, into: restoreContainer)
+        expect(summary.added == 1 && summary.chapters == 2, "restored into fresh store")
+    }
+
+    private static func checkExportRejectsNoManga() throws {
+        // Empty store
+        let emptyContainer = try makeContainer()
+        let emptyContext = ModelContext(emptyContainer)
+        do {
+            _ = try MihonBackup.export(context: emptyContext)
+            fatalError("FAIL: export on empty store should throw noManga")
+        } catch MihonBackup.BackupError.noManga {}
+
+        // Store with only novels
+        let novelContainer = try makeContainer()
+        let novelContext = ModelContext(novelContainer)
+        let novel = Entry(kind: .novel, sourceKey: "ln:novelfire", url: "/n/test", title: "Novel Test")
+        novelContext.insert(novel)
+        try novelContext.save()
+
+        do {
+            _ = try MihonBackup.export(context: novelContext)
+            fatalError("FAIL: export on store with only novels should throw noManga")
+        } catch MihonBackup.BackupError.noManga {}
+    }
+
     private static func checkGzipSafety() throws {
         let zeros = Data(count: 8 * 1024 * 1024)
-        let packed = gzip(zeros)
+        let packed = try Gzip.compress(zeros)
         expect(packed.count < 100_000, "fixture really is a compression bomb")
         do { _ = try Gzip.decompress(packed, limit: 1024 * 1024); fatalError("FAIL: limit not enforced") }
         catch Gzip.GzipError.tooLarge {}
