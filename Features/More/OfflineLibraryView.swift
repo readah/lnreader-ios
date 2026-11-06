@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 import UserNotifications
 
@@ -370,6 +371,40 @@ struct LibraryBackupDocument: FileDocument {
     init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 }
+
+/// The system document picker, asked for a **copy** of the file.
+///
+/// SwiftUI's `fileImporter` opens in place when the app declares
+/// `LSSupportsOpeningDocumentsInPlace` — which this app does. A backup that cannot be
+/// opened in place (one still in iCloud, or in another app's container) then never
+/// resolves: the picker sits there and the tap does nothing, and the completion never
+/// runs, so the screen cannot even report why. `asCopy` always hands back a local URL.
+struct BackupDocumentPicker: UIViewControllerRepresentable {
+    let types: [UTType]
+    let onPick: (URL?) -> Void
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        picker.allowsMultipleSelection = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        private let onPick: (URL?) -> Void
+        init(onPick: @escaping (URL?) -> Void) { self.onPick = onPick }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            onPick(urls.first)
+        }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onPick(nil)
+        }
+    }
+}
 struct LibraryBackupView: View {
     @Environment(\.modelContext) private var context
     @State private var recoveryKey = ""
@@ -377,6 +412,9 @@ struct LibraryBackupView: View {
     @State private var document: LibraryBackupDocument?
     @State private var exporting = false
     @State private var importing = false
+    /// The file the picker returned, held until the picker has gone and the sheet
+    /// can hand it over. Presenting the merge prompt during the dismissal loses it.
+    @State private var picked: URL?
     @State private var busy = false
     @State private var message: String?
     @State private var pending: LibraryBackup.Snapshot?
@@ -386,6 +424,9 @@ struct LibraryBackupView: View {
     @State private var importsMihon = false
     var body: some View {
         Form {
+            // At the top: an outcome that lands below the fold reads as "nothing happened".
+            if busy { Section { ProgressView("Working…") } }
+            if let message { Section { Text(message) } }
             Section {
                 SecureField("Recovery key", text: $recoveryKey).textInputAutocapitalization(.never).autocorrectionDisabled()
                 Button("Copy recovery key") { UIPasteboard.general.string = recoveryKey }
@@ -413,8 +454,6 @@ struct LibraryBackupView: View {
             } footer: {
                 Text("From Mihon, Tachiyomi, Yokai or Tachimanga.")
             }
-            if busy { ProgressView("Working…") }
-            if let message { Section { Text(message) } }
         }
         .settingsScreen("Backup & restore")
         .task { do { recoveryKey = try LibraryBackup.key() } catch { message = error.localizedDescription } }
@@ -422,8 +461,12 @@ struct LibraryBackupView: View {
                       defaultFilename: "lnreader_\(Date().formatted(.iso8601.year().month().day())).lnbk") { result in
             if case .failure(let error) = result { message = error.localizedDescription }
         }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.lnreaderBackup, .data], allowsMultipleSelection: false) { result in
-            Task { await read(result) }
+        .sheet(isPresented: $importing, onDismiss: openPicked) {
+            BackupDocumentPicker(types: [.lnreaderBackup, .data]) { url in
+                picked = url
+                importing = false
+            }
+            .ignoresSafeArea()
         }
         .confirmationDialog(mihonPrompt, isPresented: Binding(get: { pendingMihon != nil }, set: { if !$0 { pendingMihon = nil } }), titleVisibility: .visible) {
             Button("Import backup") {
@@ -494,12 +537,18 @@ struct LibraryBackupView: View {
             } catch { message = "Export failed: \(error.localizedDescription)" }
         }
     }
-    private func read(_ result: Result<[URL], Error>) async {
+    /// Runs once the picker is off screen, so the prompt it leads to can present.
+    private func openPicked() {
+        guard let url = picked else { return }
+        picked = nil
+        Task { await read(url) }
+    }
+
+    private func read(_ url: URL) async {
         busy = true; defer { busy = false }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         do {
-            guard let url = try result.get().first else { return }
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             if importsMihon {
                 pendingMihon = try await Task.detached {
                     let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
