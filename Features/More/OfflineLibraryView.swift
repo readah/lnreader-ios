@@ -1,3 +1,4 @@
+import Observation
 import SwiftData
 import SwiftUI
 import UIKit
@@ -405,50 +406,733 @@ struct BackupDocumentPicker: UIViewControllerRepresentable {
         }
     }
 }
+enum BackupOperationKind: Equatable {
+    case export
+    case restoreLN
+    case restoreMihon
+
+    var title: String {
+        switch self {
+        case .export: "Backup export"
+        case .restoreLN: "LNReader restore"
+        case .restoreMihon: "Mihon import"
+        }
+    }
+}
+
+struct BackupProgress: Equatable {
+    let kind: BackupOperationKind
+    var total: Int
+    var completed = 0
+    var inFlight: [String] = []
+    var isCancelling = false
+    var wasCancelled = false
+    let startedAt = Date()
+    var finishedAt: Date?
+    var error: String?
+
+    var added = 0
+    var merged = 0
+    var chapters = 0
+    var categories = 0
+    var localFiles = 0
+    var unmatchedSources: [String: Int] = [:]
+
+    var isFinished: Bool { finishedAt != nil || error != nil }
+    var fraction: Double { total <= 0 ? 0 : min(1.0, Double(completed) / Double(total)) }
+
+    var headline: String {
+        if error != nil { return "Operation failed" }
+        if wasCancelled { return "\(kind.title) stopped" }
+        if isCancelling { return "Stopping…" }
+        if isFinished {
+            switch kind {
+            case .export: return "Backup created"
+            case .restoreLN: return "Restore complete"
+            case .restoreMihon: return "Import complete"
+            }
+        }
+        switch kind {
+        case .export: return "Exporting backup · \(completed) of \(total)"
+        case .restoreLN: return "Restoring backup · \(completed) of \(total)"
+        case .restoreMihon: return "Importing backup · \(completed) of \(total)"
+        }
+    }
+
+    var subtitle: String {
+        if let error { return error }
+        if isFinished {
+            var parts: [String] = []
+            switch kind {
+            case .export:
+                parts.append("\(completed) titles")
+                if localFiles > 0 { parts.append("\(localFiles) local files") }
+            case .restoreLN, .restoreMihon:
+                let totalRestored = added + merged
+                if totalRestored > 0 {
+                    parts.append("\(totalRestored) titles (\(added) new, \(merged) merged)")
+                }
+                if chapters > 0 { parts.append("\(chapters) chapters") }
+                if categories > 0 { parts.append("\(categories) categories") }
+                if !unmatchedSources.isEmpty {
+                    let missing = unmatchedSources.values.reduce(0, +)
+                    parts.append("\(missing) from missing sources")
+                }
+            }
+            return parts.isEmpty ? "Completed" : parts.joined(separator: " · ")
+        }
+        return inFlight.first.map { "Now: \($0)" } ?? "Processing…"
+    }
+
+    var icon: String {
+        if error != nil { return "xmark.circle.fill" }
+        if wasCancelled { return "stop.circle.fill" }
+        if !isFinished { return "arrow.triangle.2.circlepath" }
+        return unmatchedSources.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+    }
+}
+
+@Observable
+@MainActor
+final class BackupManager {
+    static let shared = BackupManager()
+
+    var progress: BackupProgress?
+    private var activeTask: Task<Void, Never>?
+
+    var isRunning: Bool {
+        guard let progress else { return false }
+        return !progress.isFinished
+    }
+
+    func cancel() {
+        guard isRunning else { return }
+        progress?.isCancelling = true
+        activeTask?.cancel()
+    }
+
+    func dismiss() {
+        if !isRunning {
+            progress = nil
+        }
+    }
+
+    func reportProgress(completed: Int, total: Int, current: String) {
+        guard isRunning else { return }
+        progress?.total = max(1, total)
+        progress?.completed = completed
+        progress?.inFlight = [current]
+    }
+
+    func export(
+        container: ModelContainer,
+        includeLocalBooks: Bool,
+        recoveryKey: String,
+        onExportReady: @escaping (LibraryBackupDocument) -> Void
+    ) {
+        guard !isRunning else { return }
+        let trimmedKey = recoveryKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else { return }
+
+        progress = BackupProgress(kind: .export, total: 1)
+        activeTask = Task.detached(priority: .userInitiated) {
+            do {
+                let context = ModelContext(container)
+                let entryCount = (try? context.fetchCount(FetchDescriptor<Entry>())) ?? 0
+                await MainActor.run {
+                    BackupManager.shared.progress?.total = max(1, entryCount)
+                }
+
+                let snapshot = try LibraryBackup.snapshot(context: context, includeLocalFiles: includeLocalBooks) { completed, total, current in
+                    Task { @MainActor in
+                        BackupManager.shared.reportProgress(completed: completed, total: total, current: current)
+                    }
+                }
+
+                if Task.isCancelled {
+                    await MainActor.run {
+                        BackupManager.shared.progress?.wasCancelled = true
+                        BackupManager.shared.progress?.finishedAt = Date()
+                        BackupManager.shared.progress?.inFlight = []
+                    }
+                    return
+                }
+
+                await MainActor.run {
+                    BackupManager.shared.progress?.inFlight = ["Encrypting backup…"]
+                }
+
+                let encoded = try JSONEncoder().encode(snapshot)
+                let sealed = try LibraryBackup.seal(encoded, recoveryKey: trimmedKey)
+
+                if Task.isCancelled {
+                    await MainActor.run {
+                        BackupManager.shared.progress?.wasCancelled = true
+                        BackupManager.shared.progress?.finishedAt = Date()
+                        BackupManager.shared.progress?.inFlight = []
+                    }
+                    return
+                }
+
+                await MainActor.run {
+                    let mgr = BackupManager.shared
+                    mgr.progress?.completed = mgr.progress?.total ?? 1
+                    mgr.progress?.localFiles = snapshot.localFiles.count
+                    mgr.progress?.finishedAt = Date()
+                    mgr.progress?.inFlight = []
+                    Haptics.shared.notify(.success)
+                    let doc = LibraryBackupDocument(data: sealed)
+                    onExportReady(doc)
+                }
+            } catch {
+                await MainActor.run {
+                    let mgr = BackupManager.shared
+                    if Task.isCancelled {
+                        mgr.progress?.wasCancelled = true
+                    } else {
+                        mgr.progress?.error = error.localizedDescription
+                        Haptics.shared.notify(.error)
+                    }
+                    mgr.progress?.finishedAt = Date()
+                    mgr.progress?.inFlight = []
+                }
+            }
+        }
+    }
+
+    func restoreLN(
+        _ snapshot: LibraryBackup.Snapshot,
+        container: ModelContainer
+    ) {
+        guard !isRunning else { return }
+        progress = BackupProgress(kind: .restoreLN, total: max(1, snapshot.entries.count))
+
+        activeTask = Task.detached(priority: .userInitiated) {
+            do {
+                let summary = try LibraryBackup.restore(snapshot, container: container) { completed, total, current in
+                    Task { @MainActor in
+                        BackupManager.shared.reportProgress(completed: completed, total: total, current: current)
+                    }
+                }
+
+                await MainActor.run {
+                    let mgr = BackupManager.shared
+                    LibraryChapterCounts.shared.invalidate()
+                    if Task.isCancelled {
+                        mgr.progress?.wasCancelled = true
+                    } else {
+                        mgr.progress?.completed = mgr.progress?.total ?? snapshot.entries.count
+                        mgr.progress?.added = summary.added
+                        mgr.progress?.merged = summary.merged
+                        mgr.progress?.chapters = summary.chapters
+                        mgr.progress?.categories = summary.categories
+                        mgr.progress?.localFiles = summary.localFiles
+                        Haptics.shared.notify(.success)
+                    }
+                    mgr.progress?.finishedAt = Date()
+                    mgr.progress?.inFlight = []
+                }
+            } catch {
+                await MainActor.run {
+                    let mgr = BackupManager.shared
+                    LibraryChapterCounts.shared.invalidate()
+                    if Task.isCancelled {
+                        mgr.progress?.wasCancelled = true
+                    } else {
+                        mgr.progress?.error = error.localizedDescription
+                        Haptics.shared.notify(.error)
+                    }
+                    mgr.progress?.finishedAt = Date()
+                    mgr.progress?.inFlight = []
+                }
+            }
+        }
+    }
+
+    func restoreMihon(
+        _ backup: MihonBackup.Backup,
+        container: ModelContainer
+    ) {
+        guard !isRunning else { return }
+        progress = BackupProgress(kind: .restoreMihon, total: max(1, backup.manga.count))
+
+        activeTask = Task.detached(priority: .userInitiated) {
+            do {
+                let summary = try MihonBackup.restore(backup, into: container) { completed, total, current in
+                    Task { @MainActor in
+                        BackupManager.shared.reportProgress(completed: completed, total: total, current: current)
+                    }
+                }
+
+                await MainActor.run {
+                    let mgr = BackupManager.shared
+                    LibraryChapterCounts.shared.invalidate()
+                    if Task.isCancelled {
+                        mgr.progress?.wasCancelled = true
+                    } else {
+                        mgr.progress?.completed = mgr.progress?.total ?? backup.manga.count
+                        mgr.progress?.added = summary.added
+                        mgr.progress?.merged = summary.merged
+                        mgr.progress?.chapters = summary.chapters
+                        mgr.progress?.categories = summary.categories
+                        mgr.progress?.unmatchedSources = summary.unmatchedSources
+                        Haptics.shared.notify(.success)
+                    }
+                    mgr.progress?.finishedAt = Date()
+                    mgr.progress?.inFlight = []
+                }
+            } catch {
+                await MainActor.run {
+                    let mgr = BackupManager.shared
+                    LibraryChapterCounts.shared.invalidate()
+                    if Task.isCancelled {
+                        mgr.progress?.wasCancelled = true
+                    } else {
+                        mgr.progress?.error = error.localizedDescription
+                        Haptics.shared.notify(.error)
+                    }
+                    mgr.progress?.finishedAt = Date()
+                    mgr.progress?.inFlight = []
+                }
+            }
+        }
+    }
+}
+
+private struct SnapshotWrapper: Identifiable {
+    let id = UUID()
+    let snapshot: LibraryBackup.Snapshot
+}
+
+private struct MihonWrapper: Identifiable {
+    let id = UUID()
+    let backup: MihonBackup.Backup
+}
+
+struct LNReaderBackupPreviewSheet: View {
+    let snapshot: LibraryBackup.Snapshot
+    let onConfirm: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 14) {
+                        Image(systemName: "externaldrive.badge.checkmark")
+                            .font(.system(size: 28))
+                            .foregroundStyle(Color.accentColor)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Restore LNReader Backup")
+                                .font(Typography.headline)
+                            Text("Created \(snapshot.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                                .font(Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section("Contents") {
+                    LabeledContent("Titles", value: "\(snapshot.entries.count)")
+                    LabeledContent("Categories", value: "\(snapshot.categories.count)")
+                    let totalChapters = snapshot.entries.reduce(0) { $0 + $1.chapters.count }
+                    LabeledContent("Chapters", value: "\(totalChapters)")
+                    if !snapshot.localFiles.isEmpty {
+                        let totalBytes = snapshot.localFiles.values.reduce(0) { $0 + $1.count }
+                        LabeledContent("Imported book files", value: "\(snapshot.localFiles.count) (\(ByteCountFormatter.string(fromByteCount: Int64(totalBytes), countStyle: .file)))")
+                    }
+                    LabeledContent("Reading progress & settings", value: "Included")
+                }
+
+                Section {
+                    Text("Existing titles and reading progress will be merged non-destructively. Downloaded chapter files and newer reading history on this device will not be lost.")
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Restore backup")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Restore") {
+                        dismiss()
+                        onConfirm()
+                    }
+                    .bold()
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    dismiss()
+                    onConfirm()
+                } label: {
+                    Text("Restore Backup")
+                        .frame(maxWidth: .infinity)
+                }
+                .primaryActionStyle()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.bar)
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+struct MihonBackupPreviewSheet: View {
+    let backup: MihonBackup.Backup
+    let onConfirm: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 14) {
+                        Image(systemName: "arrow.down.doc.fill")
+                            .font(.system(size: 28))
+                            .foregroundStyle(Color.accentColor)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Import Mihon Backup")
+                                .font(Typography.headline)
+                            Text("From Mihon, Tachiyomi, Yokai, or Tachimanga")
+                                .font(Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section("Contents") {
+                    LabeledContent("Manga titles", value: "\(backup.manga.count)")
+                    LabeledContent("Categories", value: "\(backup.categories.count)")
+                    let totalChapters = backup.manga.reduce(0) { $0 + $1.chapters.count }
+                    LabeledContent("Chapters", value: "\(totalChapters)")
+                    let totalTracks = backup.manga.reduce(0) { $0 + $1.tracks.count }
+                    if totalTracks > 0 {
+                        LabeledContent("Tracking entries", value: "\(totalTracks)")
+                    }
+                }
+
+                let preview = MihonBackup.preview(backup)
+                Section("Sources") {
+                    if preview.matched > 0 {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Color.green)
+                            Text("\(preview.matched) titles from built-in sources")
+                                .font(Typography.body)
+                        }
+                    }
+                    if !preview.unmatched.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(AppTheme.warning)
+                                let missingCount = preview.unmatched.values.reduce(0, +)
+                                Text("\(missingCount) titles from uninstalled sources")
+                                    .font(Typography.body.weight(.medium))
+                            }
+                            let sourceList = preview.unmatched.sorted { $0.value > $1.value }
+                                .map { "\($0.key) (\($0.value))" }
+                                .joined(separator: ", ")
+                            Text("These titles will be added to your library, but cannot fetch new chapters until their source is available: \(sourceList).")
+                                .font(Typography.small)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+
+                Section {
+                    Text("Existing library titles and reading progress will be merged non-destructively.")
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Import backup")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Import") {
+                        dismiss()
+                        onConfirm()
+                    }
+                    .bold()
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    dismiss()
+                    onConfirm()
+                } label: {
+                    Text("Import Backup")
+                        .frame(maxWidth: .infinity)
+                }
+                .primaryActionStyle()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.bar)
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
+struct BackupProgressCard: View {
+    let progress: BackupProgress
+    let onStop: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    if progress.isFinished {
+                        Image(systemName: progress.icon)
+                            .font(.title2)
+                            .foregroundStyle(iconColor)
+                    } else {
+                        ProgressView(value: progress.fraction)
+                            .progressViewStyle(.circular)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(progress.headline)
+                            .font(Typography.headline)
+                        Text(progress.subtitle)
+                            .font(Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                if !progress.isFinished {
+                    ProgressView(value: progress.fraction)
+                    HStack {
+                        if let current = progress.inFlight.first {
+                            Text(current)
+                                .font(Typography.small)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        elapsedText
+                            .font(Typography.small)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack {
+                    Spacer()
+                    if progress.isFinished {
+                        Button("Dismiss") { onDismiss() }
+                            .buttonStyle(.bordered)
+                    } else {
+                        Button("Stop", role: .destructive) { onStop() }
+                            .buttonStyle(.bordered)
+                            .disabled(progress.isCancelling)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var iconColor: Color {
+        if progress.error != nil { return AppTheme.destructive }
+        if progress.wasCancelled { return AppTheme.warning }
+        return progress.unmatchedSources.isEmpty ? Color.green : AppTheme.warning
+    }
+
+    private var elapsedText: some View {
+        if let end = progress.finishedAt {
+            Text(Duration.seconds(end.timeIntervalSince(progress.startedAt)), format: .time(pattern: .minuteSecond))
+        } else {
+            Text(progress.startedAt, style: .timer)
+        }
+    }
+}
+
+struct BackupProgressSheet: View {
+    @Bindable var manager: BackupManager
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let progress = manager.progress {
+                    Section {
+                        if progress.isFinished {
+                            HStack(spacing: 12) {
+                                Image(systemName: progress.icon)
+                                    .font(.title2)
+                                    .foregroundStyle(iconColor(progress))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(progress.headline).font(Typography.headline)
+                                    Text(progress.subtitle).font(Typography.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        } else {
+                            ProgressView(value: progress.fraction) {
+                                Text("\(progress.completed) of \(progress.total) titles")
+                            }
+                        }
+
+                        if progress.added > 0 || progress.merged > 0 {
+                            LabeledContent("New titles added", value: "\(progress.added)")
+                            LabeledContent("Existing titles merged", value: "\(progress.merged)")
+                        }
+                        if progress.chapters > 0 {
+                            LabeledContent("Chapters restored", value: "\(progress.chapters)")
+                        }
+                        if progress.categories > 0 {
+                            LabeledContent("Categories", value: "\(progress.categories)")
+                        }
+                        if progress.localFiles > 0 {
+                            LabeledContent("Local book files", value: "\(progress.localFiles)")
+                        }
+                        LabeledContent(progress.isFinished ? "Took" : "Running for") {
+                            elapsed(progress)
+                        }
+                    }
+
+                    if !progress.isFinished, !progress.inFlight.isEmpty {
+                        Section("Processing now") {
+                            ForEach(progress.inFlight, id: \.self) { Text($0).lineLimit(1) }
+                        }
+                    }
+
+                    if !progress.unmatchedSources.isEmpty {
+                        Section("Uninstalled sources (\(progress.unmatchedSources.values.reduce(0, +)) titles)") {
+                            ForEach(progress.unmatchedSources.sorted(by: { $0.value > $1.value }), id: \.key) { name, count in
+                                LabeledContent(name, value: "\(count)")
+                            }
+                        }
+                    }
+
+                    if let error = progress.error {
+                        Section("Error") {
+                            Text(error)
+                                .font(Typography.caption)
+                                .foregroundStyle(AppTheme.destructive)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Backup & restore")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if manager.isRunning {
+                        Button("Stop", role: .destructive) { manager.cancel() }
+                            .disabled(manager.progress?.isCancelling == true)
+                    } else {
+                        Button("Dismiss") {
+                            manager.dismiss()
+                            dismiss()
+                        }
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func iconColor(_ progress: BackupProgress) -> Color {
+        if progress.error != nil { return AppTheme.destructive }
+        if progress.wasCancelled { return AppTheme.warning }
+        return progress.unmatchedSources.isEmpty ? Color.green : AppTheme.warning
+    }
+
+    @ViewBuilder
+    private func elapsed(_ progress: BackupProgress) -> some View {
+        if let end = progress.finishedAt {
+            Text(Duration.seconds(end.timeIntervalSince(progress.startedAt)),
+                 format: .time(pattern: .minuteSecond))
+        } else {
+            Text(progress.startedAt, style: .timer)
+        }
+    }
+}
+
 struct LibraryBackupView: View {
     @Environment(\.modelContext) private var context
+    @State private var backupManager = BackupManager.shared
     @State private var recoveryKey = ""
     @State private var importKey = ""
     @State private var document: LibraryBackupDocument?
     @State private var exporting = false
     @State private var importing = false
-    /// The file the picker returned, held until the picker has gone and the sheet
-    /// can hand it over. Presenting the merge prompt during the dismissal loses it.
     @State private var picked: URL?
-    @State private var busy = false
-    @State private var message: String?
-    @State private var pending: LibraryBackup.Snapshot?
+    @State private var readingFile = false
+    @State private var readErrorMessage: String?
+    @State private var pendingSnapshot: LibraryBackup.Snapshot?
     @State private var pendingMihon: MihonBackup.Backup?
     @AppStorage("backup.includeLocalBooks") private var includeLocalBooks = false
-    /// Which kind of file the file picker is currently choosing.
     @State private var importsMihon = false
+
     var body: some View {
         Form {
-            // At the top: an outcome that lands below the fold reads as "nothing happened".
-            if busy { Section { ProgressView("Working…") } }
-            if let message { Section { Text(message) } }
+            if let progress = backupManager.progress {
+                BackupProgressCard(progress: progress, onStop: { backupManager.cancel() }, onDismiss: { backupManager.dismiss() })
+            }
+            if readingFile {
+                Section {
+                    HStack(spacing: 12) {
+                        ProgressView()
+                        Text("Reading backup file…")
+                            .font(Typography.body)
+                    }
+                }
+            }
+
             Section {
                 SecureField("Recovery key", text: $recoveryKey).textInputAutocapitalization(.never).autocorrectionDisabled()
-                Button("Copy recovery key") { UIPasteboard.general.string = recoveryKey }
-                    .disabled(recoveryKey.isEmpty)
+                Button("Copy recovery key") {
+                    UIPasteboard.general.string = recoveryKey
+                    Haptics.shared.notify(.success)
+                }
+                .disabled(recoveryKey.isEmpty)
                 Toggle("Include imported books", isOn: $includeLocalBooks)
-                Button("Export .lnbk backup") { export() }.disabled(busy || recoveryKey.isEmpty)
+                Button("Export .lnbk backup") { export() }
+                    .disabled(backupManager.isRunning || readingFile || recoveryKey.isEmpty)
             } header: {
                 Text("Encrypted backup")
             } footer: {
                 Text("Keep the recovery key apart from the backup; restoring on another device needs it. Imported book files are large, so leaving them out means importing them again after a restore.")
             }
+
             Section {
                 SecureField("Recovery key from the backup device", text: $importKey)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
-                Button("Choose .lnbk backup") { importsMihon = false; importing = true }.disabled(busy)
+                Button("Choose .lnbk backup") {
+                    importsMihon = false
+                    importing = true
+                }
+                .disabled(backupManager.isRunning || readingFile)
             } header: {
                 Text("Restore and merge")
             } footer: {
                 Text("Leave blank to use this device’s key.")
             }
+
             Section {
-                Button("Choose .tachibk backup") { importsMihon = true; importing = true }.disabled(busy)
+                Button("Choose .tachibk backup") {
+                    importsMihon = true
+                    importing = true
+                }
+                .disabled(backupManager.isRunning || readingFile)
             } header: {
                 Text("Import from another app")
             } footer: {
@@ -456,10 +1140,22 @@ struct LibraryBackupView: View {
             }
         }
         .settingsScreen("Backup & restore")
-        .task { do { recoveryKey = try LibraryBackup.key() } catch { message = error.localizedDescription } }
-        .fileExporter(isPresented: $exporting, document: document, contentType: .lnreaderBackup,
-                      defaultFilename: "lnreader_\(Date().formatted(.iso8601.year().month().day())).lnbk") { result in
-            if case .failure(let error) = result { message = error.localizedDescription }
+        .task {
+            do {
+                recoveryKey = try LibraryBackup.key()
+            } catch {
+                readErrorMessage = error.localizedDescription
+            }
+        }
+        .fileExporter(
+            isPresented: $exporting,
+            document: document,
+            contentType: .lnreaderBackup,
+            defaultFilename: "lnreader_\(Date().formatted(.iso8601.year().month().day())).lnbk"
+        ) { result in
+            if case .failure(let error) = result {
+                readErrorMessage = "Export failed: \(error.localizedDescription)"
+            }
         }
         .sheet(isPresented: $importing, onDismiss: openPicked) {
             BackupDocumentPicker(types: [.lnreaderBackup, .data]) { url in
@@ -468,76 +1164,43 @@ struct LibraryBackupView: View {
             }
             .ignoresSafeArea()
         }
-        .confirmationDialog(mihonPrompt, isPresented: Binding(get: { pendingMihon != nil }, set: { if !$0 { pendingMihon = nil } }), titleVisibility: .visible) {
-            Button("Import backup") {
-                guard let backup = pendingMihon else { return }
-                pendingMihon = nil
-                restoreMihon(backup)
+        .sheet(item: Binding(get: {
+            pendingSnapshot.map { SnapshotWrapper(snapshot: $0) }
+        }, set: {
+            pendingSnapshot = $0?.snapshot
+        })) { wrapper in
+            LNReaderBackupPreviewSheet(snapshot: wrapper.snapshot) {
+                let container = context.container
+                backupManager.restoreLN(wrapper.snapshot, container: container)
             }
+        }
+        .sheet(item: Binding(get: {
+            pendingMihon.map { MihonWrapper(backup: $0) }
+        }, set: {
+            pendingMihon = $0?.backup
+        })) { wrapper in
+            MihonBackupPreviewSheet(backup: wrapper.backup) {
+                let container = context.container
+                backupManager.restoreMihon(wrapper.backup, container: container)
+            }
+        }
+        .alert("Could Not Open Backup", isPresented: Binding(get: { readErrorMessage != nil }, set: { if !$0 { readErrorMessage = nil } })) {
+            Button("OK") { readErrorMessage = nil }
         } message: {
-            Text(mihonDetail)
-        }
-        .confirmationDialog("Merge \(pending?.entries.count ?? 0) titles into your library?", isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }), titleVisibility: .visible) {
-            Button("Restore backup") {
-                guard let snapshot = pending else { return }
-                pending = nil
-                do { let count = try LibraryBackup.restore(snapshot, container: context.container); message = "Restored \(count) titles." }
-                catch { message = "Restore failed: \(error.localizedDescription)" }
-            }
-        }
-    }
-    private var mihonPrompt: String { "Import \(pendingMihon?.manga.count ?? 0) titles?" }
-
-    /// Which sources the file uses and whether they are installed.
-    private var mihonDetail: String {
-        guard let backup = pendingMihon else { return "" }
-        let preview = MihonBackup.preview(backup)
-        var lines = ["\(preview.matched) titles are from sources built into the app."]
-        if !preview.unmatched.isEmpty {
-            let names = preview.unmatched.sorted { $0.value > $1.value }
-                .map { "\($0.key) (\($0.value))" }.joined(separator: ", ")
-            lines.append("These sources are not installed, so their titles will be listed but cannot be opened until you add them: \(names).")
-        }
-        return lines.joined(separator: "\n\n")
-    }
-
-    private func restoreMihon(_ backup: MihonBackup.Backup) {
-        busy = true
-        let container = context.container
-        Task {
-            defer { busy = false }
-            do {
-                let summary = try await Task.detached(priority: .userInitiated) {
-                    try MihonBackup.restore(backup, into: container)
-                }.value
-                LibraryChapterCounts.shared.invalidate()
-                var text = "Imported \(summary.added) new titles with \(summary.chapters) chapters"
-                if summary.merged > 0 { text += ", merged \(summary.merged) that were already here" }
-                if summary.categories > 0 { text += ", added \(summary.categories) categories" }
-                message = text + "."
-                if !summary.unmatchedSources.isEmpty {
-                    let total = summary.unmatchedSources.values.reduce(0, +)
-                    message? += " \(total) titles come from sources that are not installed."
-                }
-            } catch { message = "Import failed: \(error.localizedDescription)" }
+            if let readErrorMessage { Text(readErrorMessage) }
         }
     }
 
     private func export() {
-        busy = true
-        Task {
-            defer { busy = false }
-            do {
-                let snapshot = try LibraryBackup.snapshot(context: context, includeLocalFiles: includeLocalBooks)
-                let key = recoveryKey
-                let data = try await Task.detached {
-                    try LibraryBackup.seal(JSONEncoder().encode(snapshot), recoveryKey: key)
-                }.value
-                document = LibraryBackupDocument(data: data); exporting = true
-            } catch { message = "Export failed: \(error.localizedDescription)" }
+        let container = context.container
+        let key = recoveryKey
+        let includeLocal = includeLocalBooks
+        backupManager.export(container: container, includeLocalBooks: includeLocal, recoveryKey: key) { doc in
+            document = doc
+            exporting = true
         }
     }
-    /// Runs once the picker is off screen, so the prompt it leads to can present.
+
     private func openPicked() {
         guard let url = picked else { return }
         picked = nil
@@ -545,28 +1208,34 @@ struct LibraryBackupView: View {
     }
 
     private func read(_ url: URL) async {
-        busy = true; defer { busy = false }
+        readingFile = true
+        defer { readingFile = false }
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         do {
             if importsMihon {
-                pendingMihon = try await Task.detached {
+                let decoded = try await Task.detached(priority: .userInitiated) {
                     let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
                     guard size <= 256 * 1024 * 1024 else { throw CocoaError(.fileReadTooLarge) }
                     return try MihonBackup.decode(Data(contentsOf: url))
                 }.value
+                Haptics.shared.notify(.success)
+                pendingMihon = decoded
                 return
             }
             let key = importKey.isEmpty ? recoveryKey : importKey
-            pending = try await Task.detached {
+            let snapshot = try await Task.detached(priority: .userInitiated) {
                 let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
                 guard size <= LibraryBackup.limit + 64 else { throw CocoaError(.fileReadTooLarge) }
                 return try LibraryBackup.open(Data(contentsOf: url), recoveryKey: key)
             }.value
+            Haptics.shared.notify(.success)
+            pendingSnapshot = snapshot
         } catch {
-            message = importsMihon
+            Haptics.shared.notify(.error)
+            readErrorMessage = importsMihon
                 ? "Could not read that backup. \(error.localizedDescription)"
-                : "Could not open backup. Check the recovery key and file. \(error.localizedDescription)"
+                : "Could not open backup. Check the recovery key and verify the file is a valid LNReader backup. (\(error.localizedDescription))"
         }
     }
 }

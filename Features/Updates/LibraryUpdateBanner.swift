@@ -8,7 +8,9 @@ import SwiftUI
 
 struct LibraryUpdateBanner: View {
     @Environment(LibraryManager.self) private var libraryManager
+    @State private var backupManager = BackupManager.shared
     @State private var showDetail = false
+    @State private var showBackupDetail = false
 
     var body: some View {
         if let progress = libraryManager.updateProgress {
@@ -17,7 +19,40 @@ struct LibraryUpdateBanner: View {
                 .sheet(isPresented: $showDetail) {
                     LibraryUpdateSheet().presentationDetents([.medium, .large])
                 }
+        } else if let progress = backupManager.progress {
+            Button { showBackupDetail = true } label: { backupBannerLabel(progress) }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $showBackupDetail) {
+                    BackupProgressSheet(manager: backupManager).presentationDetents([.medium, .large])
+                }
         }
+    }
+
+    private func backupBannerLabel(_ progress: BackupProgress) -> some View {
+        HStack(spacing: 12) {
+            if progress.isFinished {
+                Image(systemName: progress.icon)
+                    .foregroundStyle(backupIconColor(progress))
+            } else {
+                ProgressView(value: progress.fraction)
+                    .progressViewStyle(.circular)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(progress.headline).font(.subheadline.weight(.semibold))
+                Text(progress.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.up").font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .contentShape(.rect)
+    }
+
+    private func backupIconColor(_ progress: BackupProgress) -> Color {
+        if progress.error != nil { return AppTheme.destructive }
+        if progress.wasCancelled { return AppTheme.warning }
+        return progress.unmatchedSources.isEmpty ? Color.green : AppTheme.warning
     }
 
     private func bannerLabel(_ progress: LibraryUpdateProgress) -> some View {

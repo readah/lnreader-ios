@@ -100,9 +100,22 @@ enum LibraryBackup {
             }
         }
     }
+    struct RestoreSummary: Sendable {
+        var added = 0
+        var merged = 0
+        var chapters = 0
+        var categories = 0
+        var localFiles = 0
+        var totalTitles: Int { added + merged }
+    }
+
     /// `includeLocalFiles` adds the imported books' files. Their entries and reading state are always
     /// saved; the files are what makes a backup large.
-    @MainActor static func snapshot(context: ModelContext, includeLocalFiles: Bool = true) throws -> Snapshot {
+    static func snapshot(
+        context: ModelContext,
+        includeLocalFiles: Bool = true,
+        onProgress: (@Sendable (Int, Int, String) -> Void)? = nil
+    ) throws -> Snapshot {
         let entries = try context.fetch(FetchDescriptor<Entry>())
         let groups = try context.fetch(FetchDescriptor<Category>())
         let prefs = UserDefaults.standard.dictionaryRepresentation().filter { key, _ in prefixes.contains { key.hasPrefix($0) } }
@@ -124,8 +137,13 @@ enum LibraryBackup {
                 files[String(resolved.dropFirst(rootPath.count + 1))] = data
             }
         }
-        return Snapshot(createdAt: .now, entries: entries.map { e in
-            Book(sourceKey: e.sourceKey, url: e.url, kind: e.kind, title: e.title, author: e.author, artist: e.artist,
+        var books: [Book] = []
+        books.reserveCapacity(entries.count)
+        for (index, e) in entries.enumerated() {
+            if Task.isCancelled { break }
+            onProgress?(index + 1, entries.count, e.title)
+            books.append(Book(
+                sourceKey: e.sourceKey, url: e.url, kind: e.kind, title: e.title, author: e.author, artist: e.artist,
                 summary: e.summary, genres: e.genres, status: e.status, thumbnail: e.thumbnailURL, inLibrary: e.inLibrary,
                 dateAdded: e.dateAdded, lastUpdate: e.lastUpdate, lastReadAt: e.lastReadAt, order: e.libraryOrder,
                 viewerFlags: e.viewerFlags, strategy: e.updateStrategy, memo: e.memo, customTitle: e.customTitle,
@@ -139,21 +157,39 @@ enum LibraryBackup {
                     Tracking(syncId: t.syncId, remoteId: t.remoteId, libraryId: t.libraryId, title: t.title,
                         lastChapter: t.lastChapterRead, total: t.totalChapters, status: t.status, score: t.score,
                         url: t.remoteURL, start: t.startDate, finish: t.finishDate)
-                })
-        }, categories: groups.map { Group(name: $0.name, order: $0.order, flags: $0.flags) }, preferences: preferences,
+                }
+            ))
+        }
+        return Snapshot(createdAt: .now, entries: books, categories: groups.map { Group(name: $0.name, order: $0.order, flags: $0.flags) }, preferences: preferences,
             localFiles: files)
     }
-    @MainActor static func restore(_ snapshot: Snapshot, container: ModelContainer) throws -> Int {
+    @discardableResult
+    static func restore(
+        _ snapshot: Snapshot,
+        container: ModelContainer,
+        onProgress: (@Sendable (Int, Int, String) -> Void)? = nil
+    ) throws -> RestoreSummary {
         try validate(snapshot)
+        var summary = RestoreSummary()
         let context = ModelContext(container)
+        context.autosaveEnabled = false
         var categories = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<Category>()).map { ($0.name, $0) })
         for group in snapshot.categories where categories[group.name] == nil {
             let category = Category(name: group.name, order: group.order, flags: group.flags)
             context.insert(category); categories[group.name] = category
+            summary.categories += 1
         }
         let existing = try context.fetch(FetchDescriptor<Entry>())
-        for book in snapshot.entries {
-            let found = existing.first { $0.sourceKey == book.sourceKey && $0.url == book.url }
+        var existingMap: [String: Entry] = [:]
+        for entry in existing {
+            existingMap["\(entry.sourceKey)\u{0}\(entry.url)"] = entry
+        }
+        let total = snapshot.entries.count
+        for (index, book) in snapshot.entries.enumerated() {
+            if Task.isCancelled { break }
+            onProgress?(index + 1, total, book.title)
+
+            let found = existingMap["\(book.sourceKey)\u{0}\(book.url)"]
             let entry = found ?? Entry(kind: book.kind, sourceKey: book.sourceKey, url: book.url, title: book.title)
             if found == nil {
                 context.insert(entry); entry.author = book.author; entry.artist = book.artist; entry.summary = book.summary
@@ -162,6 +198,10 @@ enum LibraryBackup {
                 entry.viewerFlags = book.viewerFlags; entry.updateStrategy = book.strategy; entry.memo = book.memo
                 entry.customTitle = book.customTitle; entry.customAuthor = book.customAuthor; entry.customArtist = book.customArtist
                 entry.customDescription = book.customDescription; entry.customThumbnailURL = book.customThumbnail
+                existingMap["\(book.sourceKey)\u{0}\(book.url)"] = entry
+                summary.added += 1
+            } else {
+                summary.merged += 1
             }
             entry.inLibrary = entry.inLibrary || book.inLibrary
             if let date = book.lastReadAt { entry.lastReadAt = max(entry.lastReadAt ?? .distantPast, date) }
@@ -174,6 +214,7 @@ enum LibraryBackup {
                 if saved[part.url] == nil {
                     context.insert(chapter); chapter.entry = entry; chapter.scanlator = part.scanlator
                     chapter.dateUpload = part.uploaded; chapter.dateFetch = part.fetched; chapter.memo = part.memo
+                    summary.chapters += 1
                 }
                 chapter.read = chapter.read || part.read; chapter.bookmark = chapter.bookmark || part.bookmark
                 if part.progress > chapter.progress {
@@ -199,6 +240,9 @@ enum LibraryBackup {
                     t.startDate = track.start; t.finishDate = track.finish
                 }
             }
+            if index % 25 == 24 {
+                try context.save()
+            }
         }
         // Existing local files win. Do not overwrite books already imported on this device.
         let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("LocalNovels")
@@ -209,6 +253,7 @@ enum LibraryBackup {
             if !FileManager.default.fileExists(atPath: target.path) {
                 try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try data.write(to: target, options: .atomic)
+                summary.localFiles += 1
             }
         }
         try context.save()
@@ -219,6 +264,6 @@ enum LibraryBackup {
         }
         // Restored chapters and restored scanlator rules decide what exists.
         Task { await ChapterVisibility.reconcileAll(container: container) }
-        return snapshot.entries.count
+        return summary
     }
 }

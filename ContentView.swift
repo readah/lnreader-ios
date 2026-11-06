@@ -49,7 +49,7 @@ struct ContentView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        .modifier(UpdateBannerHost(isActive: libraryManager.updateProgress != nil))
+        .modifier(UpdateBannerHost(isActive: libraryManager.updateProgress != nil || BackupManager.shared.progress != nil))
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
                 libraryManager.flushProgress(context: modelContext)

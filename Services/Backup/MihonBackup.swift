@@ -271,7 +271,11 @@ enum MihonBackup {
     /// match by url with read and bookmark OR-ed and the further page kept;
     /// history keeps the later read; trackers match by service and keep the
     /// higher chapter.
-    static func restore(_ backup: Backup, into container: ModelContainer) throws -> Summary {
+    static func restore(
+        _ backup: Backup,
+        into container: ModelContainer,
+        onProgress: (@Sendable (Int, Int, String) -> Void)? = nil
+    ) throws -> Summary {
         var summary = Summary()
         let context = ModelContext(container)
         context.autosaveEnabled = false
@@ -304,6 +308,9 @@ enum MihonBackup {
         }
 
         for (offset, manga) in backup.manga.enumerated() {
+            if Task.isCancelled { break }
+            onProgress?(offset + 1, backup.manga.count, manga.title)
+
             guard !manga.url.isEmpty, !manga.title.isEmpty else {
                 summary.skipped += 1
                 continue
