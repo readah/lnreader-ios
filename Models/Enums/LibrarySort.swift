@@ -196,4 +196,15 @@ struct LibrarySortStore {
     mutating func reset(_ category: String?) {
         sorts[category ?? Self.allKey] = nil
     }
+
+    /// Keep a rename (or drop a delete) from orphaning a category's sort.
+    /// See `LibraryDisplayStore.rename(from:to:)`.
+    mutating func rename(from oldName: String, to newName: String) {
+        guard oldName != newName, let sort = sorts.removeValue(forKey: oldName) else { return }
+        sorts[newName] = sort
+    }
+
+    mutating func remove(_ name: String) {
+        sorts[name] = nil
+    }
 }

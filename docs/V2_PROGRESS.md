@@ -32,7 +32,7 @@ backup/restore and narration are built but have never been exercised on a device
 | Update scheduling | **Built** | App refresh, continued/processing tasks, per-title policy, notifications, new-chapter downloads. Not exercised on a device |
 | Trackers | **AniList built** | Implicit-flow login, bind/edit sheet on detail, auto-update on finish, offline queue. Others not started |
 | Backup / restore | **Built (local)** | Encrypted `.lnbk` snapshots, recovery key, merge restore; `.tachibk` import and export. Cloud sync remains deferred. Not exercised on a device |
-| Library | **Verified** | Filters, per-category sort / display / update scope, badges — all checked on device. No category editor yet |
+| Library | **Verified** | Filters, per-category sort / display / update scope, badges — all checked on device. The category editor (More › Categories) is **Built**, not verified |
 | Chapter fetching | **Verified** | Opening an entry no longer refetches; last-fetched time and a Refresh button |
 | Entry links | **Built** | The detail screen shares a `lnreader://entry` link (source key + source-relative url + kind + title, see `Services/EntryLink.swift`); opening one pushes that entry onto the library stack. Custom scheme only — no universal link, so the link is tappable in Messages and Safari but not everywhere. Not exercised on a device |
 | Performance | **Pass done** | Library counts cached off-main, reader writes coalesced, covers downsampled; numbers in [PERFORMANCE.md](PERFORMANCE.md), next rewrite in [LIBRARY_QUERY_PLAN.md](LIBRARY_QUERY_PLAN.md) |
@@ -100,8 +100,9 @@ Pure rules live in `Features/MangaReader/MangaReaderControls.swift`, checked hea
   count pass lands, or the library visibly reshuffles on launch.
 - **Update scope** is the `CategoryFlags.excludedFromUpdates` bit (carried by `.lnbk`).
   Exclusion wins when **any** category is excluded, while `updateLibrary(category:)` updates
-  its own category regardless. There is no category editor, so per-category settings are
-  reachable only after a Mihon import.
+  its own category regardless. Per-category sorts, display modes and filters are keyed by
+  category **name**, so the editor (More › Categories) migrates them on rename and drops them
+  on delete; categories can now be created without a Mihon import.
 - **Badges:** unread (the old key, on), new chapters, downloaded count, source language (the
   last three off). "New" is unread with `dateFetch` set, so it clears with Updates. Counts
   stay off-main and extras are remembered so the sort pass and the cells do not evict each
@@ -216,8 +217,10 @@ only. **The backend docs have not caught up** — see open issue 6. Playback on 
 1. **MangaFire captcha.** A `403 {"error":"captcha_required"}` surfaces as an error.
    Upstream solves it with OpenCV.js in a WebView and a `waf_pass` cookie. The host
    primitive now exists (`webview.capture`), but the MangaFire bundle does not use it.
-2. **No category editor.** Categories only arrive from a Mihon restore, so R9's
-   per-category settings are reachable only after an import.
+2. **Category editor not verified.** More › Categories names, reorders and deletes categories,
+   sets their update scope, and picks their titles with a searchable list (membership is
+   written on `Category.entries`). Built only; it has not run on a device. A shortcut that
+   assigns a category from the entry detail screen is still missing.
 3. **Global search is novel-only.** `GlobalSearchView` iterates `sourceManager.novelSources`;
    it is hidden on the Manga tab rather than shown broken.
 4. **Bundle signing.** Repositories pin a signing-key fingerprint, but bundle bytes are not

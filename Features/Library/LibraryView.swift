@@ -97,6 +97,14 @@ struct LibraryView: View {
                 .presentationDetents([.medium, .large])
             }
             .task(id: filterCountsKey) { await loadFilterCounts() }
+            .onChange(of: categoryIDs) { _, _ in
+                // A category deleted on the settings page leaves this tab
+                // holding a deleted model. Fall back to All before `body`
+                // reads its name, rather than faulting a dead object.
+                if let selected = selectedCategory, !categories.contains(where: { $0 === selected }) {
+                    selectedCategory = nil
+                }
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active && isEditingLibrary {
                     commitLibraryPositions(clearOrder: false)
@@ -421,6 +429,11 @@ struct LibraryView: View {
                 filtersJSON = store.json
             }
         )
+    }
+
+    /// A rename leaves these IDs alone; adding or deleting a category does not.
+    private var categoryIDs: [PersistentIdentifier] {
+        categories.map(\.persistentModelID)
     }
 
     /// Re-run the count pass when the filter, the category or the library changes.

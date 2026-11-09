@@ -109,4 +109,15 @@ struct LibraryFilterStore {
         // An all-off filter is the default; storing it would only grow the JSON.
         filters[category ?? Self.allKey] = filter.isActive ? filter : nil
     }
+
+    /// Keep a rename (or drop a delete) from orphaning a category's filters.
+    /// See `LibraryDisplayStore.rename(from:to:)`.
+    mutating func rename(from oldName: String, to newName: String) {
+        guard oldName != newName, let filter = filters.removeValue(forKey: oldName) else { return }
+        filters[newName] = filter
+    }
+
+    mutating func remove(_ name: String) {
+        filters[name] = nil
+    }
 }

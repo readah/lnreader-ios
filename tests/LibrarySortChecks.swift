@@ -73,10 +73,21 @@ struct LibrarySortChecks {
         check(store.sorts.isEmpty, "reset removes the override")
         check(LibrarySortStore(json: "garbage").sort(for: nil, default: fallback) == fallback, "bad JSON falls back to default")
 
+        // The category editor keys every override by name.
+        var renamed = LibrarySortStore()
+        renamed.set(LibrarySort(order: .unread), for: "Manga")
+        renamed.set(LibrarySort(order: .alphabetical), for: "Novels")
+        renamed.rename(from: "Manga", to: "Comics")
+        check(renamed.sort(for: "Comics", default: fallback).order == .unread, "rename moves the sort override")
+        check(!renamed.hasOverride(for: "Manga"), "rename drops the old sort key")
+        check(renamed.sort(for: "Novels", default: fallback).order == .alphabetical, "rename leaves other categories alone")
+        renamed.remove("Comics")
+        check(!renamed.hasOverride(for: "Comics") && renamed.hasOverride(for: "Novels"), "delete drops one sort override")
+
         let old = #"{"order":"Unread","future":"x"}"#
         let decoded = try? JSONDecoder().decode(LibrarySort.self, from: Data(old.utf8))
         check(decoded?.order == .unread && decoded?.direction == .descending, "old data decodes")
 
-        print("PASS: library sorts — every order, direction, nil handling, tie-breaks, per-category store, decoding")
+        print("PASS: library sorts — every order, direction, nil handling, tie-breaks, per-category store, name migration, decoding")
     }
 }

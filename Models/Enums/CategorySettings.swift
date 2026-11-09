@@ -60,4 +60,17 @@ struct LibraryDisplayStore {
     mutating func reset(_ category: String?) {
         modes[category ?? LibraryFilterStore.allKey] = nil
     }
+
+    /// `Category.name` is the identity (unique in the schema, the key in both
+    /// backup formats), so these overrides are keyed by name too. Renaming or
+    /// deleting a category has to move or drop its entry, or the override is
+    /// stranded under a name that no longer exists.
+    mutating func rename(from oldName: String, to newName: String) {
+        guard oldName != newName, let mode = modes.removeValue(forKey: oldName) else { return }
+        modes[newName] = mode
+    }
+
+    mutating func remove(_ name: String) {
+        modes[name] = nil
+    }
 }

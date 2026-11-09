@@ -209,6 +209,7 @@ struct MoreView: View {
     private var libraryManagementSection: some View {
         Section {
             link("Downloads", symbol: "arrow.down.circle") { OfflineLibraryView() }
+            link("Categories", subtitle: "Groups & update scope", symbol: "square.grid.2x2") { CategoriesSettingsView() }
             link("Library updates", symbol: "arrow.triangle.2.circlepath") { LibraryUpdateSettingsView() }
             link("Connections", subtitle: "AniList, comments", symbol: "link") { ConnectionsSettingsView() }
             link("Backup & restore", symbol: "externaldrive") { LibraryBackupView() }

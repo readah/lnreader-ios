@@ -41,6 +41,32 @@ struct CategorySettingsChecks {
         let stale = LibraryDisplayStore(json: #"{"Manga":"Hologram","Novels":"List"}"#)
         check(stale.mode(for: "Manga", default: fallback) == fallback && stale.mode(for: "Novels", default: fallback) == .list, "unknown mode drops only itself")
 
-        print("PASS: category settings — update flag, update scope, per-category display store")
+        // The category editor keys every override by name. A rename has to
+        // carry it across, and a delete has to drop only that key.
+        var renamed = LibraryDisplayStore()
+        renamed.set(.list, for: "Manga")
+        renamed.set(.coverOnly, for: "Novels")
+        renamed.rename(from: "Manga", to: "Comics")
+        check(renamed.mode(for: "Comics", default: fallback) == .list, "rename moves the display override")
+        check(!renamed.hasOverride(for: "Manga"), "rename drops the old display key")
+        check(renamed.mode(for: "Novels", default: fallback) == .coverOnly, "rename leaves other categories alone")
+        renamed.rename(from: "Missing", to: "Ghost")
+        check(!renamed.hasOverride(for: "Ghost"), "renaming a category with no override is a no-op")
+        renamed.remove("Comics")
+        check(!renamed.hasOverride(for: "Comics") && renamed.hasOverride(for: "Novels"), "delete drops one display override")
+
+        var filters = LibraryFilterStore()
+        var active = LibraryFilter()
+        active.unread = .include
+        filters.set(active, for: "Manga")
+        filters.set(active, for: nil)
+        filters.rename(from: "Manga", to: "Comics")
+        check(filters.filter(for: "Comics").unread == .include, "rename moves the filter override")
+        check(filters.filter(for: "Manga").unread == .off, "rename drops the old filter key")
+        check(filters.filter(for: nil).unread == .include, "renaming a category leaves All alone")
+        filters.remove("Comics")
+        check(filters.filter(for: "Comics").unread == .off && filters.filter(for: nil).unread == .include, "delete drops one filter override")
+
+        print("PASS: category settings — update flag, update scope, per-category display/filter stores, name migration")
     }
 }

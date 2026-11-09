@@ -40,6 +40,7 @@
 		0C03062A193BA30A59F0417F /* MoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22DDF1DFDE958E4744082B1B /* MoreView.swift */; };
 		0C1F88D43CB0872BBEFD8D36 /* SourceIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D8EDB55C13E2185ADDC743F /* SourceIconView.swift */; };
 		0D61A49ED5F1D91D3A515A14 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FEB9DFD69BA0045086A56C6 /* GeneralSettingsView.swift */; };
+		ABCD31000000000000000002 /* CategoriesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD31000000000000000001 /* CategoriesSettingsView.swift */; };
 		0F1B805C6FDCC1DEDB5754EB /* ReaderTTSManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD006CC34D0C4C76D36DE78E /* ReaderTTSManager.swift */; };
 		0F37784CA27169F604E6AF15 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6296321DDD74C291B504BEC0 /* AuthView.swift */; };
 		101FC16524252E8504339C18 /* ChapterTransitionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F49621AC64A71C72F9450BE /* ChapterTransitionCard.swift */; };
@@ -236,6 +237,7 @@
 		0C44C4624E64FA3940C97DF8 /* CategorySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategorySettings.swift; sourceTree = "<group>"; };
 		0D4233BADE3CB7AF56E45C68 /* MiniZIP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniZIP.swift; sourceTree = "<group>"; };
 		0E7EF8F1619F87E49C91AA9D /* AdvancedSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSettingsView.swift; sourceTree = "<group>"; };
+		ABCD31000000000000000001 /* CategoriesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoriesSettingsView.swift; sourceTree = "<group>"; };
 		0F3C57396225E76D5E328F96 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		12F4A420FA71593B7FE636EF /* String+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Extensions.swift"; sourceTree = "<group>"; };
 		174C8A293062CFE21B69CD54 /* ReaderSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderSettings.swift; sourceTree = "<group>"; };
@@ -535,6 +537,7 @@
 			isa = PBXGroup;
 			children = (
 				0E7EF8F1619F87E49C91AA9D /* AdvancedSettingsView.swift */,
+				ABCD31000000000000000001 /* CategoriesSettingsView.swift */,
 				4FEB9DFD69BA0045086A56C6 /* GeneralSettingsView.swift */,
 				FD1C9A0EDEC76B66E2A28B5A /* ReaderSettingsView.swift */,
 				FA7B6ED88F807CFBE5682DC8 /* TTSSettingsView.swift */,
@@ -936,6 +939,7 @@
 				EB83EEFDBC246CAE607A6791 /* TTSAudio.swift in Sources */,
 				B6C6D1C5F90025D8A536E91B /* AboutView.swift in Sources */,
 				C4748B637ED36325AFC4D906 /* AdvancedSettingsView.swift in Sources */,
+				ABCD31000000000000000002 /* CategoriesSettingsView.swift in Sources */,
 				0F37784CA27169F604E6AF15 /* AuthView.swift in Sources */,
 				6098BA752774BDB4B89F0413 /* BadgeView.swift in Sources */,
 				94D28F3920B360E7992CF402 /* BrowseView.swift in Sources */,
