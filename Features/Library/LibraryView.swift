@@ -66,6 +66,11 @@ struct LibraryView: View {
     @State private var showFileImporter = false
     @State private var importError: String?
     @State private var showImportError = false
+    /// "Open random unread" counts chapters on a background context.
+    @State private var isPickingRandom = false
+    @State private var showNoUnreadManga = false
+    /// Don't hand out the same manga twice in a row when there is a choice.
+    @State private var lastRandomEntryID: PersistentIdentifier?
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -154,6 +159,11 @@ struct LibraryView: View {
             } message: { novel in
                 Text("Are you sure you want to remove '\(novel.displayTitle)' from your library?")
             }
+            .alert("No unread manga", isPresented: $showNoUnreadManga) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Every manga in your library is up to date.")
+            }
             .navigationDestination(for: Entry.self) { novel in
                 // A migrated entry takes the place of the one that left the
                 // library, so Back goes here rather than to a dead page.
@@ -226,8 +236,11 @@ struct LibraryView: View {
                 isCustomised: activeFilter.isActive
                     || sortStore.hasOverride(for: selectedCategory?.name)
                     || displayStore.hasOverride(for: selectedCategory?.name),
+                hasManga: hasManga,
+                isPickingRandom: isPickingRandom,
                 onShowOptions: { showOptionsSheet = true },
-                onImport: { showFileImporter = true }
+                onImport: { showFileImporter = true },
+                onOpenRandom: openRandomUnread
             )
         }
     }
@@ -406,6 +419,63 @@ struct LibraryView: View {
         guard let entry = openedEntry else { return }
         openedEntry = nil
         navigationPath.append(entry)
+    }
+
+    // MARK: - Open random unread
+
+    /// A novel-only library has nothing the dice button can open.
+    private var hasManga: Bool { novels.contains { $0.kind == .manga } }
+
+    /// Push the detail screen of a random manga with unread chapters, from the
+    /// whole library: the kind tab, search and view filters shape what is on
+    /// screen, not which books are eligible.
+    ///
+    /// The candidate pass runs on a background `ModelContext` and counts with
+    /// `fetchCount`. `Entry.unreadCount` / `hasUnread` walk the `chapters`
+    /// relationship, so asking every manga for one on the main actor would
+    /// fault every chapter row in the library — the stall `LibraryChapterCounts`
+    /// exists to avoid. Only IDs cross back, and the view resolves the winner
+    /// against its own `@Query` before pushing.
+    private func openRandomUnread() {
+        guard !isPickingRandom else { return }
+        isPickingRandom = true
+        let container = modelContext.container
+
+        Task { @MainActor in
+            let pick = Task.detached(priority: .userInitiated) { () -> [PersistentIdentifier] in
+                let context = ModelContext(container)
+                let entries = (try? context.fetch(FetchDescriptor<Entry>(
+                    predicate: #Predicate<Entry> { $0.inLibrary }
+                ))) ?? []
+
+                var ids: [PersistentIdentifier] = []
+                for entry in entries where entry.kind == .manga {
+                    let id = entry.persistentModelID
+                    // Hidden chapters do not exist; the same rule the badges,
+                    // filters and reader all use.
+                    let unread = #Predicate<Chapter> {
+                        $0.entry?.persistentModelID == id && !$0.hidden && !$0.read
+                    }
+                    let count = (try? context.fetchCount(FetchDescriptor<Chapter>(predicate: unread))) ?? 0
+                    if count > 0 { ids.append(id) }
+                }
+                return ids
+            }
+            let candidates = await pick.value
+
+            isPickingRandom = false
+            let pool = candidates.count > 1
+                ? candidates.filter { $0 != lastRandomEntryID }
+                : candidates
+            guard let id = pool.randomElement(),
+                  let entry = novels.first(where: { $0.persistentModelID == id }) else {
+                showNoUnreadManga = true
+                return
+            }
+            lastRandomEntryID = id
+            Haptics.shared.impact(.light)
+            navigationPath.append(entry)
+        }
     }
 
     // MARK: - Filtering & Sorting
