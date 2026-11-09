@@ -22,7 +22,7 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Defaults") {
+            Section {
                 Picker("Sort order", selection: defaultSortOrder) {
                     ForEach(SortOrder.allCases) { order in
                         Text(order.displayName).tag(order)
@@ -40,6 +40,8 @@ struct GeneralSettingsView: View {
                         Text(mode.displayName).tag(mode)
                     }
                 }
+            } header: {
+                Text("Defaults")
             } footer: {
                 Text("Defaults for every category. A single category can override its sort, filters and layout from Library options.")
             }
