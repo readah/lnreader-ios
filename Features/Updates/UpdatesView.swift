@@ -47,10 +47,12 @@ struct UpdatesView: View {
                         subtitle: "New chapters from your library will appear here."
                     )
                     .refreshable {
-                        // The updates modal shows progress; release the pull indicator.
+                        // The update banner shows progress; the pull indicator
+                        // has no job beyond starting the run. Sleeping here
+                        // pinned it for 1.5 s while the update wrote to the
+                        // store, leaving the list sitting in its pulled state.
                         let context = modelContext, sources = sourceManager
                         Task { await libraryManager.updateLibrary(context: context, sourceManager: sources) }
-                        try? await Task.sleep(for: .seconds(1.5))
                     }
                 } else {
                     List {
@@ -78,10 +80,12 @@ struct UpdatesView: View {
                     }
                     .listStyle(.plain)
                     .refreshable {
-                        // The updates modal shows progress; release the pull indicator.
+                        // The update banner shows progress; the pull indicator
+                        // has no job beyond starting the run. Sleeping here
+                        // pinned it for 1.5 s while the update wrote to the
+                        // store, leaving the list sitting in its pulled state.
                         let context = modelContext, sources = sourceManager
                         Task { await libraryManager.updateLibrary(context: context, sourceManager: sources) }
-                        try? await Task.sleep(for: .seconds(1.5))
                     }
                 }
             }

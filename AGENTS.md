@@ -136,7 +136,9 @@ the doc named in brackets has the reasoning. Start with `docs/V2_PROGRESS.md` fo
   than firing a burst. The source row is a button with a `LongPressGesture`, not a
   `NavigationLink` with a `.contextMenu`: the system menu lifts the row into a preview and fades
   that overlay out on dismissal, which reads as the screen sticking after you back out. Same
-  hold as `InteractiveListRow` and `ChapterRow`.
+  hold as `ChapterRow`. Library rows are the exception: they use a `.contextMenu` with their
+  own compact preview and manual navigation, so nothing is pushed from the menu. Holding a
+  library book shows quick actions; "Arrange books" is the only path into manual reorder.
 - Settings screens use `.settingsScreen(_:)` for their sentence-case title.
 - **Grey means secondary, never tappable.** The `AccentColor` asset is primary, so buttons and
   links read as primary text; only metadata is `.secondary`. Switches get the `controlFill`

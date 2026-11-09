@@ -13,7 +13,7 @@ struct LibraryGridView: View {
     @Binding var draggedItem: Entry?
     var onReorder: (Entry, Entry) -> Void
     var onDelete: (Entry) -> Void
-    var onStartEditing: () -> Void
+    var onArrange: () -> Void
     var onSelect: (Entry) -> Void
 
     /// Items per row; 0 picks as many as fit (`LibraryGridColumns`).
@@ -50,7 +50,8 @@ struct LibraryGridView: View {
                         novel: novel,
                         displayMode: displayMode,
                         onSelect: onSelect,
-                        onStartEditing: onStartEditing
+                        onArrange: onArrange,
+                        onRemove: { onDelete(novel) }
                     )
                 }
             }
@@ -106,18 +107,11 @@ struct InteractiveGridCell: View {
     let novel: Entry
     let displayMode: DisplayMode
     var onSelect: (Entry) -> Void
-    var onStartEditing: () -> Void
-
-    @State private var longPressActive = false
+    var onArrange: () -> Void
+    var onRemove: () -> Void
 
     var body: some View {
-        Button(action: {
-            if longPressActive {
-                longPressActive = false
-            } else {
-                onSelect(novel)
-            }
-        }) {
+        Button(action: { onSelect(novel) }) {
             NovelGridCell(
                 transitionNamespace: transitionNamespace,
                 novel: novel,
@@ -128,14 +122,11 @@ struct InteractiveGridCell: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.4)
-                .onEnded { _ in
-                    Haptics.shared.impact(.heavy)
-                    longPressActive = true
-                    onStartEditing()
-                }
-        )
+        .contextMenu {
+            LibraryEntryQuickActions(entry: novel, onArrange: onArrange, onRemove: onRemove)
+        } preview: {
+            LibraryEntryPreview(entry: novel)
+        }
     }
 }
 

@@ -40,6 +40,8 @@ struct GeneralSettingsView: View {
                         Text(mode.displayName).tag(mode)
                     }
                 }
+            } footer: {
+                Text("Defaults for every category. A single category can override its sort, filters and layout from Library options.")
             }
 
             Section {

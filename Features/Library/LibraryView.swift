@@ -48,6 +48,13 @@ struct LibraryView: View {
     @State private var hasLoadedCounts = false
     @State private var showOptionsSheet = false
     @State private var optionsTab: LibraryOptionsSheet.Tab = .sort
+    /// "Arrange books" from the options sheet has to wait until the sheet is
+    /// gone; starting edit mode underneath it put the drag handles behind glass.
+    @State private var arrangeAfterSheet = false
+    /// The sort that was active before Arrange. If nothing was actually moved,
+    /// Done puts it back, so a stray hold never leaves the library on Custom.
+    @State private var arrangingRestore: (scope: String?, hadOverride: Bool, sort: LibrarySort)?
+    @State private var didReorder = false
     /// Last computed page per kind, reused while the reader covers the library.
     @State private var pageCache = PageItemsCache()
 
@@ -82,7 +89,11 @@ struct LibraryView: View {
             .navigationTitle("Library")
             .searchable(text: $searchText, prompt: "Search library")
             .toolbar { libraryToolbar }
-            .sheet(isPresented: $showOptionsSheet) {
+            .sheet(isPresented: $showOptionsSheet, onDismiss: {
+                guard arrangeAfterSheet else { return }
+                arrangeAfterSheet = false
+                startArranging()
+            }) {
                 LibraryOptionsSheet(
                     tab: $optionsTab,
                     filter: activeFilterBinding,
@@ -92,7 +103,11 @@ struct LibraryView: View {
                     hasSortOverride: sortStore.hasOverride(for: selectedCategory?.name),
                     hasDisplayOverride: displayStore.hasOverride(for: selectedCategory?.name),
                     onResetSort: resetActiveSort,
-                    onResetDisplay: resetDisplayMode
+                    onResetDisplay: resetDisplayMode,
+                    onArrange: {
+                        arrangeAfterSheet = true
+                        showOptionsSheet = false
+                    }
                 )
                 .presentationDetents([.medium, .large])
             }
@@ -107,21 +122,28 @@ struct LibraryView: View {
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase != .active && isEditingLibrary {
-                    commitLibraryPositions(clearOrder: false)
+                    if didReorder { commitLibraryPositions(clearOrder: false) }
                     draggedItem = nil
                 }
             }
             .onChange(of: draggedItem) { _, item in
                 lastReorderTarget = nil
-                if item == nil && isEditingLibrary { commitLibraryPositions(clearOrder: false) }
+                if item == nil && isEditingLibrary && didReorder {
+                    commitLibraryPositions(clearOrder: false)
+                }
             }
             .onChange(of: isEditingLibrary) { _, editing in
                 if !editing {
                     // Clean up drag state when leaving edit mode to prevent
                     // ghost state from affecting the next edit session.
                     draggedItem = nil
-                    // Commit any pending position changes.
-                    commitLibraryPositions()
+                    // Only a move is worth a save: rewriting every libraryOrder
+                    // (and every @Query it wakes) for an Arrange nobody used was
+                    // the other half of the stray-hold problem.
+                    if didReorder { commitLibraryPositions() }
+                    else { editingOrder = [] }
+                    // An Arrange with no moves must not leave Custom behind.
+                    restoreSortAfterArranging()
                 }
             }
             .alert("Remove from Library?", isPresented: $showDeleteConfirmation, presenting: novelToDelete) { novel in
@@ -201,7 +223,9 @@ struct LibraryView: View {
             }
         } else {
             LibraryToolbar(
-                isCustomised: activeFilter.activeCount > 0,
+                isCustomised: activeFilter.isActive
+                    || sortStore.hasOverride(for: selectedCategory?.name)
+                    || displayStore.hasOverride(for: selectedCategory?.name),
                 onShowOptions: { showOptionsSheet = true },
                 onImport: { showFileImporter = true }
             )
@@ -252,6 +276,10 @@ struct LibraryView: View {
         let items = pageItems(for: kind)
 
         return ScrollView {
+            // Arrange is a mode now, not something a stray hold falls into.
+            // Say what it does and how to leave it.
+            if isEditingLibrary { arrangeHint }
+
             // First thing in the scroll view, so it scrolls away with the content
             // instead of pinning over the search field.
             if showsKindPicker { kindPicker }
@@ -284,12 +312,32 @@ struct LibraryView: View {
         }
         .refreshable {
             // Pulling down inside a category refreshes just that category. The
-            // updates modal shows progress, so the pull indicator must not
-            // stay pinned for the whole run: start it and let go.
+            // update has its own progress banner pinned at the bottom of the
+            // screen, so the pull indicator has no job beyond starting the run.
+            // Waiting (or sleeping) kept the control pinned while the update
+            // saved to the store, which left the scroll view sitting in its
+            // pulled position. `updateLibrary` runs in its own task, so it
+            // survives the refresh action being cancelled on re-render.
             let context = modelContext, sources = sourceManager, category = selectedCategory?.name
-            Task { await libraryManager.updateLibrary(context: context, sourceManager: sources, category: category) }
-            try? await Task.sleep(for: .seconds(1.5))
+            Task {
+                await libraryManager.updateLibrary(context: context, sourceManager: sources, category: category)
+            }
         }
+    }
+
+    private var arrangeHint: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.body.weight(.semibold))
+            Text("Drag a book to change its order. Tap Done when you're happy with it.")
+                .font(Typography.caption)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.primary)
+        .padding(12)
+        .background(AppTheme.surface, in: .rect(cornerRadius: 12))
+        .padding(.horizontal)
+        .padding(.top, 8)
     }
 
     /// An empty page is normal when only one kind is in the library, so say
@@ -318,7 +366,7 @@ struct LibraryView: View {
                 draggedItem: $draggedItem,
                 onReorder: handleReorder,
                 onDelete: handleDelete,
-                onStartEditing: { startEditing() },
+                onArrange: startArranging,
                 onSelect: handleSelect
             )
         } else {
@@ -330,7 +378,7 @@ struct LibraryView: View {
                 draggedItem: $draggedItem,
                 onReorder: handleReorder,
                 onDelete: handleDelete,
-                onStartEditing: { startEditing() },
+                onArrange: startArranging,
                 onSelect: handleSelect
             )
         }
@@ -589,7 +637,14 @@ struct LibraryView: View {
         }
     }
 
-    private func startEditing() {
+    /// Arranging is always an explicit choice now (the hold menu or the Sort
+    /// tab). Remember the sort we replaced so an Arrange with no moves can put
+    /// it back — a hold used to silently switch the library to Custom forever.
+    private func startArranging() {
+        guard !isEditingLibrary else { return }
+        let scope = selectedCategory?.name
+        arrangingRestore = (scope, sortStore.hasOverride(for: scope), activeSort)
+        didReorder = false
         let order = sortedNovels(novels).map(\.persistentModelID)
         withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
             editingOrder = order
@@ -599,10 +654,23 @@ struct LibraryView: View {
         }
     }
 
+    /// Books were moved: Custom is the point of Arrange, so it stays. Nothing
+    /// moved: restore the override that was there, or remove the one we added.
+    private func restoreSortAfterArranging() {
+        guard let saved = arrangingRestore else { return }
+        arrangingRestore = nil
+        guard !didReorder, saved.scope == selectedCategory?.name else { return }
+        var store = sortStore
+        if saved.hadOverride { store.set(saved.sort, for: saved.scope) }
+        else { store.reset(saved.scope) }
+        sortsJSON = store.json
+    }
+
     private func reorderNovels(dragged: Entry, target: Entry) {
         guard lastReorderTarget != target.persistentModelID,
               dragged.persistentModelID != target.persistentModelID else { return }
         lastReorderTarget = target.persistentModelID
+        didReorder = true
         withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
             editingOrder = LibraryReordering.move(dragged.persistentModelID, to: target.persistentModelID, in: editingOrder)
         }
@@ -632,6 +700,104 @@ enum LibraryKindFilter: String, CaseIterable, Identifiable {
         case .novels: "Novels"
         case .manga: "Manga"
         }
+    }
+}
+
+// MARK: - Hold menu
+
+/// Quick actions on a library book. Grid and list cells share it, so an action
+/// cannot exist in one layout and not the other. A hold used to mean "enter
+/// manual reorder", which silently switched the library to Custom sort even
+/// when nothing was moved; now the hold is a menu and Arrange is one choice in
+/// it.
+struct LibraryEntryQuickActions: View {
+    let entry: Entry
+    var onArrange: () -> Void
+    var onRemove: () -> Void
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(SourceManager.self) private var sourceManager
+
+    var body: some View {
+        Button {
+            markAllRead()
+        } label: {
+            Label("Mark all as read", systemImage: "checkmark.circle")
+        }
+
+        if !entry.isLocal {
+            Button {
+                ChapterDownloadManager.shared.enqueueUnread(nil, in: entry)
+            } label: {
+                Label("Download unread chapters", systemImage: "arrow.down.circle")
+            }
+        }
+
+        if let shareURL {
+            ShareLink(item: shareURL) {
+                Label("Share link", systemImage: "square.and.arrow.up")
+            }
+        }
+
+        Divider()
+
+        Button("Arrange books", systemImage: "arrow.up.arrow.down", action: onArrange)
+        Button("Remove from library", systemImage: "trash", role: .destructive, action: onRemove)
+    }
+
+    /// No source means no link: a local EPUB/PDF has no page to point at.
+    private var shareURL: URL? {
+        guard sourceManager.source(forKey: entry.sourceKey) != nil else { return nil }
+        return EntryLink(
+            sourceKey: entry.sourceKey,
+            entryPath: entry.url,
+            kind: entry.kind,
+            title: entry.displayTitle
+        ).shareURL
+    }
+
+    /// Every visible chapter ends up read, so twins cannot disagree and no
+    /// fan-out is needed. One entry, one pass, one save, off `body`.
+    private func markAllRead() {
+        let chapters = entry.visibleChapters.filter { !$0.read }
+        guard !chapters.isEmpty else { return }
+        for chapter in chapters {
+            chapter.read = true
+            chapter.progress = 100
+            chapter.paragraphIndex = 0
+            chapter.lastPageRead = 0
+            chapter.pagesLeft = 0
+        }
+        ChapterDownloadManager.shared.chaptersMarkedRead(chapters)
+        try? modelContext.save()
+        LibraryChapterCounts.shared.invalidate()
+        NotificationCenter.default.post(name: .lnreaderChapterReadChanged, object: entry)
+        Haptics.shared.notify(.success)
+    }
+}
+
+/// The menu's preview is our own compact card, not a lift of the whole cell:
+/// the cell's cover carries the zoom-transition source, and lifting that into
+/// the menu overlay fights the transition when the detail screen opens.
+struct LibraryEntryPreview: View {
+    let entry: Entry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            EntryCoverView(url: entry.displayThumbnailURL)
+                .frame(width: 120)
+            Text(entry.displayTitle)
+                .font(Typography.headline)
+                .lineLimit(2)
+            if let author = entry.displayAuthor, !author.isEmpty {
+                Text(author)
+                    .font(Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: 260, alignment: .leading)
     }
 }
 

@@ -75,8 +75,7 @@ struct BrowseView: View {
                     NavigationStack {
                         DisplayOptionsList(
                             displayMode: $displayMode,
-                            columnCount: $columnCount,
-                            footer: "Applies to every source and to the Library. Auto fits as many covers as the screen allows."
+                            columnCount: $columnCount
                         )
                         .navigationTitle("Display")
                         .navigationBarTitleDisplayMode(.inline)
@@ -236,8 +235,10 @@ private struct SourceTarget: Identifiable, Hashable {
 /// Deliberately not a `NavigationLink` with a `.contextMenu`: the system menu
 /// lifts the row into a preview and fades that whole overlay out on dismissal,
 /// which reads as the screen sticking for a beat after you back out of it. A hold
-/// that opens the sheet directly has nothing to fade. Same shape as
-/// `InteractiveListRow` in the library, which is where this pattern comes from.
+/// that opens the sheet directly has nothing to fade. The library rows do use a
+/// `.contextMenu`, but they are buttons with manual navigation and supply their
+/// own compact preview — nothing is pushed from the menu, so there is no screen
+/// to stick on the way back.
 private struct SourceRow: View {
     let source: any CatalogSource
     let inLibrary: Int

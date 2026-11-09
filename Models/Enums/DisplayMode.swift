@@ -20,4 +20,15 @@ enum DisplayMode: String, Codable, CaseIterable, Identifiable {
         case .list: "list.bullet"
         }
     }
+
+    /// One line under the name in the layout picker: the names alone do not
+    /// say what changes between Compact and Comfortable.
+    var detail: String {
+        switch self {
+        case .compact: "Titles only"
+        case .comfortable: "Titles and authors"
+        case .coverOnly: "Covers, no text"
+        case .list: "Rows with counts"
+        }
+    }
 }
