@@ -147,7 +147,12 @@ final class ChapterDownloadManager {
             backgroundID = UIApplication.shared.beginBackgroundTask(withName: "Chapter downloads") {
                 Task { @MainActor in ChapterDownloadManager.shared.worker?.cancel() }
             }
+            var unsavedCount = 0
             defer {
+                if unsavedCount > 0 {
+                    try? context.save()
+                    unsavedCount = 0
+                }
                 active = nil; isRunning = false; worker = nil
                 if backgroundID != .invalid { UIApplication.shared.endBackgroundTask(backgroundID); backgroundID = .invalid }
             }
@@ -161,7 +166,8 @@ final class ChapterDownloadManager {
                     guard let item = items.first(where: { $0.state == .queued }), let chapter = item.chapter,
                           let entry = chapter.entry else { break }
                     // No save here: `configure` requeues stale `.downloading` rows, and the
-                    // outcome below is saved. A save per chapter re-ran every `@Query`.
+                    // outcome below is saved. Coalescing saves (batches of 3 or at queue end)
+                    // avoids re-running every `@Query` in the app after every single chapter.
                     active = item.persistentModelID; set(item, .downloading); item.error = nil
                     do {
                         try await download(chapter, entry: entry, item: item, sources: sources)
@@ -175,7 +181,13 @@ final class ChapterDownloadManager {
                         else { set(item, .failed); item.error = error.localizedDescription }
                     }
                     if item.modelContext != nil, let key = key(item) { liveProgress[key] = nil }
-                    try context.save(); active = nil
+                    active = nil
+                    unsavedCount += 1
+                    let hasMoreQueued = items.contains(where: { $0.state == .queued && $0.persistentModelID != item.persistentModelID })
+                    if unsavedCount >= 3 || !hasMoreQueued {
+                        try context.save()
+                        unsavedCount = 0
+                    }
                 }
             } catch { message = error.localizedDescription }
         }

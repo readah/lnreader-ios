@@ -6,6 +6,74 @@ import Network
 import Observation
 import SwiftData
 
+struct UpdateJob: Sendable {
+    let id: PersistentIdentifier
+    let sourceKey: String
+    let url: String
+    let kind: ContentKind
+    let title: String
+    let sourceName: String
+}
+
+struct UpdateWork {
+    let source: any CatalogSource
+    let job: UpdateJob
+}
+
+struct UpdateResult: Sendable {
+    let job: UpdateJob
+    let details: SourceEntry?
+    let chapters: [SourceChapter]
+    let error: String?
+}
+
+/// Merges fetched source details and chapter lists into the persistent store
+/// off the main actor, so background refreshes and unlock catches never stall
+/// scrolling or UI interactions.
+actor LibraryUpdateMerger {
+    let context: ModelContext
+    private var unsaved = 0
+
+    init(container: ModelContainer) {
+        self.context = ModelContext(container)
+    }
+
+    struct Outcome: Sendable {
+        let title: String
+        let sourceName: String
+        let fresh: Int
+        let error: String?
+    }
+
+    func merge(_ result: UpdateResult) -> Outcome {
+        if let details = result.details, result.error == nil {
+            guard let entry = context.model(for: result.job.id) as? Entry else {
+                return Outcome(title: result.job.title, sourceName: result.job.sourceName,
+                               fresh: 0, error: "Entry no longer in database")
+            }
+            let merged = LibraryManager.applyUpdate(entry, details: details, chapters: result.chapters,
+                                                    context: context, saveImmediately: false)
+            unsaved += 1
+            if unsaved >= 10 {
+                try? context.save()
+                unsaved = 0
+            }
+            return Outcome(title: result.job.title, sourceName: result.job.sourceName,
+                           fresh: merged.fresh, error: nil)
+        } else {
+            return Outcome(title: result.job.title, sourceName: result.job.sourceName,
+                           fresh: 0, error: result.error ?? "unknown error")
+        }
+    }
+
+    func flush() {
+        if unsaved > 0 {
+            try? context.save()
+            unsaved = 0
+        }
+    }
+}
+
 /// Coordinates library-level operations: adding entries from a source,
 /// refreshing chapter lists, and recording reading progress.
 ///
@@ -384,27 +452,8 @@ final class LibraryManager {
         else { return }
 
         // Fetch sources concurrently (network-bound, 4 at a time) and apply each
-        // result to the store as it arrives, so new chapters show up while a long
-        // update is still running instead of all at the end.
-        struct UpdateJob: Sendable {
-            let id: PersistentIdentifier
-            let sourceKey: String
-            let url: String
-            let kind: ContentKind
-            let title: String
-            let sourceName: String
-        }
-        struct UpdateWork {
-            let source: any CatalogSource
-            let job: UpdateJob
-        }
-        struct UpdateResult: Sendable {
-            let job: UpdateJob
-            let details: SourceEntry?
-            let chapters: [SourceChapter]
-            let error: String?
-        }
-
+        // result to the store off the main actor, so new chapters arrive without
+        // stalling the UI, touch, or active readers.
         var pending: [UpdateWork] = []
         var notInstalled = 0
         let skipUnread = UserDefaults.standard.bool(forKey: "updates.skipUnread")
@@ -446,30 +495,7 @@ final class LibraryManager {
         updateProgress = progress
         guard !pending.isEmpty else { return }
 
-        let byID = Dictionary(uniqueKeysWithValues: entries.map { ($0.persistentModelID, $0) })
-        var unsaved = 0
-
-        func finish(_ result: UpdateResult) {
-            updateProgress?.inFlight.removeAll { $0 == result.job.title }
-            updateProgress?.completed += 1
-            guard let entry = byID[result.job.id] else { return }
-            if let details = result.details, result.error == nil {
-                let merged = applyUpdate(entry, details: details, chapters: result.chapters,
-                                         context: context, saveImmediately: false)
-                unsaved += 1
-                updateProgress?.newChapters += merged.fresh
-                if merged.fresh > 0 { updateProgress?.titlesWithNewChapters += 1 }
-            } else {
-                let message = result.error ?? "unknown error"
-                print("Failed to update \(entry.title): \(message)")
-                updateProgress?.failures.append(.init(
-                    title: result.job.title, source: result.job.sourceName, message: message))
-            }
-            if unsaved >= 10 {
-                try? context.save()
-                unsaved = 0
-            }
-        }
+        let merger = LibraryUpdateMerger(container: context.container)
 
         await withTaskGroup(of: UpdateResult.self) { group in
             let maxConcurrent = 4
@@ -501,7 +527,18 @@ final class LibraryManager {
                 submit(queue.removeFirst())
             }
             while let result = await group.next() {
-                finish(result)
+                let outcome = await merger.merge(result)
+                updateProgress?.inFlight.removeAll { $0 == outcome.title }
+                updateProgress?.completed += 1
+                if let error = outcome.error {
+                    print("Failed to update \(outcome.title): \(error)")
+                    updateProgress?.failures.append(.init(
+                        title: outcome.title, source: outcome.sourceName, message: error))
+                } else {
+                    updateProgress?.newChapters += outcome.fresh
+                    if outcome.fresh > 0 { updateProgress?.titlesWithNewChapters += 1 }
+                }
+
                 if updateCancelRequested || Task.isCancelled {
                     queue.removeAll()
                 } else if !queue.isEmpty {
@@ -510,9 +547,8 @@ final class LibraryManager {
             }
         }
 
-        // Flush the last partial batch. Unconditional: `unsaved` is changed inside
-        // `finish`, which the compiler's flow analysis does not see.
-        try? context.save()
+        await merger.flush()
+        LibraryChapterCounts.shared.invalidate()
         if updateCancelRequested { updateProgress?.wasCancelled = true }
     }
 
@@ -522,7 +558,7 @@ final class LibraryManager {
     /// `ChapterSourceSync`, which matches by URL, keeps read state, stamps new
     /// chapters for Updates and prunes chapters the source dropped.
     @discardableResult
-    func applyUpdate(
+    nonisolated static func applyUpdate(
         _ entry: Entry,
         details: SourceEntry,
         chapters: [SourceChapter],
@@ -539,12 +575,25 @@ final class LibraryManager {
         entry.lastUpdate = .now
 
         let result = ChapterSourceSync.merge(chapters, into: entry, context: context)
-        LibraryChapterCounts.shared.invalidate()
+        Task { @MainActor in
+            LibraryChapterCounts.shared.invalidate()
+        }
 
         if saveImmediately {
             try? context.save()
         }
         return result
+    }
+
+    @discardableResult
+    func applyUpdate(
+        _ entry: Entry,
+        details: SourceEntry,
+        chapters: [SourceChapter],
+        context: ModelContext,
+        saveImmediately: Bool = true
+    ) -> ChapterSyncResult {
+        Self.applyUpdate(entry, details: details, chapters: chapters, context: context, saveImmediately: saveImmediately)
     }
 
     /// Mark every "new chapter" badge as seen.

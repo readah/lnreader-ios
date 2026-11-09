@@ -168,40 +168,23 @@ Found by reading the code, not by a trace — verify on a Release device build.
   Throttling it breaks the cache's LRU contract (checked by `check.sh page-pipeline`), so it
   stays unless a trace shows it matters.
 
+### 8. Background work and scroll stalls (Phase 1 performance pass)
+
+- **Non-blocking haptic engine startup:** `CHHapticEngine` powers down when idle (`isAutoShutdownEnabled = true`). The first scroll tick after a reading pause ran a synchronous `try engine.start()` on the main thread, causing 20–50 ms stalls. Changed to `engine.start(completionHandler:)` with scroll ticks skipped while starting and back-off on repeated failures.
+- **Off-main library update and chapter merge:** `LibraryManager.updateLibrary` previously merged source details and chapters on the `@MainActor`, saving every 10 titles to the main context and re-running all active `@Query` properties. Merging and batch saves moved to a dedicated background actor (`LibraryUpdateMerger`) on an isolated `ModelContext`.
+- **Targeted notification query:** `LibraryMaintenance.handle` previously ran `context.fetch(FetchDescriptor<Chapter>())` fetching all 30 000+ chapters in the database and walking `$0.entry` on main thread to check for updates. Replaced with a targeted `#Predicate<Chapter>` filtering directly on `dateFetch >= started` and gated to only run when notifications or auto-downloads are enabled.
+- **Coalesced download saves:** `ChapterDownloadManager` saved on the main context after every single chapter download. Saves are now coalesced into batches of 3 while items remain queued.
+- **Isolated TTS transport controls:** `ReaderTTSManager.shared` fired a 20 Hz periodic time observer on the main queue updating `elapsed`, causing the entire `ReaderView` and `WKWebView` to re-evaluate continuously. Extracted the playback controls into `ReaderTTSControlsHost` so only the overlay updates at 20 Hz.
+
 ## Still to look at
 
 Ordered by expected payoff on device, not yet measured:
 
-1. **`ReaderView` re-evaluates on TTS state.** `ttsManager` is an
-   `@ObservedObject` on the reader body, and `elapsed` updates continuously.
-   While listening, the whole reader body (including the `ReaderContent` diff)
-   runs at that rate. Splitting the transport controls into their own view would
-   contain it.
-2. **`ChapterRow.audioCount`** filters the whole TTS record list per row, and
+1. **`ChapterRow.audioCount`** filters the whole TTS record list per row, and
    every row observes `TTSOfflineLibrary`.
-3. **`updateLibrary` holds the main actor** while merging results, one entry at a
-   time. The network part is already off-main; the merge is not. This matters most for
-   the background refresh: `LibraryMaintenance.register()` hands its BG tasks the main
-   queue and `handle()` is `@MainActor`, so a refresh that iOS starts around unlock keeps
-   merging (and saving every 10 entries, re-running every `@Query`, including the
-   library grid under the reader's `fullScreenCover`) while the user reads. It ends by
-   fetching **every** `Chapter` in the store and faulting `entry` on each one to build
-   the notification. Suspected cause of a reader that is choppy only sometimes after
-   unlock; unconfirmed. The fix is a background `ModelContext` for the merge and a
-   `fetchCount` (or a predicate on `dateFetch`) for the notification. The download
-   worker that `ContentView` resumes on `.active` has the same shape on a smaller
-   scale: a full `DownloadItem` fetch and a save per chapter on the main actor.
-4. **The scroll haptics can block the main thread after a resume.** The `CHHapticEngine`
-   stops when the app is suspended (and possibly on idle, with `isAutoShutdownEnabled`).
-   The next scroll tick calls `readyEngine()`, which calls the synchronous
-   `engine.start()` on the main thread. If that throws, `engineNeedsStart` stays set and
-   every later tick, up to dozens a second, blocks on it again. The fix is
-   `start(completionHandler:)`, with ticks skipped (not retried) until it reports
-   running, and a back-off after a failure. Test on device: if the reader is choppy,
-   turning scroll haptics off should smooth it at once.
-5. **`SourceManager` / plugin restore at launch** runs on the main actor in
+2. **`SourceManager` / plugin restore at launch** runs on the main actor in
    `ContentView.task`, ahead of the first frame's work.
-6. **MangaFire `vrf`** is recomputed per request; check whether the extension
+3. **MangaFire `vrf`** is recomputed per request; check whether the extension
    caches it.
 
 ## Rules that came out of this

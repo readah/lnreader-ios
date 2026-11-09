@@ -18,8 +18,10 @@ struct ReaderView: View {
     @AppStorage("reader.justifyText") private var justifyText = true
 
     @StateObject private var ttsBridge = ReaderContentBridge()
-    @ObservedObject private var ttsManager = ReaderTTSManager.shared
-    @ObservedObject private var audioLibrary = TTSOfflineLibrary.shared
+    private let ttsManager = ReaderTTSManager.shared
+    private let audioLibrary = TTSOfflineLibrary.shared
+    @State private var ttsErrorMessage: String?
+    @State private var isCurrentSpeechActive = false
     @State private var showAudioDownloads = false
     @State private var showSleepPicker = false
     @State private var showSpeedPicker = false
@@ -115,25 +117,37 @@ struct ReaderView: View {
     /// type checker will infer in reasonable time.
     private var narrationAlert: Binding<Bool> {
         Binding(
-            get: { ttsManager.errorMessage != nil },
-            set: { presented in if !presented { ttsManager.errorMessage = nil } }
+            get: { ttsErrorMessage != nil },
+            set: { presented in
+                if !presented {
+                    ttsErrorMessage = nil
+                    ttsManager.errorMessage = nil
+                }
+            }
         )
     }
 
     var body: some View {
         presentation
-            .task { await loadChapter() }
+            .task {
+                await loadChapter()
+                updateSpeechState()
+            }
             .onChange(of: ttsBridge.isReady) { _, ready in handleBridgeReady(ready) }
-            .onChange(of: ttsManager.currentBlockIndex) { _, newIndex in handleBlockIndex(newIndex) }
-            .onChange(of: isCurrentSpeech) { _, isSpeaking in handleSpeechChange(isSpeaking) }
-            .onChange(of: ttsManager.errorMessage) { _, error in
+            .onReceive(ttsManager.$currentBlockIndex) { newIndex in handleBlockIndex(newIndex) }
+            .onReceive(ttsManager.$isSpeaking) { _ in updateSpeechState() }
+            .onReceive(ttsManager.$manifest) { _ in
+                updateSpeechState()
+                handleManifestChange()
+            }
+            .onReceive(ttsManager.$errorMessage) { error in
+                ttsErrorMessage = error
                 if error != nil { isPreparingTTS = false }
             }
-            .onChange(of: ttsManager.currentWord) { _, word in
+            .onReceive(ttsManager.$currentWord) { word in
                 guard isCurrentSpeech, speechScrubTime == nil else { return }
                 ttsBridge.setActiveWord(word)
             }
-            .onChange(of: ttsManager.manifest?.id) { _, _ in handleManifestChange() }
             .onAppear { FocusModeManager.shared.updateFocusStatus() }
             .onDisappear {
                 commentsTask?.cancel()
@@ -167,8 +181,11 @@ struct ReaderView: View {
             .sheet(isPresented: $showCommentsSheet) { commentsSheet }
             .sheet(isPresented: $showAudioDownloads) { audioDownloadsSheet }
             .alert("Narration", isPresented: narrationAlert) {
-                Button("OK", role: .cancel) { ttsManager.errorMessage = nil }
-            } message: { Text(ttsManager.errorMessage ?? "") }
+                Button("OK", role: .cancel) {
+                    ttsErrorMessage = nil
+                    ttsManager.errorMessage = nil
+                }
+            } message: { Text(ttsErrorMessage ?? "") }
             .onReceive(ttsBridge.paragraphScrollPublisher) { position in
                 // Only update progress when TTS is not active (TTS updates it automatically)
                 guard !isCurrentSpeech, let chapter = currentChapter else { return }
@@ -754,9 +771,16 @@ struct ReaderView: View {
     }
 
     private var audioBookId: String { TTSBookIdentity.make(pluginId: sourceKey, novelPath: entryURL ?? currentChapterPath) }
-    private var isCurrentSpeech: Bool {
-        ttsManager.isSpeaking && ttsManager.manifest?.bookId == audioBookId && ttsManager.manifest?.chapterId == currentChapterPath
+    private var isCurrentSpeech: Bool { isCurrentSpeechActive }
+
+    private func updateSpeechState() {
+        let active = ttsManager.isSpeaking && ttsManager.manifest?.bookId == audioBookId && ttsManager.manifest?.chapterId == currentChapterPath
+        if isCurrentSpeechActive != active {
+            isCurrentSpeechActive = active
+            handleSpeechChange(active)
+        }
     }
+
     private var audioChapterChoices: [TTSChapterChoice] {
         if cachedChapters.isEmpty { return [.init(path: currentChapterPath, title: currentChapterName, position: 0)] }
         return cachedChapters.map { .init(path: $0.url, title: $0.name, position: $0.sourceOrder) }
@@ -776,9 +800,11 @@ struct ReaderView: View {
         ttsBridge.setSpeechMode(true)
         ttsBridge.resumeFollowing()
         isPreparingTTS = false
+        updateSpeechState()
     }
     private func stopTTSPlayback() {
         ttsManager.stop(); ttsBridge.setSpeechMode(false); ttsBridge.clearActive()
+        updateSpeechState()
     }
     private func updateSpeed(_ newSpeed: Double) { ttsSpeed = newSpeed; ttsManager.setRate(newSpeed) }
     private var displayedSpeechWord: TTSWordTiming? {
@@ -786,20 +812,14 @@ struct ReaderView: View {
         return ttsManager.currentWord
     }
     private var ttsControlsOverlay: some View {
-        TTSPlaybackControls(
-            isPlaying: !ttsManager.isPaused, isBuffering: ttsManager.isBuffering,
-            elapsed: ttsManager.elapsed, duration: ttsManager.duration, rate: ttsManager.rate,
-            voiceId: ttsManager.manifest?.voiceId ?? ttsVoiceId,
-            voiceName: audioLibrary.voices.first { $0.id == (ttsManager.manifest?.voiceId ?? ttsVoiceId) }?.name ?? ttsManager.manifest?.voiceName ?? "Breeze",
-            isFollowing: ttsBridge.isFollowing, sleepTimerLabel: ttsManager.sleepTimerLabel, playbackStatus: ttsManager.playbackStatus,
+        ReaderTTSControlsHost(
+            ttsBridge: ttsBridge,
+            ttsVoiceId: ttsVoiceId,
             onSettings: openSettings,
-            onPlayPause: { ttsManager.togglePause() }, onSkipBack: { ttsManager.skip(-15) },
-            onSkipForward: { ttsManager.skip(30) }, onRate: { showSpeedPicker = true },
+            onRate: { showSpeedPicker = true },
             onVoice: { showAudioDownloads = true },
             onBookmark: { if let chapter = currentChapter { chapter.bookmark.toggle(); try? modelContext.save() } },
             onSleep: { showSleepPicker = true },
-            onFollow: { ttsBridge.resumeFollowing() },
-            onSeek: { ttsManager.seek(to: $0); ttsBridge.resumeFollowing() },
             onScrub: { time in
                 let wasScrubbing = speechScrubTime != nil
                 speechScrubTime = time
@@ -809,6 +829,49 @@ struct ReaderView: View {
         )
     }
 
+}
+
+/// Hosts TTS playback controls as an isolated `@ObservedObject` consumer of
+/// `ReaderTTSManager`, so high-frequency `elapsed` updates (20 Hz) re-render
+/// only this control bar rather than the entire `ReaderView` and its `WKWebView`.
+private struct ReaderTTSControlsHost: View {
+    @ObservedObject private var ttsManager = ReaderTTSManager.shared
+    @ObservedObject private var audioLibrary = TTSOfflineLibrary.shared
+    @ObservedObject var ttsBridge: ReaderContentBridge
+
+    let ttsVoiceId: String
+    let onSettings: () -> Void
+    let onRate: () -> Void
+    let onVoice: () -> Void
+    let onBookmark: () -> Void
+    let onSleep: () -> Void
+    let onScrub: (Double?) -> Void
+
+    var body: some View {
+        TTSPlaybackControls(
+            isPlaying: !ttsManager.isPaused,
+            isBuffering: ttsManager.isBuffering,
+            elapsed: ttsManager.elapsed,
+            duration: ttsManager.duration,
+            rate: ttsManager.rate,
+            voiceId: ttsManager.manifest?.voiceId ?? ttsVoiceId,
+            voiceName: audioLibrary.voices.first { $0.id == (ttsManager.manifest?.voiceId ?? ttsVoiceId) }?.name ?? ttsManager.manifest?.voiceName ?? "Breeze",
+            isFollowing: ttsBridge.isFollowing,
+            sleepTimerLabel: ttsManager.sleepTimerLabel,
+            playbackStatus: ttsManager.playbackStatus,
+            onSettings: onSettings,
+            onPlayPause: { ttsManager.togglePause() },
+            onSkipBack: { ttsManager.skip(-15) },
+            onSkipForward: { ttsManager.skip(30) },
+            onRate: onRate,
+            onVoice: onVoice,
+            onBookmark: onBookmark,
+            onSleep: onSleep,
+            onFollow: { ttsBridge.resumeFollowing() },
+            onSeek: { ttsManager.seek(to: $0); ttsBridge.resumeFollowing() },
+            onScrub: onScrub
+        )
+    }
 }
 
 // MARK: - Focus Indicator View Overlay

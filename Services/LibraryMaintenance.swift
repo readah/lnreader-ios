@@ -110,17 +110,24 @@ import UserNotifications
                     Task { @MainActor in manager.cancelUpdate() }
                 }
                 guard !Task.isCancelled else { task.setTaskCompleted(success: false); return }
-                let chapters = (try? context.fetch(FetchDescriptor<Chapter>())) ?? []
-                let added = chapters.filter { ($0.dateFetch ?? .distantPast) >= started && $0.entry?.inLibrary == true && !$0.hidden && !$0.read }
-                if UserDefaults.standard.bool(forKey: "updates.notify"), !added.isEmpty {
-                    let content = UNMutableNotificationContent()
-                    content.title = "New chapters"
-                    content.body = "\(added.count) new chapters are ready in Updates."
-                    try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
-                }
-                if UserDefaults.standard.bool(forKey: "updates.autoDownloadNew") {
-                    ChapterDownloadManager.shared.configure(context: context, sources: sources)
-                    ChapterDownloadManager.shared.enqueue(added, userInitiated: false)
+                let notify = UserDefaults.standard.bool(forKey: "updates.notify")
+                let autoDownload = UserDefaults.standard.bool(forKey: "updates.autoDownloadNew")
+                if notify || autoDownload {
+                    let predicate = #Predicate<Chapter> {
+                        $0.dateFetch != nil && $0.dateFetch! >= started && !$0.hidden && !$0.read
+                    }
+                    let recentChapters = (try? context.fetch(FetchDescriptor<Chapter>(predicate: predicate))) ?? []
+                    let added = recentChapters.filter { $0.entry?.inLibrary == true }
+                    if notify, !added.isEmpty {
+                        let content = UNMutableNotificationContent()
+                        content.title = "New chapters"
+                        content.body = "\(added.count) new chapters are ready in Updates."
+                        try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+                    }
+                    if autoDownload, !added.isEmpty {
+                        ChapterDownloadManager.shared.configure(context: context, sources: sources)
+                        ChapterDownloadManager.shared.enqueue(added, userInitiated: false)
+                    }
                 }
                 UserDefaults.standard.set(Date(), forKey: "updates.lastBackgroundRun")
             }

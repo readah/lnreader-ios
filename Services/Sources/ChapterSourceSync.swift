@@ -33,7 +33,6 @@ enum ChapterSourceSync {
     /// - New chapters are stamped with `dateFetch`, which is what Updates reads.
     ///
     /// - Returns: counts of added, updated and removed chapters.
-    @MainActor
     @discardableResult
     static func merge(
         _ incoming: [SourceChapter],
@@ -181,7 +180,6 @@ enum ChapterSourceSync {
 enum ChapterTwins {
 
     /// Copy `read` from `chapter` to its twins. Returns the ones that changed.
-    @MainActor
     @discardableResult
     static func fanOut(from chapter: Chapter, read: Bool) -> [Chapter] {
         guard chapter.chapterNumber > 0, let entry = chapter.entry,
@@ -207,7 +205,6 @@ enum ChapterTwins {
 
     /// Make every twin of a read chapter read. For fetched chapters and for
     /// entries read before this existed. Returns how many it changed.
-    @MainActor
     @discardableResult
     static func reconcile(_ entry: Entry) -> Int {
         let chapters = entry.chapters

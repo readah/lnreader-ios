@@ -65,6 +65,8 @@ final class Haptics {
     private let supportsEngine = CHHapticEngine.capabilitiesForHardware().supportsHaptics
     private var engine: CHHapticEngine?
     private var engineNeedsStart = true
+    private var isStartingEngine = false
+    private var lastStartFailure: Date?
     /// The scroll swell's players, one per direction, built once and restarted
     /// for every tick: a tick can fire seventy times a second, and a new pattern
     /// and player each time is allocation and latency on the scroll's hot path.
@@ -197,8 +199,13 @@ final class Haptics {
     private func tick(intensity: Double, sharpness: Double, direction: ScrollDirection) {
         // .medium gentles to .light, keeping the fallback directions distinct.
         let fallbackWeight: Weight = direction == .forward ? .soft : .medium
-        guard supportsEngine, let engine = readyEngine() else {
+        guard supportsEngine else {
             return impact(fallbackWeight, intensity: intensity)
+        }
+        guard let engine = readyEngine() else {
+            // Engine is starting or backing off: skip the high-frequency scroll tick
+            // rather than stalling the main thread or spamming stock impact generators.
+            return
         }
         let parameters = [
             // A multiplier on the pattern's intensity envelope.
@@ -212,19 +219,18 @@ final class Haptics {
         ]
         func fire(on engine: CHHapticEngine) throws {
             if tickPlayers[direction] == nil {
-                tickPlayers[direction] = try engine.makePlayer(with: Self.scrollSwellPattern(direction))            }
+                tickPlayers[direction] = try engine.makePlayer(with: Self.scrollSwellPattern(direction))
+            }
             try tickPlayers[direction]?.sendParameters(parameters, atTime: CHHapticTimeImmediate)
             try tickPlayers[direction]?.start(atTime: CHHapticTimeImmediate)
         }
         do {
             try fire(on: engine)
         } catch {
-            // The engine stopped or reset under the player. Rebuild both once.
+            // The engine stopped or reset under the player. Invalidate and request restart.
             tickPlayers[direction] = nil
             engineNeedsStart = true
-            guard let restarted = readyEngine(), (try? fire(on: restarted)) != nil else {
-                return impact(fallbackWeight, intensity: intensity)
-            }
+            _ = readyEngine()
         }
     }
 
@@ -257,17 +263,19 @@ final class Haptics {
     }
 
     private func play(_ events: [CHHapticEvent], fallback: () -> Void) {
-        guard supportsEngine, let engine = readyEngine() else { return fallback() }
+        guard supportsEngine else { return fallback() }
+        guard let engine = readyEngine() else { return fallback() }
         do {
             let pattern = try CHHapticPattern(events: events, parameters: [])
             do {
                 try engine.makePlayer(with: pattern).start(atTime: CHHapticTimeImmediate)
             } catch {
                 // The engine stopped without telling us (it was idle, or the
-                // app was in the background). Start it and try once more.
+                // app was in the background). Mark for restart and use fallback.
                 engineNeedsStart = true
-                guard let restarted = readyEngine() else { return fallback() }
-                try restarted.makePlayer(with: pattern).start(atTime: CHHapticTimeImmediate)
+                tickPlayers.removeAll()
+                _ = readyEngine()
+                fallback()
             }
         } catch {
             fallback()
@@ -283,7 +291,10 @@ final class Haptics {
             // Called off the main thread. A reset invalidates every player
             // made on the engine, so the cached tick player goes with it.
             made.stoppedHandler = { @Sendable [weak self] _ in
-                Task { @MainActor in self?.engineNeedsStart = true }
+                Task { @MainActor in
+                    self?.engineNeedsStart = true
+                    self?.tickPlayers.removeAll()
+                }
             }
             made.resetHandler = { @Sendable [weak self] in
                 Task { @MainActor in
@@ -295,12 +306,25 @@ final class Haptics {
         }
         guard let engine else { return nil }
         if engineNeedsStart {
-            do {
-                try engine.start()
-                engineNeedsStart = false
-            } catch {
-                return nil
+            if !isStartingEngine {
+                if let last = lastStartFailure, Date().timeIntervalSince(last) < 2.0 {
+                    return nil
+                }
+                isStartingEngine = true
+                engine.start { [weak self] error in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.isStartingEngine = false
+                        if error == nil {
+                            self.engineNeedsStart = false
+                            self.lastStartFailure = nil
+                        } else {
+                            self.lastStartFailure = Date()
+                        }
+                    }
+                }
             }
+            return nil
         }
         return engine
     }
