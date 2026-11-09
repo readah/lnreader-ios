@@ -21,12 +21,24 @@ import SwiftData
         let snapshot = try LibraryBackup.snapshot(context: context)
         let key = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0).base64EncodedString() }
         let data = try LibraryBackup.seal(JSONEncoder().encode(snapshot), recoveryKey: key)
+        precondition(LibraryBackup.isEncrypted(data))
         let restored = try LibraryBackup.open(data, recoveryKey: key)
         precondition(restored.entries.first?.chapters.first?.paragraph == 8)
         var tampered = data; tampered[tampered.count - 1] ^= 1
         try rejects { _ = try LibraryBackup.open(tampered, recoveryKey: key) }
         try rejects { _ = try LibraryBackup.open(data, recoveryKey: Data(repeating: 0, count: 32).base64EncodedString()) }
         try rejects { _ = try LibraryBackup.open(Data("not a backup".utf8), recoveryKey: key) }
+
+        let unencryptedData = try LibraryBackup.packUnencrypted(JSONEncoder().encode(snapshot))
+        precondition(!LibraryBackup.isEncrypted(unencryptedData))
+        let restoredUnencrypted = try LibraryBackup.open(unencryptedData)
+        precondition(restoredUnencrypted.entries.first?.chapters.first?.paragraph == 8)
+        var tamperedUnencrypted = unencryptedData; tamperedUnencrypted[tamperedUnencrypted.count - 1] ^= 1
+        try rejects { _ = try LibraryBackup.open(tamperedUnencrypted) }
+        let rawJson = try JSONEncoder().encode(snapshot)
+        precondition(!LibraryBackup.isEncrypted(rawJson))
+        let restoredJson = try LibraryBackup.open(rawJson)
+        precondition(restoredJson.entries.first?.chapters.first?.paragraph == 8)
         let bad = LibraryBackup.Snapshot(createdAt: .now, entries: [], categories: [], preferences: snapshot.preferences,
                                         localFiles: ["../escape/file": Data()])
         try rejects { try LibraryBackup.validate(bad) }

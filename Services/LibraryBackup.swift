@@ -37,10 +37,23 @@ enum LibraryBackup {
         let url: String; let start: Date?; let finish: Date?
     }
     /// Version 2 sealed raw JSON. Version 3 deflates the JSON first (encrypted bytes do not compress).
+    /// Version 4 deflates the JSON without encryption.
     static let legacyHeader = Data([0x4c, 0x4e, 0x52, 0x42, 2])
     static let header = Data([0x4c, 0x4e, 0x52, 0x42, 3])
+    static let unencryptedHeader = Data([0x4c, 0x4e, 0x52, 0x42, 4])
     static let limit = 256 * 1024 * 1024
     static let prefixes = ["reader.", "manga.", "general.", "browse.", "downloads.", "scanlators."]
+
+    static func isEncrypted(_ data: Data) -> Bool {
+        data.starts(with: header) || data.starts(with: legacyHeader)
+    }
+
+    static func packUnencrypted(_ plaintext: Data) throws -> Data {
+        guard plaintext.count <= limit else { throw CocoaError(.fileReadTooLarge) }
+        let packed = try (plaintext as NSData).compressed(using: .zlib) as Data
+        return unencryptedHeader + packed
+    }
+
     static func key() throws -> String {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "com.lnreader.backup.v2", kSecAttrAccount as String: "recovery"]
@@ -62,7 +75,24 @@ enum LibraryBackup {
         guard let combined = sealed.combined else { throw CocoaError(.fileWriteUnknown) }
         return header + combined
     }
-    static func open(_ encrypted: Data, recoveryKey: String) throws -> Snapshot {
+    static func open(_ encrypted: Data, recoveryKey: String = "") throws -> Snapshot {
+        if encrypted.starts(with: unencryptedHeader) {
+            guard encrypted.count <= limit + 64 else { throw CocoaError(.fileReadTooLarge) }
+            let payload = encrypted.dropFirst(unencryptedHeader.count)
+            let decompressed = try (payload as NSData).decompressed(using: .zlib) as Data
+            guard decompressed.count <= limit else { throw CocoaError(.fileReadTooLarge) }
+            let snapshot = try JSONDecoder().decode(Snapshot.self, from: decompressed)
+            guard snapshot.version == 2 else { throw CocoaError(.fileReadCorruptFile) }
+            try validate(snapshot)
+            return snapshot
+        }
+        if encrypted.starts(with: Data([0x7b])) {
+            guard encrypted.count <= limit else { throw CocoaError(.fileReadTooLarge) }
+            let snapshot = try JSONDecoder().decode(Snapshot.self, from: encrypted)
+            guard snapshot.version == 2 else { throw CocoaError(.fileReadCorruptFile) }
+            try validate(snapshot)
+            return snapshot
+        }
         let compressed = encrypted.starts(with: header)
         guard encrypted.count <= limit + 64, compressed || encrypted.starts(with: legacyHeader),
               let key = Data(base64Encoded: recoveryKey.trimmingCharacters(in: .whitespacesAndNewlines)), key.count == 32 else {

@@ -538,12 +538,15 @@ final class BackupManager {
     func export(
         container: ModelContainer,
         includeLocalBooks: Bool,
-        recoveryKey: String,
+        encrypted: Bool = true,
+        recoveryKey: String = "",
         onExportReady: @escaping (LibraryBackupDocument) -> Void
     ) {
         guard !isRunning else { return }
         let trimmedKey = recoveryKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedKey.isEmpty else { return }
+        if encrypted {
+            guard !trimmedKey.isEmpty else { return }
+        }
 
         progress = BackupProgress(kind: .export, total: 1)
         activeTask = Task.detached(priority: .userInitiated) {
@@ -570,11 +573,16 @@ final class BackupManager {
                 }
 
                 await MainActor.run {
-                    BackupManager.shared.progress?.inFlight = ["Encrypting backup…"]
+                    BackupManager.shared.progress?.inFlight = [encrypted ? "Encrypting backup…" : "Packaging backup…"]
                 }
 
                 let encoded = try JSONEncoder().encode(snapshot)
-                let sealed = try LibraryBackup.seal(encoded, recoveryKey: trimmedKey)
+                let finalData: Data
+                if encrypted {
+                    finalData = try LibraryBackup.seal(encoded, recoveryKey: trimmedKey)
+                } else {
+                    finalData = try LibraryBackup.packUnencrypted(encoded)
+                }
 
                 if Task.isCancelled {
                     await MainActor.run {
@@ -592,7 +600,7 @@ final class BackupManager {
                     mgr.progress?.finishedAt = Date()
                     mgr.progress?.inFlight = []
                     Haptics.shared.notify(.success)
-                    let doc = LibraryBackupDocument(data: sealed)
+                    let doc = LibraryBackupDocument(data: finalData)
                     onExportReady(doc)
                 }
             } catch {
@@ -609,6 +617,15 @@ final class BackupManager {
                 }
             }
         }
+    }
+
+    func export(
+        container: ModelContainer,
+        includeLocalBooks: Bool,
+        recoveryKey: String,
+        onExportReady: @escaping (LibraryBackupDocument) -> Void
+    ) {
+        export(container: container, includeLocalBooks: includeLocalBooks, encrypted: true, recoveryKey: recoveryKey, onExportReady: onExportReady)
     }
 
     func exportTachibk(
@@ -952,81 +969,6 @@ struct MihonBackupPreviewSheet: View {
     }
 }
 
-struct BackupProgressCard: View {
-    let progress: BackupProgress
-    let onStop: () -> Void
-    let onDismiss: () -> Void
-
-    var body: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    if progress.isFinished {
-                        Image(systemName: progress.icon)
-                            .font(.title2)
-                            .foregroundStyle(iconColor)
-                    } else {
-                        ProgressView(value: progress.fraction)
-                            .progressViewStyle(.circular)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(progress.headline)
-                            .font(Typography.headline)
-                        Text(progress.subtitle)
-                            .font(Typography.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-                    Spacer(minLength: 0)
-                }
-
-                if !progress.isFinished {
-                    ProgressView(value: progress.fraction)
-                    HStack {
-                        if let current = progress.inFlight.first {
-                            Text(current)
-                                .font(Typography.small)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        elapsedText
-                            .font(Typography.small)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                HStack {
-                    Spacer()
-                    if progress.isFinished {
-                        Button("Dismiss") { onDismiss() }
-                            .buttonStyle(.bordered)
-                    } else {
-                        Button("Stop", role: .destructive) { onStop() }
-                            .buttonStyle(.bordered)
-                            .disabled(progress.isCancelling)
-                    }
-                }
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    private var iconColor: Color {
-        if progress.error != nil { return AppTheme.destructive }
-        if progress.wasCancelled { return AppTheme.warning }
-        return progress.unmatchedSources.isEmpty ? Color.green : AppTheme.warning
-    }
-
-    private var elapsedText: some View {
-        if let end = progress.finishedAt {
-            Text(Duration.seconds(end.timeIntervalSince(progress.startedAt)), format: .time(pattern: .minuteSecond))
-        } else {
-            Text(progress.startedAt, style: .timer)
-        }
-    }
-}
-
 struct BackupProgressSheet: View {
     @Bindable var manager: BackupManager
     @Environment(\.dismiss) private var dismiss
@@ -1132,11 +1074,26 @@ struct BackupProgressSheet: View {
     }
 }
 
+private struct SettingsRowButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.55 : 1.0)
+            .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: configuration.isPressed)
+    }
+}
+
 struct LibraryBackupView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var backupManager = BackupManager.shared
     @State private var recoveryKey = ""
     @State private var importKey = ""
+    @State private var showRecoveryKey = false
+    @State private var showImportKey = false
+    @State private var copiedKey = false
+    @State private var pastedKey = false
     @State private var document: LibraryBackupDocument?
     @State private var tachibkDocument: TachibkBackupDocument?
     @State private var exporting = false
@@ -1147,14 +1104,16 @@ struct LibraryBackupView: View {
     @State private var readErrorMessage: String?
     @State private var pendingSnapshot: LibraryBackup.Snapshot?
     @State private var pendingMihon: MihonBackup.Backup?
+    @AppStorage("backup.encrypted") private var encryptBackup = true
     @AppStorage("backup.includeLocalBooks") private var includeLocalBooks = false
     @State private var importsMihon = false
 
+    private var isExportDisabled: Bool {
+        backupManager.isRunning || readingFile || (encryptBackup && recoveryKey.isEmpty)
+    }
+
     var body: some View {
         Form {
-            if let progress = backupManager.progress {
-                BackupProgressCard(progress: progress, onStop: { backupManager.cancel() }, onDismiss: { backupManager.dismiss() })
-            }
             if readingFile {
                 Section {
                     HStack(spacing: 12) {
@@ -1166,42 +1125,195 @@ struct LibraryBackupView: View {
             }
 
             Section {
-                SecureField("Recovery key", text: $recoveryKey).textInputAutocapitalization(.never).autocorrectionDisabled()
-                Button("Copy recovery key") {
-                    UIPasteboard.general.string = recoveryKey
-                    Haptics.shared.notify(.success)
+                Toggle("Encrypt backup", isOn: $encryptBackup.animation(AppMotion.gentle(reduceMotion: reduceMotion)))
+                if encryptBackup {
+                    HStack {
+                        Text("Recovery key")
+                            .font(Typography.body)
+                        Spacer()
+                        if showRecoveryKey {
+                            Text(recoveryKey)
+                                .font(.system(.caption, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(recoveryKey.isEmpty ? "Generating…" : "••••••••••••••••")
+                                .font(Typography.body)
+                                .foregroundStyle(.secondary)
+                        }
+                        if !recoveryKey.isEmpty {
+                            Button {
+                                showRecoveryKey.toggle()
+                                Haptics.shared.selection()
+                            } label: {
+                                Image(systemName: showRecoveryKey ? "eye.slash" : "eye")
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 32, height: 32)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(showRecoveryKey ? "Hide recovery key" : "Show recovery key")
+                        }
+                    }
+
+                    Button {
+                        copyRecoveryKey()
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: copiedKey ? "checkmark.circle.fill" : "doc.on.doc")
+                                .foregroundStyle(copiedKey ? Color.green : AppTheme.accent)
+                            Text(copiedKey ? "Copied recovery key" : "Copy recovery key")
+                                .font(Typography.body)
+                                .foregroundStyle(recoveryKey.isEmpty ? .secondary : AppTheme.accent)
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SettingsRowButtonStyle())
+                    .disabled(recoveryKey.isEmpty)
                 }
-                .disabled(recoveryKey.isEmpty)
+
                 Toggle("Include imported books", isOn: $includeLocalBooks)
-                Button("Export .lnbk backup") { export() }
-                    .disabled(backupManager.isRunning || readingFile || recoveryKey.isEmpty)
+
+                Button {
+                    export()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundStyle(isExportDisabled ? .secondary : AppTheme.accent)
+                        Text("Export .lnbk backup")
+                            .font(Typography.body)
+                            .foregroundStyle(isExportDisabled ? .secondary : AppTheme.accent)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(SettingsRowButtonStyle())
+                .disabled(isExportDisabled)
             } header: {
-                Text("Encrypted backup")
+                Text(encryptBackup ? "Encrypted backup" : "Backup (.lnbk)")
             } footer: {
-                Text("Keep the recovery key apart from the backup; restoring on another device needs it. Imported book files are large, so leaving them out means importing them again after a restore.")
+                Text(encryptBackup
+                     ? "Keep the recovery key apart from the backup; restoring on another device needs it. Imported book files are large, so leaving them out means importing them again after a restore."
+                     : "The backup is saved without encryption and does not need a recovery key to restore. Imported book files are large, so leaving them out means importing them again after a restore.")
             }
 
             Section {
-                SecureField("Recovery key from the backup device", text: $importKey)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled()
-                Button("Choose .lnbk backup") {
+                HStack(spacing: 8) {
+                    if showImportKey {
+                        TextField("Recovery key from backup device", text: $importKey)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .font(Typography.body)
+                    } else {
+                        SecureField("Recovery key from backup device", text: $importKey)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .font(Typography.body)
+                    }
+                    if !importKey.isEmpty {
+                        Button {
+                            importKey = ""
+                            Haptics.shared.selection()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear recovery key")
+                    }
+                    Button {
+                        showImportKey.toggle()
+                        Haptics.shared.selection()
+                    } label: {
+                        Image(systemName: showImportKey ? "eye.slash" : "eye")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(showImportKey ? "Hide recovery key" : "Show recovery key")
+                }
+
+                Button {
+                    pasteImportKey()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: pastedKey ? "checkmark.circle.fill" : "doc.on.clipboard")
+                            .foregroundStyle(pastedKey ? Color.green : AppTheme.accent)
+                        Text(pastedKey ? "Pasted recovery key" : "Paste from clipboard")
+                            .font(Typography.body)
+                            .foregroundStyle((backupManager.isRunning || readingFile) ? .secondary : AppTheme.accent)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(SettingsRowButtonStyle())
+                .disabled(backupManager.isRunning || readingFile)
+
+                Button {
                     importsMihon = false
                     importing = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.and.arrow.down")
+                            .foregroundStyle((backupManager.isRunning || readingFile) ? .secondary : AppTheme.accent)
+                        Text("Choose .lnbk backup")
+                            .font(Typography.body)
+                            .foregroundStyle((backupManager.isRunning || readingFile) ? .secondary : AppTheme.accent)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(SettingsRowButtonStyle())
                 .disabled(backupManager.isRunning || readingFile)
             } header: {
                 Text("Restore and merge")
             } footer: {
-                Text("Leave blank to use this device’s key.")
+                Text("Leave blank to use this device’s key. Unencrypted backups do not require a key.")
             }
 
             Section {
-                Button("Export .tachibk backup") { exportTachibk() }
-                    .disabled(backupManager.isRunning || readingFile)
-                Button("Choose .tachibk backup") {
+                Button {
+                    exportTachibk()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundStyle((backupManager.isRunning || readingFile) ? .secondary : AppTheme.accent)
+                        Text("Export .tachibk backup")
+                            .font(Typography.body)
+                            .foregroundStyle((backupManager.isRunning || readingFile) ? .secondary : AppTheme.accent)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(SettingsRowButtonStyle())
+                .disabled(backupManager.isRunning || readingFile)
+
+                Button {
                     importsMihon = true
                     importing = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.and.arrow.down")
+                            .foregroundStyle((backupManager.isRunning || readingFile) ? .secondary : AppTheme.accent)
+                        Text("Choose .tachibk backup")
+                            .font(Typography.body)
+                            .foregroundStyle((backupManager.isRunning || readingFile) ? .secondary : AppTheme.accent)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(SettingsRowButtonStyle())
                 .disabled(backupManager.isRunning || readingFile)
             } header: {
                 Text("Mihon / Tachiyomi (.tachibk)")
@@ -1271,11 +1383,37 @@ struct LibraryBackupView: View {
         }
     }
 
+    private func copyRecoveryKey() {
+        guard !recoveryKey.isEmpty else { return }
+        UIPasteboard.general.string = recoveryKey
+        Haptics.shared.notify(.success)
+        copiedKey = true
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            copiedKey = false
+        }
+    }
+
+    private func pasteImportKey() {
+        guard let clipboard = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !clipboard.isEmpty else {
+            Haptics.shared.notify(.warning)
+            return
+        }
+        importKey = clipboard
+        Haptics.shared.notify(.success)
+        pastedKey = true
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            pastedKey = false
+        }
+    }
+
     private func export() {
         let container = context.container
-        let key = recoveryKey
+        let key = encryptBackup ? recoveryKey : ""
         let includeLocal = includeLocalBooks
-        backupManager.export(container: container, includeLocalBooks: includeLocal, recoveryKey: key) { doc in
+        backupManager.export(container: container, includeLocalBooks: includeLocal, encrypted: encryptBackup, recoveryKey: key) { doc in
             document = doc
             exporting = true
         }
