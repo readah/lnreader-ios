@@ -31,6 +31,7 @@ targets:
       - path: Utilities
       - path: Assets.xcassets
       - path: AppIcon.icon
+      - path: AppIconDebug.icon
     dependencies:
       - package: SwiftSoup
         product: SwiftSoup
@@ -54,3 +55,8 @@ targets:
         CODE_SIGN_IDENTITY: "Apple Development"
         "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "Apple Development"
         ENABLE_PREVIEWS: YES
+      configs:
+        Debug:
+          ASSETCATALOG_COMPILER_APPICON_NAME: AppIconDebug
+        Release:
+          ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

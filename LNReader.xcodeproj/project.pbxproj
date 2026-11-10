@@ -36,6 +36,7 @@
 		04C6FC56B9070F98F8B4B3A6 /* ScanlatorRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = C19BE8C9EDED69C07CE5F18A /* ScanlatorRules.swift */; };
 		04D74105186AEBE9879341B0 /* SourceKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC517C802BAFA82D76F87B6E /* SourceKey.swift */; };
 		0518E7BC7FF5DA15E6F1CB52 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 2B650856C28BA6DD64543A24 /* AppIcon.icon */; };
+		ABCD32000000000000000002 /* AppIconDebug.icon in Resources */ = {isa = PBXBuildFile; fileRef = ABCD32000000000000000001 /* AppIconDebug.icon */; };
 		07FCB178D5F580F8FBF8E825 /* SchemaMigrationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B349DA56B56781BD2C10072 /* SchemaMigrationPlan.swift */; };
 		0C03062A193BA30A59F0417F /* MoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22DDF1DFDE958E4744082B1B /* MoreView.swift */; };
 		0C1F88D43CB0872BBEFD8D36 /* SourceIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D8EDB55C13E2185ADDC743F /* SourceIconView.swift */; };
@@ -257,6 +258,7 @@
 		2B18CC9F23405AA32D6AE0DE /* LibraryFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilter.swift; sourceTree = "<group>"; };
 		2B52FBF3B582C74A0B195493 /* BookAudioDownloadsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookAudioDownloadsView.swift; sourceTree = "<group>"; };
 		2B650856C28BA6DD64543A24 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		ABCD32000000000000000001 /* AppIconDebug.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIconDebug.icon; sourceTree = "<group>"; };
 		2BA30AB4E3157E05E08B3470 /* ModelContainerFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelContainerFactory.swift; sourceTree = "<group>"; };
 		2C7BE97FD82780D085139CC2 /* SourceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceModels.swift; sourceTree = "<group>"; };
 		A1F0C0DE00000000000F1176 /* SourceFilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceFilterSheet.swift; sourceTree = "<group>"; };
@@ -588,6 +590,7 @@
 			children = (
 				ABCD268A0000000000000300 /* Config/Signing.xcconfig */,
 				2B650856C28BA6DD64543A24 /* AppIcon.icon */,
+				ABCD32000000000000000001 /* AppIconDebug.icon */,
 				BA227D06471ABC5D87C79929 /* Assets.xcassets */,
 				3098E6B5EE638FB9BAC7732D /* ContentView.swift */,
 				7C9E9CDAAAE1E4CA9DAA3212 /* LNReaderApp.swift */,
@@ -882,6 +885,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0518E7BC7FF5DA15E6F1CB52 /* AppIcon.icon in Resources */,
+				ABCD32000000000000000002 /* AppIconDebug.icon in Resources */,
 				DF964DDA1C4FB131E160580E /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1090,7 +1094,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = ABCD268A0000000000000300 /* Config/Signing.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconDebug;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Development";
