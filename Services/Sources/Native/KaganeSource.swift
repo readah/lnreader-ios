@@ -140,7 +140,7 @@ final class KaganeSource: MangaSource {
 
         return (challenge.manifest?.pages ?? []).enumerated().map { index, page in
             let ext = page.ext ?? "jxl"
-            let url = "\(base)/api/v2/books/page/\(chapterID)/\(page.pageID).\(ext)"
+            let url = "\(base)/api/v2/books/page/original/\(chapterID)/\(page.pageID).\(ext)"
                 + "?token=\(challenge.accessToken)"
             return SourcePage(index: index, url: url, headers: Self.imageHeaders)
         }
@@ -164,10 +164,11 @@ final class KaganeSource: MangaSource {
         if let cached = await state.challenge(for: chapterID) { return cached }
 
         let integrity = try await integrityToken()
-        let response = try await site.postJSON(
-            "/api/v2/books/\(chapterID)?is_datasaver=false",
-            [String: Any](),
-            headers: ["x-integrity-token": integrity]
+        let response = try await site.send(
+            "/api/v2/books/\(chapterID)?intent=Read",
+            method: "POST",
+            headers: ["x-integrity-token": integrity],
+            body: Data()
         )
         let challenge = try response.decoded(ChallengeDTO.self)
         await state.store(challenge: challenge, for: chapterID)

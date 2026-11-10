@@ -7,8 +7,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/en/allanime",
-      "ported_sha": "da367bef58d36a349e540d4220326e37793dec59",
-      "ported_at": "2026-11-01",
+      "ported_sha": "a6a0dffe2573dd9e3998594492b97f630a4d1c1c",
+      "ported_at": "2026-11-07",
       "files": [
         "Services/Sources/Native/AllMangaSource.swift"
       ]
@@ -55,8 +55,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/all/kagane",
-      "ported_sha": "f51006dfdafe6eec5f184887b8b94c238bd9ac35",
-      "ported_at": "2026-11-01",
+      "ported_sha": "936e23d3d0c02dbeff65ee885a0f351efad97566",
+      "ported_at": "2026-11-09",
       "files": [
         "Services/Sources/Native/KaganeSource.swift"
       ]
@@ -67,8 +67,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/all/mangafire",
-      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
-      "ported_at": "2026-11-01",
+      "ported_sha": "a6a0dffe2573dd9e3998594492b97f630a4d1c1c",
+      "ported_at": "2026-11-07",
       "files": [
         "Services/Sources/Native/MangaFireSource.swift",
         "Services/Sources/Native/MangaFireVrf.swift"
@@ -128,8 +128,8 @@
       "repo": "keiyoushi/extensions-source",
       "branch": "main",
       "path": "src/en/weebcentral",
-      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
-      "ported_at": "2026-11-01",
+      "ported_sha": "4fb9bb8186fd16d6c9ad545cd30bbe06f3ae9416",
+      "ported_at": "2026-11-10",
       "files": [
         "Services/Sources/Native/WeebCentralSource.swift"
       ]
@@ -140,8 +140,8 @@
       "repo": "lnreader/lnreader-plugins",
       "branch": "master",
       "path": "plugins/multisrc/readnovelfull",
-      "ported_sha": "06694db212442c3b32ef650720a5bc180fc6196b",
-      "ported_at": "2026-10-28",
+      "ported_sha": "f6b02dd6e176841024701f14ed7f915b64b9a25a",
+      "ported_at": "2026-11-03",
       "files": [
         "Services/Sources/Native/FreeWebNovelSource.swift",
         "Services/Sources/Native/FreeWebNovelEngine.swift"
