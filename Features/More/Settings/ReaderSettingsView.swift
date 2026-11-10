@@ -67,17 +67,6 @@ struct ReaderSettingsView: View {
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .settingsScreen("Reader settings")
-        .confirmationDialog(
-            "Reset manga defaults?",
-            isPresented: $showResetMangaDialog,
-            titleVisibility: .visible
-        ) {
-            Button("Reset manga defaults", role: .destructive) {
-                resetMangaDefaults()
-            }
-        } message: {
-            Text("Reading mode, page direction, tap zones, and scroll controls will return to defaults.")
-        }
     }
 
     private var tabSwitcher: some View {
@@ -135,6 +124,17 @@ struct ReaderSettingsView: View {
                 Section {
                     Button("Reset manga defaults", role: .destructive) {
                         showResetMangaDialog = true
+                    }
+                    .confirmationDialog(
+                        "Reset manga defaults?",
+                        isPresented: $showResetMangaDialog,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Reset manga defaults", role: .destructive) {
+                            resetMangaDefaults()
+                        }
+                    } message: {
+                        Text("Reading mode, page direction, tap zones, and scroll controls will return to defaults.")
                     }
                 }
             }

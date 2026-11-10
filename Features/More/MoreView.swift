@@ -148,6 +148,16 @@ struct MoreView: View {
                     Label("Download from backend", systemImage: "arrow.down.circle")
                 }
                 .disabled(syncManager.isWorking)
+                .confirmationDialog(
+                    "Download your library from the backend?",
+                    isPresented: $showingRestore,
+                    titleVisibility: .visible
+                ) {
+                    Button("Download", action: download)
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("The backend's copy wins wherever the two disagree. Reading progress made here since the last sync is replaced.")
+                }
 
                 Button(role: .destructive) {
                     Task { await syncManager.signOut() }
@@ -162,16 +172,6 @@ struct MoreView: View {
             if syncManager.currentUser != nil {
                 Text("Download replaces matching titles with the backend's copy.")
             }
-        }
-        .confirmationDialog(
-            "Download your library from the backend?",
-            isPresented: $showingRestore,
-            titleVisibility: .visible
-        ) {
-            Button("Download", action: download)
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The backend's copy wins wherever the two disagree. Reading progress made here since the last sync is replaced.")
         }
     }
 

@@ -417,17 +417,6 @@ struct ReaderSettings: View {
             }
         }
         .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: localLineFocusEnabled)
-        .confirmationDialog(
-            "Reset novel settings?",
-            isPresented: $showResetNovelDialog,
-            titleVisibility: .visible
-        ) {
-            Button("Reset novel settings", role: .destructive) {
-                resetNovelDefaults()
-            }
-        } message: {
-            Text("Typography, spacing, colors, and line focus will return to defaults.")
-        }
     }
 
     // MARK: - Sections
@@ -647,6 +636,17 @@ struct ReaderSettings: View {
         Section {
             Button("Reset novel defaults", role: .destructive) {
                 showResetNovelDialog = true
+            }
+            .confirmationDialog(
+                "Reset novel settings?",
+                isPresented: $showResetNovelDialog,
+                titleVisibility: .visible
+            ) {
+                Button("Reset novel settings", role: .destructive) {
+                    resetNovelDefaults()
+                }
+            } message: {
+                Text("Typography, spacing, colors, and line focus will return to defaults.")
             }
         }
     }

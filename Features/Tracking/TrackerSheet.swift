@@ -189,12 +189,12 @@ struct TrackerSheet: View {
             }
             Section {
                 Button("Stop tracking", role: .destructive) { confirmRemove = true }
+                    .confirmationDialog("Stop tracking?", isPresented: $confirmRemove, titleVisibility: .visible) {
+                        Button("Remove from AniList too", role: .destructive) { remove(track, remote: true) }
+                        Button("Only stop tracking here") { remove(track, remote: false) }
+                        Button("Cancel", role: .cancel) {}
+                    }
             }
-        }
-        .confirmationDialog("Stop tracking?", isPresented: $confirmRemove, titleVisibility: .visible) {
-            Button("Remove from AniList too", role: .destructive) { remove(track, remote: true) }
-            Button("Only stop tracking here") { remove(track, remote: false) }
-            Button("Cancel", role: .cancel) {}
         }
     }
 
