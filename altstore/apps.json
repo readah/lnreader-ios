@@ -18,13 +18,38 @@
       "category": "entertainment",
       "screenshots": {
         "iphone": [
-          { "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2522.png", "width": 1179, "height": 2556 },
-          { "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2523.png", "width": 1179, "height": 2556 },
-          { "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2524.png", "width": 1179, "height": 2556 },
-          { "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2526.png", "width": 1179, "height": 2556 }
+          {
+            "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2522.png",
+            "width": 1179,
+            "height": 2556
+          },
+          {
+            "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2523.png",
+            "width": 1179,
+            "height": 2556
+          },
+          {
+            "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2524.png",
+            "width": 1179,
+            "height": 2556
+          },
+          {
+            "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2526.png",
+            "width": 1179,
+            "height": 2556
+          }
         ]
       },
       "versions": [
+        {
+          "version": "2.0.4",
+          "buildVersion": "4",
+          "date": "2026-11-10",
+          "localizedDescription": "Version 2.0.4.",
+          "downloadURL": "https://github.com/readah/lnreader-ios/releases/download/v2.0.4/LNReader-2.0.4.ipa",
+          "size": 0,
+          "minOSVersion": "26.0"
+        },
         {
           "version": "2.0.3",
           "buildVersion": "3",
@@ -35,7 +60,10 @@
           "minOSVersion": "26.0"
         }
       ],
-      "appPermissions": { "entitlements": [], "privacy": {} }
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {}
+      }
     }
   ],
   "news": []
