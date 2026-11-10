@@ -3,7 +3,16 @@
 // (git-ignored), so nobody's signing setup lands in a commit or a merge.
 
 DEVELOPMENT_TEAM =
-BUNDLE_ID_SUFFIX =
+
+// Per-configuration bundle-id suffix so Debug and Release installs coexist.
+// Override in Local.xcconfig if you want a different split (or set both empty
+// to collapse them back to a single app).
+BUNDLE_ID_SUFFIX[config=Debug] = .debug
+BUNDLE_ID_SUFFIX[config=Release] =
 PRODUCT_BUNDLE_IDENTIFIER = com.lnreader.app$(BUNDLE_ID_SUFFIX)
+
+// Home-screen name: "LNReader β" for Debug, "LNReader" for Release.
+DISPLAY_NAME[config=Debug] = LNReader β
+DISPLAY_NAME[config=Release] = LNReader
 
 #include? "Local.xcconfig"

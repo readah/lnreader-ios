@@ -2,5 +2,9 @@
 // Find your team id in Xcode > Settings > Accounts, or developer.apple.com.
 
 DEVELOPMENT_TEAM = YOURTEAMID
+
 // Free accounts cannot share an App ID: give yourself a unique suffix, e.g. .yourname
-BUNDLE_ID_SUFFIX = .yourname
+// The suffix is per-configuration so Debug and Release installs coexist on
+// the same device. Override one or both if you need a different layout:
+//   BUNDLE_ID_SUFFIX[config=Debug] = .yourname.debug
+//   BUNDLE_ID_SUFFIX[config=Release] = .yourname
