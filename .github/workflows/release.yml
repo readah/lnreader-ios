@@ -1,0 +1,85 @@
+name: Release
+
+# Builds the unsigned IPA and publishes it as a GitHub Release when a push to main starts with
+# "release:" (scripts/release.sh makes that commit). Afterwards it writes the IPA's real size
+# into altstore/apps.json, which is the AltStore / SideStore source.
+#
+# workflow_dispatch re-runs the release for whatever version Info.plist currently has, e.g.
+# after a failed build. It refuses to run if that version's release already exists.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create the release and tag, push the size fix-up
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'release:')
+    # Needs Xcode 26 / the iOS 26 SDK. If this label is not available to the repo yet, pick the
+    # newest macOS image that ships Xcode 26 and set the Xcode path in the step below.
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: v
+        run: |
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Info.plist)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to overwrite an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.v.outputs.tag }}" >/dev/null 2>&1; then
+            echo "::error::Release ${{ steps.v.outputs.tag }} already exists"
+            exit 1
+          fi
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project LNReader.xcodeproj -scheme LNReader
+
+      - name: Build IPA
+        run: ./scripts/build-ipa.sh release
+
+      - name: Name the asset
+        id: ipa
+        run: |
+          V=${{ steps.v.outputs.version }}
+          mv "LNReader-$V-unsigned.ipa" "LNReader-$V.ipa"
+          echo "path=LNReader-$V.ipa" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -f%z "LNReader-$V.ipa")" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES=$(jq -r --arg v "${{ steps.v.outputs.version }}" \
+            '.apps[0].versions[] | select(.version == $v) | .localizedDescription' altstore/apps.json)
+          gh release create "${{ steps.v.outputs.tag }}" "${{ steps.ipa.outputs.path }}" \
+            --target "${{ github.sha }}" \
+            --title "LNReader ${{ steps.v.outputs.version }}" \
+            --notes "$NOTES"
+
+      - name: Write the IPA size into the source
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          jq --arg v "${{ steps.v.outputs.version }}" --argjson size "${{ steps.ipa.outputs.size }}" \
+            '(.apps[0].versions[] | select(.version == $v) | .size) = $size' \
+            altstore/apps.json > altstore/apps.json.new
+          mv altstore/apps.json.new altstore/apps.json
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(altstore): set size for ${{ steps.v.outputs.tag }}"
+          git push origin main

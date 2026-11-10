@@ -18,6 +18,16 @@ identity.
 | ![Library](screenshots/IMG_2522.png) | ![Reader](screenshots/IMG_2523.png) |
 | ![Manga reader](screenshots/IMG_2524.png) | ![Chapter list](screenshots/IMG_2526.png) |
 
+## Install with AltStore
+
+Add this source in AltStore or SideStore (Browse > Sources > +):
+
+```
+https://raw.githubusercontent.com/readah/lnreader-ios/main/altstore/apps.json
+```
+
+Or open [`altstore://source?url=...`](altstore://source?url=https://raw.githubusercontent.com/readah/lnreader-ios/main/altstore/apps.json) on the device. Releases are cut with `./scripts/release.sh`.
+
 ## Requirements
 
 - **Xcode 26** with the iOS 26 SDK (deployment target is iOS 26.0).
@@ -62,6 +72,7 @@ XcodeGen is optional and not required to build.
 | `./scripts/try-allmanga.sh` | Same for AllManga, including its `webview.capture` path. |
 | `./scripts/profile-hotpaths.sh` | Library counts, progress writes and chapter rows at library scale. |
 | `./scripts/profile-device.sh 30` | Release build on a device: hitch and Time Profiler trace. |
+| `./scripts/release.sh patch|minor|major` | Bumps the version, adds an AltStore source entry, pushes a `release:` commit; the workflow builds and publishes the IPA. |
 
 The checks are standalone programs in `tests/`, compiled against the few app files they touch.
 There is no XCTest or SwiftPM test target, because package resolution and the Simulator are

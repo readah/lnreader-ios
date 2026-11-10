@@ -1,0 +1,42 @@
+{
+  "name": "LNReader",
+  "identifier": "com.lnreader.app.source",
+  "subtitle": "Light novels and manga, native on iOS",
+  "description": "Sideloaded builds of LNReader for iOS. Add this source in AltStore or SideStore to install and update the app.",
+  "iconURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/altstore/icon.png",
+  "website": "https://github.com/readah/lnreader-ios",
+  "tintColor": "#3B82F6",
+  "apps": [
+    {
+      "name": "LNReader",
+      "bundleIdentifier": "com.lnreader.app",
+      "developerName": "readah",
+      "subtitle": "Light novel and manga reader",
+      "localizedDescription": "A native iOS reader for light novels and manga. A web reader for novels, a pager and webtoon viewer for manga, offline chapter downloads, AniList tracking and on-device narration.",
+      "iconURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/altstore/icon.png",
+      "tintColor": "#3B82F6",
+      "category": "entertainment",
+      "screenshots": {
+        "iphone": [
+          { "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2522.png", "width": 1179, "height": 2556 },
+          { "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2523.png", "width": 1179, "height": 2556 },
+          { "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2524.png", "width": 1179, "height": 2556 },
+          { "imageURL": "https://raw.githubusercontent.com/readah/lnreader-ios/main/screenshots/IMG_2526.png", "width": 1179, "height": 2556 }
+        ]
+      },
+      "versions": [
+        {
+          "version": "2.0.3",
+          "buildVersion": "3",
+          "date": "2026-11-11",
+          "localizedDescription": "Current build.",
+          "downloadURL": "https://github.com/readah/lnreader-ios/releases/download/v2.0.3/LNReader-2.0.3.ipa",
+          "size": 0,
+          "minOSVersion": "26.0"
+        }
+      ],
+      "appPermissions": { "entitlements": [], "privacy": {} }
+    }
+  ],
+  "news": []
+}
