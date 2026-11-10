@@ -22,9 +22,8 @@ concurrency:
 jobs:
   release:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'release:')
-    # Needs Xcode 26 / the iOS 26 SDK. If this label is not available to the repo yet, pick the
-    # newest macOS image that ships Xcode 26 and set the Xcode path in the step below.
-    runs-on: macos-26
+    # The project needs Xcode 27; this image ships it (arm64 only).
+    runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
