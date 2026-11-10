@@ -49,15 +49,6 @@
           "downloadURL": "https://github.com/readah/lnreader-ios/releases/download/v2.0.4/LNReader-2.0.4.ipa",
           "size": 15901517,
           "minOSVersion": "26.0"
-        },
-        {
-          "version": "2.0.3",
-          "buildVersion": "3",
-          "date": "2026-11-11",
-          "localizedDescription": "Current build.",
-          "downloadURL": "https://github.com/readah/lnreader-ios/releases/download/v2.0.3/LNReader-2.0.3.ipa",
-          "size": 0,
-          "minOSVersion": "26.0"
         }
       ],
       "appPermissions": {
