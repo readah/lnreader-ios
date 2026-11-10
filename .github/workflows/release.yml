@@ -10,6 +10,8 @@ name: Release
 on:
   push:
     branches: [main]
+    # Only a version bump can be a release, so other pushes never start (or skip) this workflow.
+    paths: [Info.plist]
   workflow_dispatch:
 
 permissions:
