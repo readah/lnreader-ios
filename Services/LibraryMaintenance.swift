@@ -34,6 +34,43 @@ import UserNotifications
         UserDefaults.standard.set(true, forKey: key)
         Task { await ChapterVisibility.reconcileAll(container: container) }
     }
+
+    struct CleanupResult: Sendable {
+        var entries = 0
+        var chapters = 0
+        var skipped = 0
+    }
+
+    /// Delete every entry that is not in the library, with its chapters, history,
+    /// download rows and files, tracks and per-series settings. Local books and
+    /// entries that still have a queued or running download are kept. Runs on a
+    /// background context; only plain values cross back.
+    @concurrent static func cleanUpOrphans(container: ModelContainer) async -> CleanupResult {
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        let predicate = #Predicate<Entry> { !$0.inLibrary }
+        guard let orphans = try? context.fetch(FetchDescriptor<Entry>(predicate: predicate)) else { return CleanupResult() }
+        var result = CleanupResult()
+        let defaults = UserDefaults.standard
+        let files = FileManager.default
+        for entry in orphans {
+            if entry.isLocal { continue }
+            let pending = entry.chapters.contains { $0.downloadItem.map { $0.state == .queued || $0.state == .downloading } ?? false }
+            if pending { result.skipped += 1; continue }
+            let key = "\(entry.sourceKey)::\(entry.url)"
+            for chapter in entry.chapters {
+                let folder = OfflineChapters.folder(sourceKey: entry.sourceKey, entryURL: entry.url, chapterURL: chapter.url)
+                try? files.removeItem(at: folder)
+            }
+            defaults.removeObject(forKey: ScanlatorPreference.defaultsKey(key))
+            defaults.removeObject(forKey: "mangareader.\(key)")
+            result.chapters += entry.chapters.count
+            result.entries += 1
+            context.delete(entry)
+        }
+        if result.entries > 0 { try? context.save() }
+        return result
+    }
     static func register() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: refreshID, using: .main) { task in
             Task { @MainActor in handle(task, downloadsOnly: false) }
