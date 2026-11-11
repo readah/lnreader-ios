@@ -366,7 +366,6 @@ struct ReaderView: View {
         // The sheet draws its own close button and title, so the grabber would
         // only push that header down.
         .presentationDragIndicator(.hidden)
-        .presentationCornerRadius(28)
     }
 
     private var chapterListSheet: some View {

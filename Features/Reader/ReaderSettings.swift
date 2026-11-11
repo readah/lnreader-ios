@@ -159,7 +159,6 @@ struct ReaderSettings: View {
                 compactControls
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(settingsBackground)
             .onDisappear { commitChanges() }
             .sheet(isPresented: $showCustomize) { customizeSheet }
         }
@@ -241,6 +240,7 @@ struct ReaderSettings: View {
                 }
             }
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: .capsule)
+            .clipShape(.capsule)
         }
     }
 
@@ -269,7 +269,7 @@ struct ReaderSettings: View {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
-            Slider(value: $dimLevel, in: 0...1)
+            Slider(value: Binding(get: { 1 - dimLevel }, set: { dimLevel = 1 - $0 }), in: 0...1)
                 .tint(.primary)
                 .accessibilityLabel("Brightness")
 

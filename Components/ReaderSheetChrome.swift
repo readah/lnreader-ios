@@ -100,12 +100,12 @@ struct GlassToggleSegment: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(GlassMetrics.iconFont)
-                .foregroundStyle(isOn ? AppTheme.onPrimaryFill : Color.primary)
+                .foregroundStyle(isOn ? Color.black : Color.primary)
                 .frame(height: GlassMetrics.side)
                 .padding(.horizontal, GlassMetrics.segmentInset)
                 .background {
                     if isOn {
-                        Capsule(style: .continuous).fill(AppTheme.primaryFill)
+                        Rectangle().fill(Color.white)
                     }
                 }
                 .contentShape(.rect)
@@ -133,10 +133,10 @@ struct SheetActionButton: View {
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
             }
-            .foregroundStyle(.primary)
+            .foregroundStyle(Color.black)
             .frame(maxWidth: .infinity)
             .frame(height: GlassMetrics.side)
-            .glassEffect(.regular.interactive(), in: .capsule)
+            .background(Color.white, in: .capsule)
             .contentShape(.capsule)
         }
         .buttonStyle(.plain)
