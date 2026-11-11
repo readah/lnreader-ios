@@ -13,6 +13,8 @@ struct ChapterListView: View {
     let filteredCount: Int
     /// Print each chapter's number beside its title (novels).
     var showsChapterNumbers = false
+    /// A row to light briefly, after the page scrolls to it.
+    var highlightedChapterID: String? = nil
     /// Per-entry scanlator priority, when the parent owns one.
     var scanlatorSettings: ScanlatorSettings? = nil
     let sourceKey: String
@@ -146,6 +148,14 @@ struct ChapterListView: View {
                                    selection: selection, orderedPaths: { chapters.map(\.path) },
                                    joinsAbove: joins.above, joinsBelow: joins.below,
                                    showsNumber: showsChapterNumbers)
+                            .overlay {
+                                if chapter.id == highlightedChapterID {
+                                    Rectangle()
+                                        .fill((coverTint ?? AppTheme.primaryFill).opacity(0.16))
+                                        .allowsHitTesting(false)
+                                        .transition(.opacity)
+                                }
+                            }
                         // No rule inside or at the edge of a selected block.
                         if index + 1 < chapters.count {
                             Divider().padding(.leading, 22).opacity(selected || joins.below ? 0 : 1)
@@ -155,7 +165,6 @@ struct ChapterListView: View {
                 .background(chapterCard)
                 .clipShape(.rect(cornerRadius: 18))
             }
-
         }
         .padding(.horizontal)
         .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: showSearchField)

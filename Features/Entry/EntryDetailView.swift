@@ -65,6 +65,10 @@ struct EntryDetailView: View {
     /// The chapter "Continue reading" opens, also shown on the button.
     /// Rebuilt with `orderedChapters` so the body never walks relationships.
     @State private var resumeChapter: ChapterDisplay?
+    /// Asks the page to bring a chapter row into view.
+    @State private var scrollRequest: ChapterScrollRequest?
+    /// The row briefly lit after a scroll lands on it.
+    @State private var highlightedChapterID: String?
     @State private var showAudioDownloads = false
     /// Hold-to-select state for the chapter list; the bar pins to this screen.
     @State private var chapterSelection = ChapterSelection()
@@ -113,6 +117,8 @@ struct EntryDetailView: View {
 
     var body: some View {
         EntryDetailScrollView(
+            scrollRequest: scrollRequest,
+            onArrive: flashChapter,
             content: VStack(spacing: 0) {
                 EntryHeaderView(
                     transitionNamespace: chapterTransition,
@@ -127,6 +133,7 @@ struct EntryDetailView: View {
                     continueChapterName: resumeChapter?.name,
                     canStartReading: !allChapters.isEmpty && !isFinished,
                     onContinueReading: continueReading,
+                    onScrollToCurrent: scrollToCurrentChapter,
                     onCopyTitle: copyTitle
                 ) {
                     EntryActionBar(
@@ -169,6 +176,7 @@ struct EntryDetailView: View {
                         totalCount: orderedChapters.count,
                         filteredCount: filteredChapters.count,
                         showsChapterNumbers: !isManga,
+                        highlightedChapterID: highlightedChapterID,
                         scanlatorSettings: scanlatorSettings,
                         sourceKey: sourceKey,
                         isLoading: isLoading,
@@ -751,6 +759,28 @@ struct EntryDetailView: View {
     private func continueReading() {
         if let resumeChapter { navigateToChapter = resumeChapter }
     }
+
+    /// Hold on "Continue reading": scroll the list to the chapter it would open.
+    /// A filter or search that hides that chapter is cleared first, or there
+    /// would be no row to scroll to.
+    private func scrollToCurrentChapter() {
+        guard let resumeChapter else { return }
+        hideKeyboard()
+        if !pagedChapters.contains(where: { $0.id == resumeChapter.id }) {
+            selectedFilter = .all
+            chapterSearch = ""
+        }
+        scrollRequest = ChapterScrollRequest(id: resumeChapter.id)
+    }
+
+    /// Light the row the scroll landed on, then let it fade, so the eye finds it.
+    private func flashChapter(_ id: String) {
+        withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) { highlightedChapterID = id }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(1100))
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.6)) { highlightedChapterID = nil }
+        }
+    }
 }
 
 /// Filter options for the chapter list.
@@ -763,15 +793,40 @@ enum ChapterFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// One request to scroll the detail page to a chapter row. The token makes a
+/// repeat request for the same chapter count as a new one.
+struct ChapterScrollRequest: Equatable {
+    let id: String
+    let token = UUID()
+}
+
 /// A performance-optimized ScrollView wrapper that isolates scroll offset tracking
 struct EntryDetailScrollView<Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var scrollRequest: ChapterScrollRequest? = nil
+    /// Called once the page has settled on the requested row.
+    var onArrive: (String) -> Void = { _ in }
     let content: Content
 
     var body: some View {
-        ScrollView {
-            content
+        ScrollViewReader { proxy in
+            ScrollView {
+                content
+            }
+            .scrollDismissesKeyboard(.immediately)
+            .onChange(of: scrollRequest) { _, request in
+                guard let request else { return }
+                // A cleared filter rebuilds the rows first; scroll once they exist.
+                Task { @MainActor in
+                    await Task.yield()
+                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+                        proxy.scrollTo(request.id, anchor: .center)
+                    }
+                    try? await Task.sleep(for: .milliseconds(reduceMotion ? 0 : 350))
+                    onArrive(request.id)
+                }
+            }
         }
         .ignoresSafeArea(edges: .top)
-        .scrollDismissesKeyboard(.immediately)
     }
 }

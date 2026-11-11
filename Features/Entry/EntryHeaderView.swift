@@ -5,6 +5,9 @@ import SwiftUI
 import Glur
 
 struct EntryHeaderView<Actions: View>: View {
+    /// A hold ends with a lift the button also reads as a tap; without this the
+    /// tap would open the reader right after the hold scrolled the list.
+    @State private var suppressTap = false
     var transitionNamespace: Namespace.ID? = nil
     let name: String
     let author: String?
@@ -22,6 +25,8 @@ struct EntryHeaderView<Actions: View>: View {
     /// and do nothing when tapped.
     var canStartReading: Bool = true
     let onContinueReading: () -> Void
+    /// Held the primary button: bring the chapter it would open into view.
+    var onScrollToCurrent: (() -> Void)? = nil
     /// Held the title. The hero owns the gesture only: the screen that knows what
     /// the title is for writes the clipboard and confirms it.
     var onCopyTitle: (() -> Void)? = nil
@@ -158,7 +163,13 @@ struct EntryHeaderView<Actions: View>: View {
 
     /// Primary action: a solid white glass capsule over the dark hero.
     private var continueButton: some View {
-        Button(action: onContinueReading) {
+        Button {
+            if suppressTap {
+                suppressTap = false
+                return
+            }
+            onContinueReading()
+        } label: {
             VStack(spacing: 2) {
                 Label(
                     isFinished ? "You're all caught up" : (hasStartedReading ? "Continue reading" : "Start reading"),
@@ -182,6 +193,19 @@ struct EntryHeaderView<Actions: View>: View {
         .controlSize(.large)
         .buttonBorderShape(.capsule)
         .disabled(!canStartReading)
+        // Hold to find the chapter in the list. Nothing on screen says the button
+        // can be held, so VoiceOver is offered the same action by name.
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.4).onEnded { _ in
+                guard canStartReading, let onScrollToCurrent else { return }
+                Haptics.shared.impact(.medium)
+                suppressTap = true
+                // The lift may not report a tap at all; don't eat the next real one.
+                Task { try? await Task.sleep(for: .milliseconds(600)); suppressTap = false }
+                onScrollToCurrent()
+            }
+        )
+        .accessibilityAction(named: Text("Scroll to current chapter")) { onScrollToCurrent?() }
         .glassEffectID("continue", in: namespace)
         .bookTransitionSource("continue", in: transitionNamespace)
     }
