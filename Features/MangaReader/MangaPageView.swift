@@ -81,6 +81,13 @@ struct MangaPageView: View {
             .first ?? 390
     }
 
+    /// Scale of the screen this app is on.
+    static var screenScale: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.screen.scale }
+            .first ?? 3
+    }
+
     private func load() async {
         let requestedURL = page.url
         didFail = false

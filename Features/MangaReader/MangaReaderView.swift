@@ -584,6 +584,10 @@ struct MangaReaderView: View {
         chapterName = segments[target].name
         pages = segments[target].pages
         currentIndex = target > from ? 0 : pages.count - 1
+        // Chapters well behind the reader leave the strip, so it does not grow
+        // with every chapter read. The strip removes them once it is at rest.
+        let firstKept = StripWindow.firstKept(current: target)
+        if firstKept > 0 { segments.removeFirst(firstKept) }
         if let storedChapter, let entry = storedChapter.entry {
             libraryManager.recordHistory(entry: entry, chapter: storedChapter, context: modelContext)
         }
@@ -602,6 +606,14 @@ struct MangaReaderView: View {
                   !Task.isCancelled, strip == stripID,
                   !segments.contains(where: { $0.id == next.url }) else { return }
             segments.append(ReaderSegment(id: next.url, name: next.name, pages: fetched))
+            let scale = MangaPageView.screenScale
+            PagePrerender.prime(
+                Array(fetched.prefix(8)),
+                sourceKey: sourceKey,
+                loader: loader,
+                targetWidth: max(readerSize.width, MangaPageView.screenWidth) * scale,
+                screenScale: scale
+            )
             await loader.prefetch(fetched, current: 0, sourceKey: sourceKey)
         }
     }

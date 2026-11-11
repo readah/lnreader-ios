@@ -247,7 +247,7 @@ final class LibraryManager {
         }
 
         entry.lastReadAt = .now
-        try? context.save()
+        scheduleProgressSave(context, deferred: true)
     }
 
     /// Record how far the user has read into a chapter.
