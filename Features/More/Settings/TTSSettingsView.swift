@@ -40,7 +40,7 @@ struct TTSSettingsView: View {
             }
         }
         .settingsScreen("Narration")
-        .task { selected = [library.migratedDefaultVoice]; await library.refreshVoices() }
+        .task { selected = [library.migratedDefaultVoice]; await library.refreshVoices(); await library.refresh() }
         .onChange(of: selected) { oldValue, newValue in
             if let added = newValue.subtracting(oldValue).first { defaultVoice = added; selected = [added] }
             else if newValue.isEmpty { selected = [defaultVoice] }

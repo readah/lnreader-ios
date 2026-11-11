@@ -2,6 +2,9 @@ import AVFoundation
 import Combine
 import CryptoKit
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // Explicit downloads live in Application Support and are never automatically evicted.
 enum TTSStorage {
@@ -156,6 +159,15 @@ final class TTSOfflineLibrary: NSObject, ObservableObject {
         } catch { errorMessage = error.localizedDescription }
         save()
         Task { await reconcileTransfers(); await refreshVoices(); startRefreshLoop() }
+        #if os(iOS)
+        // Polling is pointless while suspended; resume only if something is still waiting.
+        NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.stopRefreshLoop() }
+        }
+        NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.startRefreshLoop() }
+        }
+        #endif
     }
     func reconnectBackgroundSession() { _ = session }
     private func finishBackgroundEventsIfPossible() {
@@ -219,7 +231,7 @@ final class TTSOfflineLibrary: NSObject, ObservableObject {
                 if let preview = voice.preview, voice.isCustom || preview.status == "ready", !records.contains(where: { $0.id == preview.id && ($0.isAvailable || $0.state == "downloading") }) { track(preview, client: client, preview: true) }
             }
             errorMessage = nil
-            await refresh()
+            await refresh(includeEngine: false)
         } catch { errorMessage = error.localizedDescription }
     }
     private func saveReferenceIfMissing(_ voice: TTSVoice, client: TTSAPIClient) async throws {
@@ -294,22 +306,37 @@ final class TTSOfflineLibrary: NSObject, ObservableObject {
             records[index].rendition = rendition; records[index].state = "waiting"; records[index].error = nil
         } else { records.append(.init(id: rendition.id, rendition: rendition, state: "waiting", isPreview: preview, backendURL: client.baseURL.absoluteString)) }
         save()
+        startRefreshLoop()
     }
+    private var hasWaiting: Bool { records.contains { $0.state == "waiting" } }
+    private var refreshFailures = 0
+    /// Polls only while a preparation is waiting on the server. Idle libraries make no requests.
     private func startRefreshLoop() {
-        guard refreshTask == nil else { return }
+        guard refreshTask == nil, hasWaiting else { return }
         refreshTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(12)); guard let self else { return }; await self.refresh()
+                guard let self else { return }
+                let delay = min(12 * pow(2.0, Double(self.refreshFailures)), 300)
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled, self.hasWaiting else { break }
+                await self.refresh()
             }
+            if !Task.isCancelled { self?.refreshTask = nil }
         }
     }
-    func refresh() async {
+    private func stopRefreshLoop() { refreshTask?.cancel(); refreshTask = nil }
+    func refresh(includeEngine: Bool = true) async {
         guard !isRefreshing else { return }; isRefreshing = true; defer { isRefreshing = false }
         do { try await flushDeletions() }
         catch { errorMessage = "Server deletion is pending. Reconnect and sign in before preparing deleted chapters again." }
         if Date().timeIntervalSince(lastVoiceRefresh) > 30 && voices.contains(where: { $0.preview?.status != "ready" }) { await refreshVoices() }
-        do { engineState = try await TTSAPIClient().engine() }
-        catch { engineState = TTSEngineState(status: "unavailable", message: error.localizedDescription, updatedAt: "", retryAt: nil) }
+        if includeEngine || hasWaiting {
+            do { engineState = try await TTSAPIClient().engine(); refreshFailures = 0 }
+            catch {
+                refreshFailures = min(refreshFailures + 1, 5)
+                engineState = TTSEngineState(status: "unavailable", message: error.localizedDescription, updatedAt: "", retryAt: nil)
+            }
+        }
         // A server repair or retry from another device can revive a failed job.
         // Keep user-paused transfers and local file failures under user control.
         let waiting = records.filter { $0.state == "waiting" || ($0.state == "failed" && ["failed", "cancelled", "evicted"].contains($0.rendition.status)) }
