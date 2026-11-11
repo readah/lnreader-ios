@@ -42,6 +42,15 @@
       },
       "versions": [
         {
+          "version": "2.0.6",
+          "buildVersion": "6",
+          "date": "2026-11-11",
+          "localizedDescription": "Reader settings sheet: plain white Customize button, brightness slider direction fixed, bold/justify toggles fill their half of the group, default sheet background.",
+          "downloadURL": "https://github.com/readah/lnreader-ios/releases/download/v2.0.6/LNReader-2.0.6.ipa",
+          "size": 15928255,
+          "minOSVersion": "26.0"
+        },
+        {
           "version": "2.0.5",
           "buildVersion": "5",
           "date": "2026-11-11",
