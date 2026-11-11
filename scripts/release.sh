@@ -11,13 +11,13 @@
 # What it does:
 #   1. Bumps CFBundleShortVersionString (by the unit you give) and CFBundleVersion (+1)
 #      in Info.plist.
-#   2. Prepends an entry to altstore/apps.json (the AltStore/SideStore source). The size is
-#      0 for now; the workflow fills it in once the IPA exists.
-#   3. Commits as "release: v<version>" and pushes. That prefix is the trigger for
-#      .github/workflows/release.yml, which builds the IPA on a macOS runner, publishes a
-#      GitHub Release with it and writes the real size back into apps.json.
+#   2. Commits as "release: v<version>" (the -m text becomes the commit body) and pushes. That
+#      prefix is the trigger for .github/workflows/release.yml, which builds the IPA on a macOS
+#      runner, publishes a GitHub Release with it and only then adds the entry (with the real
+#      size) to altstore/apps.json, the AltStore/SideStore source. A failed build never
+#      advertises a version.
 #
-# Needs: jq, a clean working tree on main that is level with origin/main.
+# Needs: a clean working tree on main that is level with origin/main.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -31,16 +31,14 @@ while [ $# -gt 0 ]; do
     -m|--message) shift; NOTES=${1:-} ;;
     --dry-run) DRY=1 ;;
     --no-push) PUSH=0 ;;
-    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "release: unknown argument '$1' (try --help)" >&2; exit 2 ;;
   esac
   shift
 done
 [ -n "$UNIT" ] || { echo "release: say major, minor or patch (try --help)" >&2; exit 2; }
-command -v jq >/dev/null || { echo "release: jq is required (brew install jq)" >&2; exit 1; }
 
 PLIST=Info.plist
-SOURCE=altstore/apps.json
 REPO=$(git remote get-url origin | sed -E 's#^(git@github.com:|https://github.com/)##; s#\.git$##')
 
 # --- Preconditions -----------------------------------------------------------
@@ -77,20 +75,12 @@ echo "==> $CURRENT ($BUILD) -> $VERSION ($NEW_BUILD)"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$PLIST"
 
-URL="https://github.com/$REPO/releases/download/$TAG/LNReader-$VERSION.ipa"
-TMP=$(mktemp)
-trap 'rm -f "$TMP"' EXIT INT TERM
-jq --arg v "$VERSION" --arg b "$NEW_BUILD" --arg d "$(date -u +%Y-%m-%d)" \
-   --arg url "$URL" --arg notes "${NOTES:-Version $VERSION.}" '
-  .apps[0].versions |= ([{
-    version: $v, buildVersion: $b, date: $d,
-    localizedDescription: $notes,
-    downloadURL: $url, size: 0, minOSVersion: "26.0"
-  }] + .)' "$SOURCE" > "$TMP"
-mv "$TMP" "$SOURCE"
-
-git add "$PLIST" "$SOURCE"
-git commit -q -m "release: $TAG"
+git add "$PLIST"
+if [ -n "$NOTES" ]; then
+  git commit -q -m "release: $TAG" -m "$NOTES"
+else
+  git commit -q -m "release: $TAG"
+fi
 echo "==> Committed release: $TAG"
 
 if [ "$PUSH" -eq 1 ]; then

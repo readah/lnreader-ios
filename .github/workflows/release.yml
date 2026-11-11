@@ -1,11 +1,13 @@
 name: Release
 
 # Builds the unsigned IPA and publishes it as a GitHub Release when a push to main starts with
-# "release:" (scripts/release.sh makes that commit). Afterwards it writes the IPA's real size
-# into altstore/apps.json, which is the AltStore / SideStore source.
+# "release:" (scripts/release.sh makes that commit; its body is the release notes). Once the
+# IPA is built and published, it adds the version's entry to altstore/apps.json, the AltStore /
+# SideStore source, so the source never advertises an IPA that does not exist.
 #
 # workflow_dispatch re-runs the release for whatever version Info.plist currently has, e.g.
-# after a failed build. It refuses to run if that version's release already exists.
+# after a failed build. It refuses to run if that version's release already exists. The notes
+# input stands in for the commit body.
 
 on:
   push:
@@ -13,9 +15,13 @@ on:
     # Only a version bump can be a release, so other pushes never start (or skip) this workflow.
     paths: [Info.plist]
   workflow_dispatch:
+    inputs:
+      notes:
+        description: Release notes (default "Version X.Y.Z.")
+        required: false
 
 permissions:
-  contents: write   # create the release and tag, push the size fix-up
+  contents: write   # create the release and tag, push the apps.json entry
 
 concurrency:
   group: release
@@ -36,6 +42,17 @@ jobs:
           VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Info.plist)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Read notes
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+          INPUT_NOTES: ${{ github.event.inputs.notes }}
+        run: |
+          # The commit body (everything after the subject and the blank line), else the input.
+          NOTES=$(printf '%s\n' "$MSG" | tail -n +3)
+          [ -n "$NOTES" ] || NOTES=$INPUT_NOTES
+          [ -n "$NOTES" ] || NOTES="Version ${{ steps.v.outputs.version }}."
+          printf '%s\n' "$NOTES" > "$RUNNER_TEMP/notes.txt"
 
       - name: Refuse to overwrite an existing release
         env:
@@ -64,23 +81,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOTES=$(jq -r --arg v "${{ steps.v.outputs.version }}" \
-            '.apps[0].versions[] | select(.version == $v) | .localizedDescription' altstore/apps.json)
           gh release create "${{ steps.v.outputs.tag }}" "${{ steps.ipa.outputs.path }}" \
             --target "${{ github.sha }}" \
             --title "LNReader ${{ steps.v.outputs.version }}" \
-            --notes "$NOTES"
+            --notes-file "$RUNNER_TEMP/notes.txt"
 
-      - name: Write the IPA size into the source
+      - name: Add the version to the source
         run: |
           git fetch origin main
           git checkout -B main origin/main
-          jq --arg v "${{ steps.v.outputs.version }}" --argjson size "${{ steps.ipa.outputs.size }}" \
-            '(.apps[0].versions[] | select(.version == $v) | .size) = $size' \
+          V=${{ steps.v.outputs.version }}
+          TAG=${{ steps.v.outputs.tag }}
+          jq --arg v "$V" --arg b "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Info.plist)" \
+             --arg d "$(date -u +%Y-%m-%d)" --rawfile notes "$RUNNER_TEMP/notes.txt" \
+             --arg url "https://github.com/${{ github.repository }}/releases/download/$TAG/LNReader-$V.ipa" \
+             --argjson size "${{ steps.ipa.outputs.size }}" '
+            .apps[0].versions |= ([{
+              version: $v, buildVersion: $b, date: $d,
+              localizedDescription: ($notes | rtrimstr("\n")),
+              downloadURL: $url, size: $size, minOSVersion: "26.0"
+            }] + map(select(.version != $v)))' \
             altstore/apps.json > altstore/apps.json.new
           mv altstore/apps.json.new altstore/apps.json
           if git diff --quiet; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(altstore): set size for ${{ steps.v.outputs.tag }}"
+          git commit -am "chore(altstore): add $TAG"
           git push origin main
