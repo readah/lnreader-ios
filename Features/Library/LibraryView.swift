@@ -190,6 +190,7 @@ struct LibraryView: View {
                 switch result {
                 case .success(let urls):
                     guard let url = urls.first else { return }
+                    let container = modelContext.container
                     Task {
                         let accessing = url.startAccessingSecurityScopedResource()
                         defer {
@@ -198,8 +199,13 @@ struct LibraryView: View {
                             }
                         }
                         do {
-                            if url.pathExtension.lowercased() == "pdf" { try LocalBookManager.importPDF(at: url, context: modelContext) }
-                            else { try LocalBookManager.importEPUB(at: url, context: modelContext) }
+                            // Parsing and writing a book is seconds of work: a background
+                            // context, off the main thread. `@Query` picks the entry up on save.
+                            try await Task.detached(priority: .userInitiated) {
+                                let context = ModelContext(container)
+                                if url.pathExtension.lowercased() == "pdf" { try LocalBookManager.importPDF(at: url, context: context) }
+                                else { try LocalBookManager.importEPUB(at: url, context: context) }
+                            }.value
                         } catch {
                             importError = error.localizedDescription
                             showImportError = true

@@ -429,19 +429,20 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
     }
 
     private func setRead(_ read: Bool) {
-        for chapter in picked { apply(read: read, to: chapter) }
+        let twins = entry.map(ChapterTwins.hasTwins) ?? false
+        for chapter in picked { apply(read: read, to: chapter, twins: twins) }
         if read { ChapterDownloadManager.shared.chaptersMarkedRead(picked) }
         finish()
     }
 
-    private func apply(read: Bool, to chapter: Chapter) {
+    private func apply(read: Bool, to chapter: Chapter, twins: Bool) {
         guard chapter.read != read || chapter.progress != (read ? 100 : 0) else { return }
         chapter.read = read
         chapter.progress = read ? 100 : 0
         chapter.paragraphIndex = read ? 0 : nil
         chapter.lastPageRead = 0
         chapter.pagesLeft = 0
-        ChapterTwins.fanOut(from: chapter, read: read)
+        if twins { ChapterTwins.fanOut(from: chapter, read: read, entryHasTwins: true) }
     }
 
     /// Every chapter numbered below the lowest one picked.
@@ -449,7 +450,8 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
         guard let floor = allChapters.filter({ selection.paths.contains($0.path) }).map(\.sortNumber).min() else { return }
         let earlier = Set(allChapters.filter { $0.sortNumber < floor }.map(\.path))
         let marked = (entry?.chapters ?? []).filter { earlier.contains($0.url) }
-        for chapter in marked { apply(read: true, to: chapter) }
+        let twins = entry.map(ChapterTwins.hasTwins) ?? false
+        for chapter in marked { apply(read: true, to: chapter, twins: twins) }
         ChapterDownloadManager.shared.chaptersMarkedRead(marked)
         finish()
     }

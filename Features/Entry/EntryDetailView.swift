@@ -709,7 +709,15 @@ struct EntryDetailView: View {
             sourceChapters = ChapterOrder.normalized(chapters)
             fetchedAt = .now
             if let localEntry {
-                libraryManager.applyUpdate(localEntry, details: fetchedDetails, chapters: chapters, context: modelContext)
+                // Merging walks every stored chapter and writes the new ones, so it
+                // runs on the merger's own context, not the main one. The chapter
+                // list below is read from a background context too, after the save.
+                let job = UpdateJob(
+                    id: localEntry.persistentModelID, sourceKey: localEntry.sourceKey, url: localEntry.url,
+                    kind: localEntry.kind, title: localEntry.title, sourceName: source.name)
+                let merger = LibraryUpdateMerger(container: modelContext.container)
+                _ = await merger.merge(UpdateResult(job: job, details: fetchedDetails, chapters: chapters, error: nil))
+                await merger.flush()
             }
             isLoading = false
             refreshChapters()
@@ -761,12 +769,15 @@ struct EntryDetailView: View {
         guard let seed else { return }
 
         isAddingToLibrary = true
+        let container = modelContext.container
+        let chapters = sourceChapters
         Task { @MainActor in
-            let added = libraryManager.addToLibrary(
-                entry: seed,
-                chapters: sourceChapters,
-                context: modelContext
-            )
+            // Inserting every chapter is off the main actor; only the id comes back.
+            let id = await LibraryUpdateMerger(container: container).add(entry: seed, chapters: chapters)
+            guard let added = modelContext.model(for: id) as? Entry else {
+                isAddingToLibrary = false
+                return
+            }
             // One transaction: the other actions split out of the library
             // button as it shrinks to the left.
             withAnimation(morph) {

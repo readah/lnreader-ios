@@ -3,7 +3,9 @@ import SwiftData
 import PDFKit
 
 /// Manages importing local e-books, unzipping their contents, parsing EPUB metadata/chapters, and inserting records into SwiftData.
-@MainActor
+///
+/// Not main-actor isolated on purpose: PDF text extraction and EPUB unzipping take
+/// seconds on a large book. Callers pass a background `ModelContext`.
 final class LocalBookManager {
     /// PDF outlines define chapters; PDFs without outlines use eight-page sections.
     static func importPDF(at fileURL: URL, context: ModelContext) throws {

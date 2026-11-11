@@ -60,19 +60,35 @@ final class ChapterDownloadManager {
             }
         }
         do {
+            // One fetch, and no disk on the main actor: checking that each finished
+            // download still has its files reads a manifest per item, which is
+            // seconds of I/O for a big library. That part runs detached below.
+            var completed: [(id: PersistentIdentifier, sourceKey: String, entryURL: String, chapterURL: String)] = []
             for item in try context.fetch(FetchDescriptor<DownloadItem>()) {
                 guard let chapter = item.chapter, let entry = chapter.entry else { context.delete(item); continue }
                 if item.state == .downloading { set(item, .queued) }
-                if item.state == .completed,
-                   OfflineChapters.manifest(sourceKey: entry.sourceKey, entryURL: entry.url, chapterURL: chapter.url) == nil {
-                    set(item, .failed); item.error = "Offline files are missing. Retry this download."
-                }
-            }
-            for item in try context.fetch(FetchDescriptor<DownloadItem>()) {
                 if let key = key(item) { states[key] = item.state }
+                if item.state == .completed {
+                    completed.append((item.persistentModelID, entry.sourceKey, entry.url, chapter.url))
+                }
             }
             try context.save()
             resume()
+            guard !completed.isEmpty else { return }
+            Task { [weak self] in
+                let missing = await Task.detached(priority: .utility) {
+                    completed.filter {
+                        OfflineChapters.manifest(sourceKey: $0.sourceKey, entryURL: $0.entryURL, chapterURL: $0.chapterURL) == nil
+                    }.map(\.id)
+                }.value
+                guard let self, let context = self.context, !missing.isEmpty else { return }
+                for id in missing {
+                    guard let item = context.model(for: id) as? DownloadItem, item.state == .completed else { continue }
+                    self.set(item, .failed)
+                    item.error = "Offline files are missing. Retry this download."
+                }
+                self.persist()
+            }
         } catch { message = error.localizedDescription }
     }
     func enqueue(_ chapters: [Chapter], userInitiated: Bool = true) {

@@ -181,9 +181,9 @@ enum ChapterTwins {
 
     /// Copy `read` from `chapter` to its twins. Returns the ones that changed.
     @discardableResult
-    static func fanOut(from chapter: Chapter, read: Bool) -> [Chapter] {
+    static func fanOut(from chapter: Chapter, read: Bool, entryHasTwins: Bool? = nil) -> [Chapter] {
         guard chapter.chapterNumber > 0, let entry = chapter.entry,
-              hasSeveralScanlators(entry.chapters) else { return [] }
+              entryHasTwins ?? hasSeveralScanlators(entry.chapters) else { return [] }
         var changed: [Chapter] = []
         for other in entry.chapters
         where other.chapterNumber == chapter.chapterNumber
@@ -221,6 +221,10 @@ enum ChapterTwins {
         }
         return count
     }
+
+    /// Whether `fanOut` can do anything for this entry. A bulk action asks once and
+    /// passes the answer in, instead of every chapter rescanning the whole list.
+    static func hasTwins(_ entry: Entry) -> Bool { hasSeveralScanlators(entry.chapters) }
 
     private static func hasSeveralScanlators(_ chapters: [Chapter]) -> Bool {
         var first: String?

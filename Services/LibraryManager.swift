@@ -66,6 +66,14 @@ actor LibraryUpdateMerger {
         }
     }
 
+    /// Add an entry with its chapters on this actor's context. Inserting a few
+    /// thousand chapters and saving them is too much for the main thread; the
+    /// caller gets the id back and resolves it on its own context.
+    func add(entry: SourceEntry, chapters: [SourceChapter]) -> PersistentIdentifier {
+        let added = LibraryManager.addToLibrary(entry: entry, chapters: chapters, context: context)
+        return added.persistentModelID
+    }
+
     func flush() {
         if unsaved > 0 {
             try? context.save()
@@ -150,6 +158,17 @@ final class LibraryManager {
         chapters: [SourceChapter],
         context: ModelContext
     ) -> Entry {
+        Self.addToLibrary(entry: sourceEntry, chapters: chapters, context: context)
+    }
+
+    /// The work behind `addToLibrary`, free of the main actor so a background
+    /// context can run it (`LibraryUpdateMerger.add`).
+    @discardableResult
+    nonisolated static func addToLibrary(
+        entry sourceEntry: SourceEntry,
+        chapters: [SourceChapter],
+        context: ModelContext
+    ) -> Entry {
         let sourceKey = sourceEntry.sourceKey
         let url = sourceEntry.url
         let predicate = #Predicate<Entry> { $0.sourceKey == sourceKey && $0.url == url }
@@ -159,7 +178,7 @@ final class LibraryManager {
         if let existing = try? context.fetch(descriptor).first {
             existing.inLibrary = true
             if existing.chapters.isEmpty {
-                insertChapters(chapters, into: existing, context: context)
+                Self.insertChapters(chapters, into: existing, context: context)
                 if !chapters.isEmpty { existing.lastUpdate = .now }
             }
             try? context.save()
@@ -182,7 +201,7 @@ final class LibraryManager {
         entry.dateAdded = .now
         context.insert(entry)
 
-        insertChapters(chapters, into: entry, context: context)
+        Self.insertChapters(chapters, into: entry, context: context)
         // Chapters that came with the add count as a fetch, so opening the
         // entry later does not refetch what the user just saw.
         if !chapters.isEmpty { entry.lastUpdate = .now }
@@ -196,7 +215,7 @@ final class LibraryManager {
         try? context.save()
     }
 
-    private func insertChapters(
+    nonisolated private static func insertChapters(
         _ chapters: [SourceChapter],
         into entry: Entry,
         context: ModelContext
