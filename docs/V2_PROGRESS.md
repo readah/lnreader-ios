@@ -316,8 +316,9 @@ which is fragile once re-signed.
 - **`Chapter.isDownloaded` is computed**, not stored, so it cannot drift from the queue.
 - **Order by chapter number, never `sourceOrder`.** MangaFire lists newest-first, novel
   sources oldest-first; the index means different things per source.
-- **Manga sources report the whole chapter list**; novels keep the windowed preview because
-  their sources paginate.
+- **Both kinds list every chapter inline** on the detail screen. `CatalogSource.chapters`
+  returns the whole list for novels too; the old 10-chapter window and "All N chapters"
+  sheet are gone. The paged `ChapterDirectoryView` remains only for the readers.
 - **Scanlator rules live in UserDefaults**, keyed by `sourceKey::url` — a schema migration
   for a view preference is not worth it. Hiding and priority are **independent**: hiding
   applies on its own, priority only merges duplicate chapter numbers. The stored key for the

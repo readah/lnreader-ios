@@ -8,15 +8,9 @@ struct ChapterListView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let entry: Entry?
     var allChapters: [ChapterDisplay] = []
-    /// `allChapters` after scanlator rules. The directory shows this; the
-    /// scanlator sheet still needs `allChapters` to list every scanlator.
-    var visibleChapters: [ChapterDisplay]? = nil
     let chapters: [ChapterDisplay]
     let totalCount: Int
     let filteredCount: Int
-    /// Manga sources hand over the whole chapter list at once, so there is
-    /// nothing to page through — show all of it.
-    var showsAllChapters = false
     /// Per-entry scanlator priority, when the parent owns one.
     var scanlatorSettings: ScanlatorSettings? = nil
     let sourceKey: String
@@ -25,7 +19,6 @@ struct ChapterListView: View {
     var isLoading: Bool = false
     /// Hold-to-select state, owned by the screen so its action bar can pin.
     var selection: ChapterSelection? = nil
-    @Binding var selectedRange: ChapterRange
     @Binding var selectedFilter: ChapterFilter
     @Binding var searchText: String
     /// When the list was last fetched, or that it is being fetched now.
@@ -34,29 +27,10 @@ struct ChapterListView: View {
     /// Colour from the open book's cover, when Settings › Appearance turns it on.
     @Environment(\.coverTint) private var coverTint
     @State private var showSearchField = false
-    @State private var showDirectory = false
     @State private var showScanlators = false
     @FocusState private var searchFocused: Bool
 
-    /// The whole list in the chosen order, built when the directory opens.
-    ///
-    /// `visibleChapters` arrives newest-first from the screen; `allChapters` may
-    /// be unsorted, and a browse result's `position` is the source's index. One
-    /// call sorts either, and applies the user's order once.
-    private var directoryChapters: [ChapterDisplay] {
-        let source = visibleChapters ?? (allChapters.isEmpty ? chapters : allChapters)
-        return ChapterOrder.display(source, ascending: ascending)
-    }
-
     private var isFiltered: Bool { selectedFilter != .all || !searchText.isEmpty }
-    private var rangeDescription: String {
-        if showsAllChapters { return "\(totalCount) chapters" }
-        guard let first = chapters.first, let last = chapters.last else { return "No chapters" }
-        // The window is newest-first, so `first` is the higher number.
-        let ends = (min(first.position, last.position) + 1, max(first.position, last.position) + 1)
-        return "\(ends.0)–\(ends.1) of \(totalCount)"
-    }
-
     private var headerButtons: some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
@@ -134,7 +108,7 @@ struct ChapterListView: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Chapters").font(Typography.title)
-                    Text(isFiltered ? "\(filteredCount) matching chapters" : rangeDescription)
+                    Text(isFiltered ? "\(filteredCount) matching chapters" : "\(totalCount) chapters")
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     if let fetchStatus {
                         Text(fetchStatus)
@@ -153,14 +127,6 @@ struct ChapterListView: View {
                     .submitLabel(.search)
                     .focused($searchFocused)
                     .transition(.opacity.combined(with: .offset(y: -4)))
-            }
-
-            if !isFiltered && !showsAllChapters {
-                Picker("Chapter range", selection: $selectedRange) {
-                    Text("Continue").tag(ChapterRange.progress)
-                    Text("First").tag(ChapterRange.first)
-                    Text("Latest").tag(ChapterRange.last)
-                }.pickerStyle(.segmented)
             }
 
             if chapters.isEmpty && isLoading {
@@ -187,23 +153,9 @@ struct ChapterListView: View {
                 .clipShape(.rect(cornerRadius: 18))
             }
 
-            if !showsAllChapters {
-                Button { showDirectory = true } label: {
-                    Label(isFiltered && filteredCount > chapters.count ? "See all \(filteredCount) results" : "All \(totalCount) chapters", systemImage: "list.bullet.rectangle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
-            }
         }
         .padding(.horizontal)
         .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: showSearchField)
-        .sheet(isPresented: $showDirectory) {
-            ChapterDirectoryView(entry: entry, chapters: directoryChapters,
-                sourceKey: sourceKey, currentChapterPath: chapters.first(where: { $0.unread })?.path ?? chapters.first?.path,
-                initialSearch: searchText, initialFilter: selectedFilter)
-        }
         .onAppear { showSearchField = !searchText.isEmpty }
         .sheet(isPresented: $showScanlators) {
             if let scanlatorSettings {

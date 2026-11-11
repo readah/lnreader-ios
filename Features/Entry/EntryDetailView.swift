@@ -33,7 +33,6 @@ struct EntryDetailView: View {
     @State private var sourceChapters: [SourceChapter] = []
     @State private var isLoading = true
     @State private var showFullDescription = false
-    @State private var selectedRange: ChapterRange = .progress
     @State private var selectedFilter: ChapterFilter = .all
     @State private var errorMessage: String?
     /// A manual refetch is running; the page stays up while it does.
@@ -166,16 +165,13 @@ struct EntryDetailView: View {
                     ChapterListView(
                         entry: localEntry,
                         allChapters: allChapters,
-                        visibleChapters: orderedChapters,
                         chapters: pagedChapters,
                         totalCount: orderedChapters.count,
                         filteredCount: filteredChapters.count,
-                        showsAllChapters: showsAllChapters,
                         scanlatorSettings: scanlatorSettings,
                         sourceKey: sourceKey,
                         isLoading: isLoading,
                         selection: localEntry == nil ? nil : chapterSelection,
-                        selectedRange: $selectedRange,
                         selectedFilter: $selectedFilter,
                         searchText: $chapterSearch,
                         fetchStatus: fetchStatus
@@ -507,60 +503,15 @@ struct EntryDetailView: View {
         return result
     }
 
-    /// Manga sources report every chapter at once, so the list shows all of
-    /// them. Novels keep the windowed preview: their sources paginate, and a
-    /// 2000-chapter web novel should not render 2000 rows on the detail screen.
-    private var showsAllChapters: Bool { isManga }
-
     private var isManga: Bool {
         contentKind == .manga
     }
 
-    /// `orderedChapters` is newest-first; the slicing below depends on that, so
-    /// the oldest-first option flips only what it hands to the screen.
+    /// `orderedChapters` is newest-first; the oldest-first option flips only
+    /// what it hands to the screen. Every chapter is listed, for both kinds.
     private var pagedChapters: [ChapterDisplay] {
-        let page = newestFirstPage
-        return chaptersAscending ? page.reversed() : page
-    }
-
-    private var newestFirstPage: [ChapterDisplay] {
         let list = filteredChapters
-        guard !list.isEmpty else { return [] }
-        if showsAllChapters { return list }
-
-        if !chapterSearch.isEmpty || selectedFilter != .all { return Array(list.prefix(50)) }
-        switch selectedRange {
-        case .first:
-            // Oldest chapters — the end of a newest-first list.
-            return Array(list.suffix(10))
-
-        case .last:
-            // Newest chapters.
-            return Array(list.prefix(10))
-
-        case .progress:
-            // The list is newest-first, so the first started chapter is the
-            // latest one; with nothing read yet, start at the oldest chapter.
-            let targetIndex = list.firstIndex { !$0.unread || $0.isInProgress } ?? list.count - 1
-
-            let totalCount = list.count
-            let sliceSize = 11
-            let halfSize = 5
-
-            var start = targetIndex - halfSize
-            var end = targetIndex + halfSize
-
-            if start < 0 {
-                start = 0
-                end = min(sliceSize - 1, totalCount - 1)
-            }
-            if end >= totalCount {
-                end = totalCount - 1
-                start = max(0, end - sliceSize + 1)
-            }
-
-            return Array(list[start...end])
-        }
+        return chaptersAscending ? list.reversed() : list
     }
 
     // MARK: - Display Helpers
@@ -807,15 +758,6 @@ enum ChapterFilter: String, CaseIterable, Identifiable {
     case unread = "Unread"
     case downloaded = "Downloaded"
     case bookmarked = "Bookmarked"
-
-    var id: String { rawValue }
-}
-
-/// Range options for the chapter list.
-enum ChapterRange: String, CaseIterable, Identifiable {
-    case progress = "Current Progress"
-    case first = "First 10 Chapters"
-    case last = "Last 10 Chapters"
 
     var id: String { rawValue }
 }
