@@ -75,7 +75,7 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             Group {
-                if novels.isEmpty {
+                if libraryIsEmpty {
                     EmptyStateView(
                         icon: "books.vertical",
                         title: "Your Library is Empty",
@@ -429,8 +429,30 @@ struct LibraryView: View {
 
     // MARK: - Open random unread
 
+    /// `novels.isEmpty` and `novels.count` for `body`, held while the reader is
+    /// open. Touching `novels` after a save re-fetches and re-sorts every entry,
+    /// and the library sits under the reader re-running that on each progress write.
+    private var libraryIsEmpty: Bool {
+        if isReaderPresented, let held = pageCache.isEmpty { return held }
+        let empty = novels.isEmpty
+        pageCache.isEmpty = empty
+        return empty
+    }
+
+    private var libraryCount: Int {
+        if isReaderPresented, let held = pageCache.count { return held }
+        let count = novels.count
+        pageCache.count = count
+        return count
+    }
+
     /// A novel-only library has nothing the dice button can open.
-    private var hasManga: Bool { novels.contains { $0.kind == .manga } }
+    private var hasManga: Bool {
+        if isReaderPresented, let held = pageCache.hasManga { return held }
+        let value = novels.contains { $0.kind == .manga }
+        pageCache.hasManga = value
+        return value
+    }
 
     /// Push the detail screen of a random manga with unread chapters, from the
     /// whole library: the kind tab, search and view filters shape what is on
@@ -562,7 +584,7 @@ struct LibraryView: View {
 
     /// Re-run the count pass when the filter, the category or the library changes.
     private var filterCountsKey: String {
-        "\(needsChapterCounts)|\(needsChapterDates)|\(novels.count)|\(scenePhase == .active)"
+        "\(needsChapterCounts)|\(needsChapterDates)|\(libraryCount)|\(scenePhase == .active)"
     }
 
     /// Sorting by unread, total or a chapter date reads chapter data too, so it
@@ -880,4 +902,7 @@ struct LibraryEntryPreview: View {
 /// Not observed: writing it from `body` must not invalidate the view.
 private final class PageItemsCache {
     var items: [LibraryKindFilter: [Entry]] = [:]
+    var isEmpty: Bool?
+    var count: Int?
+    var hasManga: Bool?
 }

@@ -55,8 +55,15 @@ struct BrowseView: View {
 
     /// How many library entries came from each source.
     private var libraryCounts: [String: Int] {
-        Dictionary(grouping: libraryEntries, by: \.sourceKey).mapValues(\.count)
+        if isReaderPresented, let held = heldCounts.value { return held }
+        let counts = Dictionary(grouping: libraryEntries, by: \.sourceKey).mapValues(\.count)
+        heldCounts.value = counts
+        return counts
     }
+    @Environment(\.isReaderPresented) private var isReaderPresented
+    /// Held while the reader is open: this view stays mounted under it, and
+    /// reading `libraryEntries` after each save re-fetches the whole library.
+    @State private var heldCounts = HeldCounts()
 
     var body: some View {
         NavigationStack {
@@ -320,4 +327,9 @@ private struct SourceRow: View {
             .background(AppTheme.destructive.opacity(0.15), in: Capsule())
             .accessibilityLabel("Adult content")
     }
+}
+
+/// A reference box: writing to it while `body` runs does not invalidate the view.
+private final class HeldCounts {
+    var value: [String: Int]?
 }

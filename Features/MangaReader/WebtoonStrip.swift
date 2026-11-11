@@ -7,6 +7,25 @@
 
 import SwiftUI
 import UIKit
+import os
+
+/// Debug builds log any strip step that takes over 4 ms (a frame is 8 at 120 Hz),
+/// under subsystem `com.lnreader`, category `strip`. Release builds compile it out.
+private struct StripTimer {
+    #if DEBUG
+    private static let logger = Logger(subsystem: "com.lnreader", category: "strip")
+    private let label: StaticString
+    private let start = CACurrentMediaTime()
+    init(_ label: StaticString) { self.label = label }
+    func end() {
+        let ms = (CACurrentMediaTime() - start) * 1000
+        if ms > 4 { Self.logger.warning("\(label) took \(ms, format: .fixed(precision: 1)) ms") }
+    }
+    #else
+    init(_ label: StaticString) {}
+    func end() {}
+    #endif
+}
 
 /// One chapter's pages in the strip. Chapters are stitched end to end, each
 /// followed by a divider card naming the next one.
@@ -179,6 +198,7 @@ final class WebtoonViewController: UIViewController,
     private var deferredSegments: [WebtoonSegment]?
 
     func update(segments newSegments: [WebtoonSegment]) {
+        let timer = StripTimer("update segments"); defer { timer.end() }
         let dropped = StripWindow.leadingDrop(oldCount: segments.count, newCount: newSegments.count) {
             Self.same(segments[$0], newSegments[$1])
         }
@@ -199,8 +219,12 @@ final class WebtoonViewController: UIViewController,
             && zip(a.pages, b.pages).allSatisfy { $0.url == $1.url }
     }
 
+    /// Auto scroll and hold-scroll move the offset from a display link, which the
+    /// scroll view does not report as dragging: without this a trim or a height
+    /// correction would land mid-crawl and show as a jump.
     private var isMoving: Bool {
         collectionView.isTracking || collectionView.isDragging || collectionView.isDecelerating
+            || controller.isAutoScrolling || controller.holdSpeed != nil
     }
 
     private func applyDeferredTrim() {
@@ -216,6 +240,7 @@ final class WebtoonViewController: UIViewController,
     /// - Parameter dropped: segments removed from the front, the rest kept or
     ///   appended; `nil` when the change is something else.
     private func apply(_ newSegments: [WebtoonSegment], dropped: Int?) {
+        let timer = StripTimer("apply segments"); defer { timer.end() }
         let unchanged = dropped == 0 && newSegments.count == segments.count
         guard !unchanged else { return }
         let oldItems = items
@@ -407,6 +432,7 @@ final class WebtoonViewController: UIViewController,
     }
 
     private func flushRatios() {
+        let timer = StripTimer("flushRatios"); defer { timer.end() }
         flushScheduled = false
         let indices = pendingRatios
         pendingRatios = []
@@ -479,6 +505,7 @@ final class WebtoonViewController: UIViewController,
     // MARK: Reporting
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        let timer = StripTimer("scrollViewDidScroll"); defer { timer.end() }
         lastScrollTime = CACurrentMediaTime()
         guard didRestore else { return }
         let userDriven = scrollView.isDragging || scrollView.isDecelerating
@@ -706,9 +733,14 @@ final class WebtoonScrollbar: UIControl {
     }
 
     private func showAndScheduleHide() {
-        hideTimer?.invalidate()
         if alpha < 1 {
             UIView.animate(withDuration: 0.15) { self.alpha = 1 }
+        }
+        // Called every scroll frame: push the existing timer back instead of
+        // building a new one 120 times a second.
+        if let timer = hideTimer, timer.isValid {
+            timer.fireDate = Date(timeIntervalSinceNow: 0.8)
+            return
         }
         hideTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {

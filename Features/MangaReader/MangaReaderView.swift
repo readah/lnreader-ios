@@ -39,6 +39,11 @@ struct MangaReaderView: View {
     /// reader scrolls on must not.
     @State private var stripID = UUID()
     @State private var appendTask: Task<Void, Never>?
+    /// Library writes for crossing into the next chapter (finish the one left,
+    /// open the new one). They fault chapter lists and touch the store, so they
+    /// wait for the strip to be past the divider instead of landing in a frame.
+    /// A reference box, so writing to it does not re-render the whole reader.
+    @State private var promotion = PromotionBox()
     @State private var storedChapters: [Chapter] = []
     @State private var sourceChapters: [SourceChapter] = []
     @State private var isLoadingChapters = false
@@ -282,7 +287,9 @@ struct MangaReaderView: View {
                     pendingPage = nil
                     scheduleProgress(pages.count - 1)
                 }
-                appendNextChapter()
+                // Only the last stitched chapter needs a neighbour: for any other
+                // this would fetch two chapters ahead, mid-scroll, for nothing.
+                if chapter == segments.last?.id { appendNextChapter() }
             },
             onTap: { point in handleTap(at: point) }
         )
@@ -571,12 +578,17 @@ struct MangaReaderView: View {
               let from = segments.firstIndex(where: { $0.id == chapterURL }) else { return }
         // Progress belongs to the chapter being left. Moving on means it was
         // read to its end; moving back up leaves it where the reader last was.
+        // An earlier crossing still waiting goes first, so chapters finish in order.
+        runPromotionWork()
+        let leaving = storedChapter
+        let leftCount = pages.count
         if target > from {
             settledPage?.cancel()
             settledPage = nil
             pendingPage = nil
-            unsavedPage = pages.count - 1
-            flushProgress()
+            unsavedPage = nil
+            progressTask?.cancel()
+            progressTask = nil
         } else {
             settleAndFlushProgress()
         }
@@ -588,9 +600,39 @@ struct MangaReaderView: View {
         // with every chapter read. The strip removes them once it is at rest.
         let firstKept = StripWindow.firstKept(current: target)
         if firstKept > 0 { segments.removeFirst(firstKept) }
-        if let storedChapter, let entry = storedChapter.entry {
-            libraryManager.recordHistory(entry: entry, chapter: storedChapter, context: modelContext)
+        let entering = storedChapter
+        let manager = libraryManager
+        let context = modelContext
+        let finishLeft = target > from
+        // Moving on means the chapter left was read to its end. That, and the
+        // history row for the new one, are store writes (relationship faults,
+        // twin fan-out, tracker queue): done a beat later, not in the frame that
+        // crosses the divider.
+        promotion.work = {
+            if finishLeft, let leaving, leftCount > 0 {
+                manager.recordMangaProgress(chapter: leaving, pageIndex: leftCount - 1,
+                                            pageCount: leftCount, context: context)
+            }
+            if let entering, let entry = entering.entry {
+                manager.recordHistory(entry: entry, chapter: entering, context: context)
+            }
         }
+        promotion.task?.cancel()
+        promotion.task = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            runPromotionWork()
+        }
+    }
+
+    /// Run the crossing's library writes now: when the next one comes, or the
+    /// reader is leaving.
+    private func runPromotionWork() {
+        promotion.task?.cancel()
+        promotion.task = nil
+        let work = promotion.work
+        promotion.work = nil
+        work?()
     }
 
     /// Fetch the chapter after the last stitched one and add it to the strip.
@@ -608,7 +650,9 @@ struct MangaReaderView: View {
             segments.append(ReaderSegment(id: next.url, name: next.name, pages: fetched))
             let scale = MangaPageView.screenScale
             PagePrerender.prime(
-                Array(fetched.prefix(8)),
+                // Three, not eight: the page cache holds 24 bitmaps, and priming a
+                // whole screenful of the next chapter evicts the pages being read.
+                Array(fetched.prefix(3)),
                 sourceKey: sourceKey,
                 loader: loader,
                 targetWidth: max(readerSize.width, MangaPageView.screenWidth) * scale,
@@ -657,6 +701,7 @@ struct MangaReaderView: View {
     /// Write whatever progress is waiting, including a page that had not yet
     /// settled. For leaving the reader, changing chapter and backgrounding.
     private func settleAndFlushProgress() {
+        runPromotionWork()
         if let index = pendingPage {
             applyPendingPage()
             unsavedPage = index
@@ -1029,4 +1074,11 @@ private struct ReaderSegment {
     let id: String
     let name: String
     let pages: [SourcePage]
+}
+
+/// Pending library writes for a chapter crossing; see `MangaReaderView.promote`.
+@MainActor
+final class PromotionBox {
+    var work: (() -> Void)?
+    var task: Task<Void, Never>?
 }

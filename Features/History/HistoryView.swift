@@ -21,6 +21,12 @@ struct HistoryView: View {
     /// Runs the user has opened, by `HistoryRun.id`.
     @State private var expandedRuns: Set<String> = []
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isReaderPresented) private var isReaderPresented
+    /// The last list shown. History stays mounted under the reader, and every
+    /// progress save re-runs `@Query` here: a fetch plus an in-memory sort of
+    /// every row, on the main thread, mid-scroll. While the reader is open nothing
+    /// here can be seen, so the list is held and rebuilt when the reader closes.
+    @State private var held = HeldHistory()
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -152,13 +158,20 @@ struct HistoryView: View {
     // MARK: - Filtering & Grouping
 
     private var filteredHistory: [History] {
-        if searchText.isEmpty { return history }
-        return history.filter { item in
-            let bookTitle = item.chapter?.entry?.displayTitle ?? ""
-            let chapterName = item.chapter?.name ?? ""
-            return bookTitle.localizedCaseInsensitiveContains(searchText)
-                || chapterName.localizedCaseInsensitiveContains(searchText)
+        if isReaderPresented, let items = held.items { return items }
+        let result: [History]
+        if searchText.isEmpty {
+            result = history
+        } else {
+            result = history.filter { item in
+                let bookTitle = item.chapter?.entry?.displayTitle ?? ""
+                let chapterName = item.chapter?.name ?? ""
+                return bookTitle.localizedCaseInsensitiveContains(searchText)
+                    || chapterName.localizedCaseInsensitiveContains(searchText)
+            }
         }
+        held.items = result
+        return result
     }
 
     /// Day sections, each split into runs: back-to-back reads of the same
@@ -249,4 +262,9 @@ struct HistoryRun: Identifiable {
         }
         return runs.map(HistoryRun.init)
     }
+}
+
+/// A reference box: writing to it while `body` runs does not invalidate the view.
+private final class HeldHistory {
+    var items: [History]?
 }

@@ -20,8 +20,17 @@ struct UpdatesView: View {
     /// Tapping a cover pushes the book onto this stack, the way History does.
     @State private var path = NavigationPath()
 
+    @Environment(\.isReaderPresented) private var isReaderPresented
+    /// The last feed shown. Updates stays mounted under the reader and its query
+    /// (a scan of every chapter for `dateFetch`) re-runs on each progress save, on
+    /// the main thread, mid-scroll. Nothing here is visible then: hold the list.
+    @State private var held = HeldFeed()
+
     private var recentChapters: [Chapter] {
-        clearedIDs.isEmpty ? allRecentChapters : allRecentChapters.filter { !clearedIDs.contains($0.persistentModelID) }
+        if isReaderPresented, let items = held.items { return items }
+        let result = clearedIDs.isEmpty ? allRecentChapters : allRecentChapters.filter { !clearedIDs.contains($0.persistentModelID) }
+        held.items = result
+        return result
     }
 
     /// Newest-first, capped: grouping and diffing every chapter ever fetched
@@ -178,4 +187,9 @@ struct UpdatesView: View {
         }
         return groups
     }
+}
+
+/// A reference box: writing to it while `body` runs does not invalidate the view.
+private final class HeldFeed {
+    var items: [Chapter]?
 }
