@@ -17,11 +17,25 @@ struct AboutView: View {
             }
 
             Section("Links") {
-                Link("LNReader on GitHub", destination: URL(string: "https://github.com/LNReader/lnreader")!)
+                Link("LNReader for iOS on GitHub", destination: URL(string: "https://github.com/readah/lnreader-ios")!)
+                Link("Report an issue", destination: URL(string: "https://github.com/readah/lnreader-ios/issues")!)
+            }
+
+            Section {
+                Link("LNReader (Android)", destination: URL(string: "https://github.com/LNReader/lnreader")!)
                 Link(
-                    "Plugin Registry",
+                    "lnreader-plugins",
                     destination: URL(string: "https://github.com/LNReader/lnreader-plugins")!
                 )
+                Link("Mihon", destination: URL(string: "https://github.com/mihonapp/mihon")!)
+                Link(
+                    "Keiyoushi extensions",
+                    destination: URL(string: "https://github.com/keiyoushi/extensions-source")!
+                )
+            } header: {
+                Text("Credits")
+            } footer: {
+                Text("Sources are native Swift ports of the upstream projects above; manga sources keep Mihon's source ids. Narration uses Breeze TTS 2.")
             }
         }
         .settingsScreen("About")
@@ -38,7 +52,7 @@ struct AboutView: View {
                 Text(appName)
                     .font(Typography.title)
 
-                Text("Liquid Glass port of LNReader")
+                Text("Native iOS reader for novels and manga")
                     .font(Typography.caption)
                     .foregroundStyle(.secondary)
             }
