@@ -29,22 +29,16 @@ struct ChapterRow: View {
     private var bookID: String { TTSBookIdentity.make(pluginId: sourceKey, novelPath: bookPath) }
     private var audioCount: Int { audioLibrary.downloads(bookId: bookID, chapterId: chapter.path).filter(\.isAvailable).count }
 
-    /// The unread dot, or the selection circle while picking. One fixed slot, so
-    /// entering selection mode does not shift the title.
-    private var leadingIndicator: some View {
-        Group {
-            if isSelecting {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
-            } else {
-                Circle()
-                    .fill(chapter.unread ? AnyShapeStyle(.primary) : AnyShapeStyle(.clear))
-                    .frame(width: 8, height: 8)
-            }
+    /// The selection circle, shown only while picking. Unread is carried by the
+    /// title colour alone, so there is no slot to reserve the rest of the time.
+    @ViewBuilder private var leadingIndicator: some View {
+        if isSelecting {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.title3)
+                .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+                .frame(width: 22)
+                .accessibilityHidden(true)
         }
-        .frame(width: 22)
-        .accessibilityHidden(true)
     }
 
     /// Download is offered for stored chapters of titles in the library; local

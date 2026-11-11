@@ -145,7 +145,7 @@ struct ChapterListView: View {
                                    joinsAbove: joins.above, joinsBelow: joins.below)
                         // No rule inside or at the edge of a selected block.
                         if index + 1 < chapters.count {
-                            Divider().padding(.leading, 50).opacity(selected || joins.below ? 0 : 1)
+                            Divider().padding(.leading, 22).opacity(selected || joins.below ? 0 : 1)
                         }
                     }
                 }
