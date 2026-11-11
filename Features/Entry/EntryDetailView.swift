@@ -168,6 +168,7 @@ struct EntryDetailView: View {
                         chapters: pagedChapters,
                         totalCount: orderedChapters.count,
                         filteredCount: filteredChapters.count,
+                        showsChapterNumbers: !isManga,
                         scanlatorSettings: scanlatorSettings,
                         sourceKey: sourceKey,
                         isLoading: isLoading,

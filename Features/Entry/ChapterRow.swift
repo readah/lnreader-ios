@@ -1,6 +1,7 @@
 // ChapterRow.swift
 // Single chapter row with unread indicator, release time, and status icons.
 
+import SwiftData
 import SwiftUI
 
 struct ChapterRow: View {
@@ -23,6 +24,9 @@ struct ChapterRow: View {
     /// drawn as one rounded block instead of a fill per row.
     var joinsAbove = false
     var joinsBelow = false
+    /// Novel chapter titles rarely carry their number, so the row prints its
+    /// position. Off where the caller already shows one (the directory sheet).
+    var showsNumber = false
     private var isSelecting: Bool { selection?.isActive == true }
     private var isSelected: Bool { selection?.paths.contains(chapter.path) == true }
     private var bookPath: String { entry?.url ?? chapter.entryURL ?? chapter.path }
@@ -90,6 +94,13 @@ struct ChapterRow: View {
         } label: {
             HStack(spacing: 12) {
                 leadingIndicator
+
+                if showsNumber {
+                    Text(String(chapter.position + 1))
+                        .font(Typography.small.monospacedDigit())
+                        .foregroundStyle(chapter.unread ? .secondary : .tertiary)
+                        .frame(minWidth: 28, alignment: .leading)
+                }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(chapter.name)

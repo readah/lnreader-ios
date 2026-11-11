@@ -11,6 +11,8 @@ struct ChapterListView: View {
     let chapters: [ChapterDisplay]
     let totalCount: Int
     let filteredCount: Int
+    /// Print each chapter's number beside its title (novels).
+    var showsChapterNumbers = false
     /// Per-entry scanlator priority, when the parent owns one.
     var scanlatorSettings: ScanlatorSettings? = nil
     let sourceKey: String
@@ -142,7 +144,8 @@ struct ChapterListView: View {
                         let selected = selection?.paths.contains(chapter.path) == true
                         ChapterRow(chapter: chapter, entry: entry, sourceKey: sourceKey,
                                    selection: selection, orderedPaths: { chapters.map(\.path) },
-                                   joinsAbove: joins.above, joinsBelow: joins.below)
+                                   joinsAbove: joins.above, joinsBelow: joins.below,
+                                   showsNumber: showsChapterNumbers)
                         // No rule inside or at the edge of a selected block.
                         if index + 1 < chapters.count {
                             Divider().padding(.leading, 22).opacity(selected || joins.below ? 0 : 1)
