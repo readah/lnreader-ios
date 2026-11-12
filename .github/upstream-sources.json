@@ -111,18 +111,6 @@
       ]
     },
     {
-      "id": "pornpics",
-      "name": "PornPics",
-      "repo": "keiyoushi/extensions-source",
-      "branch": "main",
-      "path": "src/all/pornpics",
-      "ported_sha": "fc7a827769f612dfa6dccb51e819f5b4eecaeab5",
-      "ported_at": "2026-11-01",
-      "files": [
-        "Services/Sources/Native/PornPicsSource.swift"
-      ]
-    },
-    {
       "id": "weebcentral",
       "name": "Weeb Central",
       "repo": "keiyoushi/extensions-source",

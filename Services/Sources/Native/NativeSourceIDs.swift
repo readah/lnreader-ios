@@ -32,8 +32,6 @@ enum NativeSourceIDs {
         MihonSourceID.make(name: "4KHD", lang: "all"): SourceKey.makeBuiltin(id: "fourkhd"),
         // Upstream's versionId is 2 since the site moved to HeanCms.
         MihonSourceID.make(name: "Omega Scans", lang: "en", versionId: 2): SourceKey.makeBuiltin(id: "omegascans"),
-        // Pinned upstream for the English source.
-        1_459_635_082_044_256_286: SourceKey.makeBuiltin(id: "pornpics"),
         MihonSourceID.make(name: "Metart Hunter", lang: "all"): SourceKey.makeBuiltin(id: "metarthunter"),
         // Upstream's versionId is 2 since the JSON API rewrite.
         MihonSourceID.make(name: "Atsumaru", lang: "en", versionId: 2): SourceKey.makeBuiltin(id: "atsumaru"),
@@ -55,7 +53,6 @@ enum NativeSourceIDs {
         MihonSourceID.make(name: "Manhwa18", lang: "en"): "Manhwa18",
         MihonSourceID.make(name: "4KHD", lang: "all"): "4KHD",
         MihonSourceID.make(name: "Omega Scans", lang: "en", versionId: 2): "Omega Scans",
-        1_459_635_082_044_256_286: "PornPics",
         MihonSourceID.make(name: "Metart Hunter", lang: "all"): "MetArt Hunter",
         MihonSourceID.make(name: "Atsumaru", lang: "en", versionId: 2): "Atsumaru",
         MihonSourceID.make(name: "Weeb Central", lang: "en"): "Weeb Central",

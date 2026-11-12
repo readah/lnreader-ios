@@ -148,7 +148,6 @@ enum NativeSources {
             NovelFireSource(), NovelPhoenixSource(), FreeWebNovelSource(),
             MangaFireSource(), AllMangaSource(), Manhwa18Source(), FourKHDSource(), OmegaScansSource(),
             AtsumaruSource(), WeebCentralSource(), KaganeSource(),
-            PornPicsSource(),
             // The `masonry` family. Upstream also ships FemJoy, XArt, FTV, JoyMii, Playboy Playmates
             // and Elite Babes on this engine; each is one more line here once the site is vetted.
             MasonrySource(
