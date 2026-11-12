@@ -43,7 +43,7 @@ enum CoverTint {
     private static func image(for url: URL) async -> PlatformImage? {
         if let decoded = ImageCache.shared.object(forKey: url as NSURL) { return decoded }
         if let stored = CoverDiskCache.read(url), let decoded = CoverDecode.image(from: stored.data) { return decoded }
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        guard let data = try? await HTTPClient.covers.send(HTTPRequest(url: url)).data else { return nil }
         return CoverDecode.image(from: data)
     }
 

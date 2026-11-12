@@ -25,6 +25,9 @@ struct SourceDetailView: View {
     @State private var filterRefreshFailed = false
     @State private var filterState = FilterState()
     @State private var showFilters = false
+    /// Why the last load came back empty. Shown in place of the generic empty state, so a broken
+    /// source says what went wrong instead of "returned nothing".
+    @State private var loadError: String?
 
     /// The Library's display preferences, set from the Browse page.
     @AppStorage("general.defaultDisplayMode") private var displayMode = DisplayMode.comfortable
@@ -97,6 +100,15 @@ struct SourceDetailView: View {
             } else if entries.isEmpty && !isLoading {
                 if isSearching {
                     ContentUnavailableView.search(text: searchText)
+                } else if let loadError {
+                    EmptyStateView(
+                        icon: "exclamationmark.triangle",
+                        title: "Couldn't Load",
+                        subtitle: "The source did not answer as expected.",
+                        detail: loadError,
+                        actionTitle: "Try Again",
+                        prominent: true
+                    ) { Task { await loadPopular() } }
                 } else {
                     ContentUnavailableView(
                         "No Results",
@@ -226,6 +238,7 @@ struct SourceDetailView: View {
         isLoading = true
         currentPage = 1
         hasMore = true
+        loadError = nil
 
         do {
             let page = try await fetchPage(1, from: source)
@@ -233,6 +246,7 @@ struct SourceDetailView: View {
             hasMore = page.hasNextPage
         } catch {
             print("⚠️ Failed to load popular entries: \(error)")
+            loadError = error.localizedDescription
         }
         isLoading = false
     }
@@ -251,6 +265,7 @@ struct SourceDetailView: View {
             }
         } catch {
             hasMore = false
+            if entries.isEmpty { loadError = error.localizedDescription }
         }
     }
 
@@ -259,6 +274,7 @@ struct SourceDetailView: View {
         isLoading = true
         isSearching = true
         currentPage = 1
+        loadError = nil
 
         do {
             let page = try await fetchPage(1, from: source)
@@ -266,9 +282,11 @@ struct SourceDetailView: View {
             hasMore = page.hasNextPage
         } catch {
             print("⚠️ Search failed: \(error)")
+            loadError = error.localizedDescription
         }
         isLoading = false
     }
+
 }
 
 // MARK: - Browse Entry Cell

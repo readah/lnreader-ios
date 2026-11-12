@@ -17,8 +17,22 @@ enum CookieJar {
         HTTPCookieStorage.shared.cookies(for: url) ?? []
     }
 
-    static func setCookies(_ cookies: [HTTPCookie], for url: URL) {
-        HTTPCookieStorage.shared.setCookies(cookies, for: url, mainDocumentURL: nil)
+    /// Stores each cookie on its own terms. `setCookies(_:for:mainDocumentURL:)` applies a
+    /// same-site check against the url and drops what it does not like.
+    static func setCookies(_ cookies: [HTTPCookie]) {
+        for cookie in cookies { HTTPCookieStorage.shared.setCookie(storable(cookie)) }
+    }
+
+    /// A cookie the URL loading system will keep.
+    ///
+    /// WebKit tags its cookies with `StoragePartition`, a private key that `HTTPCookieStorage`
+    /// refuses without reporting an error: a clearance earned in a web view would never be sent.
+    /// `SameSite` goes too; it is only meaningful with a document url, which a copy no longer has.
+    static func storable(_ cookie: HTTPCookie) -> HTTPCookie {
+        guard var properties = cookie.properties else { return cookie }
+        properties.removeValue(forKey: HTTPCookiePropertyKey("StoragePartition"))
+        properties.removeValue(forKey: .sameSitePolicy)
+        return HTTPCookie(properties: properties) ?? cookie
     }
 
     /// `Cookie:` header value for a URL, or `nil` when the jar is empty.
@@ -32,6 +46,7 @@ enum CookieJar {
         for cookie in HTTPCookieStorage.shared.cookies ?? [] {
             HTTPCookieStorage.shared.deleteCookie(cookie)
         }
+        BrowserIdentity.shared.forgetAll()
     }
 
     // MARK: WebKit side
@@ -41,11 +56,7 @@ enum CookieJar {
     /// Called after a login or a solved challenge, before the next scrape.
     @MainActor
     static func importFromWebKit() async {
-        let cookies = await allWebKitCookies()
-        for cookie in cookies {
-            // `setCookie(_:)` derives the scope from the cookie's own domain.
-            HTTPCookieStorage.shared.setCookie(cookie)
-        }
+        setCookies(await allWebKitCookies())
     }
 
     /// Copy the shared jar into WebKit, so a login done over plain HTTP shows

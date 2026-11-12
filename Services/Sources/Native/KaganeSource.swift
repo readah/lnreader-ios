@@ -33,9 +33,12 @@ final class KaganeSource: MangaSource {
     let supportsLatest = true
     let filtersAreRemote = true
 
+    /// Every call goes out with the site's own XHR headers, not only the reader's; see
+    /// `apiHeaders`.
     private let site = SiteClient(
         sourceKey: SourceKey.makeBuiltin(id: "kagane"),
-        baseURL: "https://kagane.moe"
+        baseURL: "https://kagane.moe",
+        headers: KaganeSource.apiHeaders
     )
     private let apiURL = "https://kagane.moe/api/v2"
     private let state = KaganeState()
@@ -146,14 +149,24 @@ final class KaganeSource: MangaSource {
         }
     }
 
-    /// The image host answers `404 {"error": -7}` unless the request carries the site's
-    /// `Origin` (upstream: `imageFetch = Fetch.XHR`). It has to live on the page rather than in
-    /// `imageRequest`: the reader loads through `PageLoader`, which only sends `page.headers`,
-    /// and only downloads go through `imageRequest`.
+    /// What a browser puts on an XHR to the site, for a page image. The cache host answers
+    /// `404 {"error": -7}` without `Origin`.
+    ///
+    /// These have to live on the `SourcePage`: the reader loads through `PageLoader`, which sends
+    /// `page.headers` and nothing else (only downloads go through `imageRequest`).
     private static let imageHeaders = [
         "Origin": "https://kagane.moe",
         "Referer": "https://kagane.moe/",
+        "Accept": "*/*",
     ]
+
+    /// The same plus the fetch metadata, for the site's own API. Upstream makes *every* call with
+    /// `Fetch.XHR`; without these the site answers the JSON calls with a challenge.
+    private static let apiHeaders = imageHeaders.merging([
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Dest": "empty",
+    ]) { _, new in new }
 
     // MARK: - Reader gate
 

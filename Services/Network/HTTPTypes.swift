@@ -135,7 +135,8 @@ enum HTTPError: LocalizedError, Equatable {
     case invalidURL(String)
     case transport(String)
     case badStatus(code: Int, url: String)
-    case cloudflareChallenge(url: String)
+    /// `detail` says what the last solve for the host did, when there was one.
+    case cloudflareChallenge(url: String, detail: String? = nil)
     case decoding(String)
 
     var errorDescription: String? {
@@ -146,8 +147,8 @@ enum HTTPError: LocalizedError, Equatable {
             "Network error: \(detail)"
         case .badStatus(let code, let url):
             "HTTP \(code) for \(url)"
-        case .cloudflareChallenge(let url):
-            "Cloudflare challenge blocked \(url)"
+        case .cloudflareChallenge(let url, let detail):
+            ["Cloudflare challenge blocked \(url)", detail].compactMap { $0 }.joined(separator: "\n")
         case .decoding(let detail):
             "Failed to decode response: \(detail)"
         }

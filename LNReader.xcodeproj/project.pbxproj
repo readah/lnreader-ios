@@ -150,6 +150,7 @@
 		BA5373CEFD2C47E31C3F7277 /* DateParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE1DF540805D2C722F69C437 /* DateParsing.swift */; };
 		BB062E90FBD86B888400C533 /* ChapterReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A83CC9BB2AEC8F3766BF2EC /* ChapterReader.swift */; };
 		BFFABD8B1BC6977119832E29 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1B42540A8553644A4BA6829 /* EmptyStateView.swift */; };
+		DFBF0694C2631EE2B16421B4 /* ErrorDetailBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9430A68510C88D1F4FB65F58 /* ErrorDetailBox.swift */; };
 		C4748B637ED36325AFC4D906 /* AdvancedSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E7EF8F1619F87E49C91AA9D /* AdvancedSettingsView.swift */; };
 		A1F0C0DE00000000000F1175 /* SourceFilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F0C0DE00000000000F1176 /* SourceFilterSheet.swift */; };
 		A1F0C0DE00000000000F1177 /* SourceFilterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F0C0DE00000000000F1178 /* SourceFilterStore.swift */; };
@@ -380,6 +381,7 @@
 		EF6E35C495529EB1044040B0 /* ChapterRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChapterRow.swift; sourceTree = "<group>"; };
 		F184BCF47362D5B90EA1FBC5 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		F1B42540A8553644A4BA6829 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		9430A68510C88D1F4FB65F58 /* ErrorDetailBox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorDetailBox.swift; sourceTree = "<group>"; };
 		F40544D40A826C93D44709D4 /* EntryInfoSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryInfoSection.swift; sourceTree = "<group>"; };
 		A1D3E7C2B5F84E0A9C6D1F02 /* EntryActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryActionBar.swift; sourceTree = "<group>"; };
 		B7E2A9C4D1F3E5A6B8C9D0E2 /* EntryWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryWebView.swift; sourceTree = "<group>"; };
@@ -436,6 +438,7 @@
 				9B15C949254CA69833D943AC /* CustomAsyncImage.swift */,
 				623EA90F63B7AF0B5426E96B /* DeleteBadge.swift */,
 				F1B42540A8553644A4BA6829 /* EmptyStateView.swift */,
+				9430A68510C88D1F4FB65F58 /* ErrorDetailBox.swift */,
 				179854008F9437120FBDEDDB /* GlassCard.swift */,
 				5E1A7C0D2B4F48A1900000C2 /* ReaderSheetChrome.swift */,
 				3C527A04CDCEF84E8DEA8EFB /* LoadingView.swift */,
@@ -955,6 +958,7 @@
 				89540930F1A34DF599CEA02B /* DeleteBadge.swift in Sources */,
 				A4FBFDFEFA8DAB3E3F26B5AE /* DisplayMode.swift in Sources */,
 				BFFABD8B1BC6977119832E29 /* EmptyStateView.swift in Sources */,
+				DFBF0694C2631EE2B16421B4 /* ErrorDetailBox.swift in Sources */,
 				529B1B70BCE0941501A626B2 /* FlexibleHeader.swift in Sources */,
 				8D5A446E5B0B3585C84B2490 /* FocusModeManager.swift in Sources */,
 				97808F4EE7491512BF9AFDD9 /* ScrollHaptics.swift in Sources */,

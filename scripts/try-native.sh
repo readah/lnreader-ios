@@ -27,6 +27,7 @@ xcrun swiftc -parse-as-library -swift-version 5 -disable-sandbox \
   Services/Sources/SourceKey.swift Services/Sources/SourceModels.swift \
   Services/Sources/SourceFilters.swift Services/Sources/CatalogSource.swift \
   Services/Network/HTTPTypes.swift Services/Network/Interceptors.swift Services/Network/HTTPClient.swift \
+  Services/Network/CookieJar.swift \
   Utilities/DateParsing.swift \
   Services/Sources/Native/*.swift ${EXTRA:-} tests/NativeLiveChecks.swift \
   -I "$MODDIR" -L "$MODDIR" -lSwiftSoup -o "$BIN"

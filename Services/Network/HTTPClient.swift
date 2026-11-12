@@ -8,9 +8,8 @@ import Foundation
 
 /// An interceptor-driven HTTP client.
 ///
-/// An actor rather than a class: the interceptor list is mutable (the Cloudflare
-/// solver is installed after launch) and the request path is shared by every
-/// source thread.
+/// An actor because the request path is shared by every source thread. The
+/// Cloudflare solver is not per client: `CloudflareSolveGate` holds the app's one.
 actor HTTPClient {
 
     // MARK: Configuration
@@ -27,17 +26,53 @@ actor HTTPClient {
         /// Disk/memory cache for covers and plugin JS.
         var memoryCacheBytes: Int = 8 * 1024 * 1024
         var diskCacheBytes: Int = 64 * 1024 * 1024
+        /// Hold the request until a connection exists instead of failing at once.
+        ///
+        /// On for sources: a chapter that fails to refresh is worse than one that waits. Off for
+        /// covers, where a library grid would otherwise sit on a dozen spinners for the resource
+        /// timeout, and the copy on disk is a better answer than two minutes of nothing.
+        var waitsForConnectivity: Bool = true
+        /// Whether a challenge the hidden web view cannot pass is shown to the user. Off for
+        /// covers: a library grid must never put a sheet over the screen.
+        var allowsUserVerification: Bool = true
 
         static let `default` = Configuration()
+
+        /// Covers: fail fast, and be gone before the cell is looked at.
+        ///
+        /// Two attempts: the first, and the replay after a Cloudflare solve; a dead cover is not
+        /// retried. No URL cache, because `CoverDiskCache` already keeps every cover it loads.
+        static let covers: Configuration = {
+            var config = Configuration()
+            config.timeout = 15
+            config.maxAttempts = 2
+            config.memoryCacheBytes = 0
+            config.diskCacheBytes = 0
+            config.waitsForConnectivity = false
+            config.allowsUserVerification = false
+            return config
+        }()
     }
 
     // MARK: State
 
     static let shared = HTTPClient()
 
+    /// The client cover art loads through.
+    ///
+    /// No rate limiter (a library grid asks for a dozen covers at once, and one slot every 250 ms
+    /// would spend three seconds before the last one started) and no retries. A cover is often
+    /// behind the same gate as the source's own API — Kagane serves them from
+    /// `/api/v2/image/<id>` on the origin that protects its JSON — so it keeps the shared cookie
+    /// jar, the agent that earned `cf_clearance`, and the solver.
+    static let covers = HTTPClient(
+        configuration: .covers,
+        interceptors: [UserAgentInterceptor(), CloudflareInterceptor()]
+    )
+
     private let configuration: Configuration
     private let session: URLSession
-    private var interceptors: [any HTTPInterceptor]
+    private let interceptors: [any HTTPInterceptor]
 
     init(
         configuration: Configuration = .default,
@@ -60,7 +95,7 @@ actor HTTPClient {
             diskCapacity: configuration.diskCacheBytes
         )
         sessionConfiguration.requestCachePolicy = .reloadRevalidatingCacheData
-        sessionConfiguration.waitsForConnectivity = true
+        sessionConfiguration.waitsForConnectivity = configuration.waitsForConnectivity
         self.session = URLSession(configuration: sessionConfiguration)
     }
 
@@ -73,22 +108,6 @@ actor HTTPClient {
         ]
     }
 
-    // MARK: Interceptor management
-
-    /// Install the web-view backed Cloudflare solver.
-    ///
-    /// Called once at launch, from the main actor, because the solver owns a
-    /// `WKWebView`.
-    func setCloudflareSolver(_ solver: any CloudflareChallengeSolving) {
-        interceptors = interceptors.map { interceptor in
-            guard var cloudflare = interceptor as? CloudflareInterceptor else {
-                return interceptor
-            }
-            cloudflare.solver = solver
-            return cloudflare
-        }
-    }
-
     // MARK: Requests
 
     /// Send a request through the interceptor chain.
@@ -96,7 +115,11 @@ actor HTTPClient {
     /// - Parameter sourceKey: `"ln:<id>"` / `"mihon:<id>"`, used for per-source
     ///   rate limits. Pass `nil` for app-internal traffic.
     func send(_ request: HTTPRequest, sourceKey: String? = nil) async throws -> HTTPResponse {
-        let context = InterceptorContext(sourceKey: sourceKey, host: request.host)
+        let context = InterceptorContext(
+            sourceKey: sourceKey,
+            host: request.host,
+            allowsUserVerification: configuration.allowsUserVerification
+        )
         var attempt = 0
 
         while true {
@@ -114,6 +137,14 @@ actor HTTPClient {
                    ) {
                     try? await Task.sleep(for: .seconds(delay))
                     continue
+                }
+                // A challenge that survived the solver is not the site refusing the request: say
+                // which it was, so a source's error message can tell the two apart.
+                if response.looksLikeCloudflareChallenge {
+                    throw HTTPError.cloudflareChallenge(
+                        url: adapted.url.absoluteString,
+                        detail: await CloudflareSolveGate.shared.note(for: context.host)
+                    )
                 }
                 throw HTTPError.badStatus(
                     code: response.statusCode,

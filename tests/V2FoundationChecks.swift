@@ -195,6 +195,20 @@ struct V2FoundationChecks {
         precondition(
             !response(status: 403, body: "Forbidden").looksLikeCloudflareChallenge
         )
+
+        // A page is cleared where it was challenged; an API call is cleared on the site's root,
+        // because navigating to a POST-only route earns no cookie.
+        func page(_ method: String, _ headers: [String: String] = [:]) -> String {
+            let request = try! HTTPRequest(
+                urlString: "https://Site.example/api/v2/search?q=1", method: method, headers: headers
+            )
+            return CloudflareSolveGate.challengePage(for: request).absoluteString
+        }
+        precondition(page("GET") == "https://Site.example/api/v2/search?q=1")
+        precondition(page("POST") == "https://site.example/")
+        precondition(page("GET", ["Sec-Fetch-Mode": "cors"]) == "https://site.example/")
+        precondition(page("GET", ["X-Requested-With": "XMLHttpRequest"]) == "https://site.example/")
+        precondition(page("GET", ["Sec-Fetch-Mode": "navigate"]) == "https://Site.example/api/v2/search?q=1")
     }
 
     // MARK: Headers

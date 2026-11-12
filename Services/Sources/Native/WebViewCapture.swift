@@ -304,7 +304,7 @@ enum WebViewCapture {
                     self?.finish(.failure(CaptureError.blocked("Verification was cancelled.")))
                 })
             challengeController = controller
-            let presenter = Self.topViewController()
+            let presenter = WebViewCapture.topViewController()
             presenter?.present(UINavigationController(rootViewController: controller), animated: true)
             if presenter == nil {
                 finish(.failure(CaptureError.blocked("The page needs verification, but nothing could show it.")))
@@ -320,19 +320,8 @@ enum WebViewCapture {
 
         private func attach(_ view: WKWebView) {
             #if canImport(UIKit)
-            // A web view with no window has its timers throttled by WebKit.
-            // Park it, invisible, in the key window so page scripts run at
-            // full speed.
-            let window = UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap(\.windows)
-                .first { $0.isKeyWindow }
-            if let window {
-                view.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
-                view.alpha = 0.01
-                view.isUserInteractionEnabled = false
-                window.addSubview(view)
-            }
+            view.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
+            WebViewCapture.parkHidden(view)
             #elseif canImport(AppKit)
             // Command-line harness: an off-screen window keeps WebKit awake.
             let window = NSWindow(contentRect: CGRect(x: -20000, y: -20000, width: 390, height: 844),
@@ -379,7 +368,30 @@ enum WebViewCapture {
 }
 
 #if canImport(UIKit)
-extension WebViewCapture.Session {
+extension WebViewCapture {
+    /// Puts a web view in the app's window, invisible and behind the app's own content.
+    ///
+    /// WebKit throttles a web view that is not in a window, and page scripts (a Cloudflare
+    /// challenge, a reader that builds its pages in JavaScript) then never finish.
+    ///
+    /// - Returns: whether a window was found.
+    @MainActor @discardableResult
+    static func parkHidden(_ view: UIView) -> Bool {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        guard let window = scene?.windows.first(where: \.isKeyWindow) ?? scene?.windows.first else {
+            return false
+        }
+        view.alpha = 0.01
+        view.isUserInteractionEnabled = false
+        window.insertSubview(view, at: 0)
+        return true
+    }
+}
+
+extension WebViewCapture {
+    /// The view controller a sheet should be presented from.
+    @MainActor
     static func topViewController() -> UIViewController? {
         let root = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -392,7 +404,7 @@ extension WebViewCapture.Session {
 }
 
 /// The sheet that holds the web view while the user completes a verification.
-private final class ChallengeController: UIViewController {
+final class ChallengeController: UIViewController {
     private let webView: WKWebView
     private let onCancel: () -> Void
 

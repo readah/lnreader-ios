@@ -8,6 +8,9 @@ import SwiftSoup
 /// `/account/comment/like|dislike` actions) — only host + session cookie differ.
 /// Use ``CommentSite`` to pick the target. Overloads without a `site`
 /// default to `.novelFire` for backwards compatibility.
+///
+/// Requests go through `HTTPClient.shared`: the shared cookie jar sends the login session and
+/// any `cf_clearance`, and a Cloudflare challenge is solved like any source's.
 final class NovelFireCommentsService {
 
     static let shared = NovelFireCommentsService()
@@ -31,8 +34,6 @@ final class NovelFireCommentsService {
 
     typealias ChapterMeta = (postId: String, chapterId: String, csrfToken: String)
 
-    private let userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
-
     // MARK: - Cached state (perf)
 
     /// Pre-compiled regexes — compiling NSRegularExpression per request is expensive.
@@ -53,18 +54,6 @@ final class NovelFireCommentsService {
         return c
     }()
     private static let metaTTL: TimeInterval = 600
-
-    /// Session with an on-disk/memory URLCache so chapter HTML + comment JSON
-    /// can be revalidated instead of re-downloaded.
-    private let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.requestCachePolicy = .reloadRevalidatingCacheData
-        config.urlCache = URLCache(memoryCapacity: 8 * 1024 * 1024, diskCapacity: 32 * 1024 * 1024)
-        config.httpMaximumConnectionsPerHost = 4
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
-        return URLSession(configuration: config)
-    }()
 
     // MARK: - Session helpers
 
@@ -100,18 +89,7 @@ final class NovelFireCommentsService {
             throw NSError(domain: "NovelFireComments", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL for path: \(chapterPath)"])
         }
 
-        var request = URLRequest(url: url)
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        // Chapter HTML changes rarely; allow revalidation instead of forced download.
-        request.cachePolicy = .reloadRevalidatingCacheData
-        request.timeoutInterval = 30
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw NSError(domain: "NovelFireComments", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch chapter page (status code: \(code))"])
-        }
+        let data = try await HTTPClient.shared.send(HTTPRequest(url: url)).data
 
         guard let html = String(data: data, encoding: .utf8) else {
             throw NSError(domain: "NovelFireComments", code: -3, userInfo: [NSLocalizedDescriptionKey: "Chapter page is not valid UTF-8"])
@@ -151,20 +129,12 @@ final class NovelFireCommentsService {
             throw NSError(domain: "NovelFireComments", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid comments URL"])
         }
 
-        var request = URLRequest(url: url)
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(site.refererBase, forHTTPHeaderField: "Referer")
-        injectCookies(into: &request, site: site)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw NSError(domain: "NovelFireComments", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch comments (status code: \(code))"])
-        }
-
+        let request = HTTPRequest(url: url, headers: [
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json",
+            "Referer": site.refererBase,
+        ])
+        let data = try await HTTPClient.shared.send(request).data
         return try JSONDecoder().decode(CommentsResponse.self, from: data)
     }
 
@@ -185,38 +155,31 @@ final class NovelFireCommentsService {
             throw NSError(domain: "NovelFireComments", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid action URL"])
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/x-www-form-urlencoded; charset=UTF-8", forHTTPHeaderField: "Content-Type")
-        request.setValue(referer, forHTTPHeaderField: "Referer")
-
         var components = URLComponents()
         components.queryItems = [
             URLQueryItem(name: "comment_id", value: commentId),
             URLQueryItem(name: "_token", value: csrfToken),
         ]
-        request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
-        injectCookies(into: &request, site: site)
+        let request = HTTPRequest(
+            url: url,
+            method: "POST",
+            headers: [
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "Referer": referer,
+            ],
+            body: components.percentEncodedQuery?.data(using: .utf8)
+        )
 
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NSError(domain: "NovelFireComments", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid network response for action"])
+        do {
+            let data = try await HTTPClient.shared.send(request).data
+            return try JSONDecoder().decode(ActionResponse.self, from: data)
+        } catch HTTPError.badStatus(code: 419, _) {
+            // CSRF expired — drop cached metadata so the next fetch re-reads it.
+            metaCache.removeAllObjects()
+            throw NSError(domain: "NovelFireComments", code: 419, userInfo: [NSLocalizedDescriptionKey: "CSRF Token expired or invalid. Please reload the chapter."])
         }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            if httpResponse.statusCode == 419 {
-                // CSRF expired — drop cached metadata so the next fetch re-reads it.
-                metaCache.removeAllObjects()
-                throw NSError(domain: "NovelFireComments", code: 419, userInfo: [NSLocalizedDescriptionKey: "CSRF Token expired or invalid. Please reload the chapter."])
-            }
-            throw NSError(domain: "NovelFireComments", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Action failed (status code: \(httpResponse.statusCode))"])
-        }
-
-        return try JSONDecoder().decode(ActionResponse.self, from: data)
     }
 
     // MARK: - Helpers
@@ -233,19 +196,6 @@ final class NovelFireCommentsService {
             }
         }
         return nil
-    }
-
-    private func injectCookies(into request: inout URLRequest, site: CommentSite) {
-        guard let base = URL(string: site.baseURLString),
-              let cookies = HTTPCookieStorage.shared.cookies(for: base),
-              !cookies.isEmpty else {
-            #if DEBUG
-            print("⚠️ [CommentsService:\(site.rawValue)] No cookies for \(site.domain)")
-            #endif
-            return
-        }
-        let cookieHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
     }
 }
 

@@ -98,7 +98,7 @@ struct ContentView: View {
             ChapterDownloadManager.shared.configure(context: modelContext, sources: sourceManager)
             LibraryMaintenance.schedule()
             // The HTTP stack gets its Cloudflare solver before any source is browsed.
-            await HTTPClient.shared.setCloudflareSolver(WebKitCloudflareSolver())
+            await CloudflareSolveGate.shared.install(WebKitCloudflareSolver())
             if autoUpdateOnLaunch {
                 // A library update is two requests per book plus a merge pass on
                 // the main actor. Starting it inside the launch task means the

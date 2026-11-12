@@ -132,7 +132,7 @@ import UserNotifications
             if !downloadsOnly, !UserDefaults.standard.bool(forKey: "updates.backgroundEnabled") {
                 task.setTaskCompleted(success: true); return
             }
-            await HTTPClient.shared.setCloudflareSolver(WebKitCloudflareSolver())
+            await CloudflareSolveGate.shared.install(WebKitCloudflareSolver())
             let sources = SourceManager()
             sources.registerNativeSources()
             let context = ModelContext(container)

@@ -1,5 +1,5 @@
 // CustomAsyncImage.swift
-// Custom AsyncImage component that bypasses default CFNetwork user-agent blocking.
+// Cover loading: disk cache, dedupe, off-main decode, and the app's HTTP stack.
 
 import CryptoKit
 import ImageIO
@@ -170,22 +170,8 @@ enum CoverDiskCache {
     }
 }
 
-/// Shared session with a real URLCache so covers survive restarts and
-/// revalidates with the CDN instead of re-downloading.
-private enum CoverNetwork {
-    static let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.requestCachePolicy = .returnCacheDataElseLoad
-        config.urlCache = URLCache(memoryCapacity: 20 * 1024 * 1024, diskCapacity: 200 * 1024 * 1024)
-        config.httpMaximumConnectionsPerHost = 6
-        config.timeoutIntervalForRequest = 15
-        config.timeoutIntervalForResource = 30
-        return URLSession(configuration: config)
-    }()
-}
-
-/// A drop-in replacement for SwiftUI's AsyncImage that fetches images with
-/// a standard browser User-Agent to bypass Cloudflare/CDN blocking.
+/// A drop-in replacement for SwiftUI's AsyncImage that keeps covers in a memory and a disk cache,
+/// shares one download between the cells that show the same URL, and decodes off the main thread.
 struct CustomAsyncImage: View {
     private let url: URL?
     private let content: (AsyncImagePhase) -> AnyView
@@ -254,9 +240,9 @@ struct CustomAsyncImage: View {
             ImageCache.store(image, for: key)
             phase = .success(Image(platformImage: image))
         } catch {
-            if url.scheme == "local" || url.isFileURL {
-                print("❌ [CustomAsyncImage] Failed to load local cover: \(error.localizedDescription) for URL \(url)")
-            }
+            // The only trace a cover failure leaves. One line per URL: the dedupe means one per
+            // session, and a blank card on its own says nothing about why.
+            print("❌ [CustomAsyncImage] \(url.absoluteString): \(error.localizedDescription)")
             phase = .failure(error)
         }
     }
@@ -282,19 +268,9 @@ struct CustomAsyncImage: View {
         }
 
         do {
-            var request = URLRequest(url: url)
-            request.setValue(
-                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
-                forHTTPHeaderField: "User-Agent"
-            )
-            request.timeoutInterval = 15
-            request.cachePolicy = .returnCacheDataElseLoad
-
-            let (data, response) = try await CoverNetwork.session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode),
-                  let image = CoverDecode.image(from: data) else {
-                throw URLError(.badServerResponse)
+            let data = try await HTTPClient.covers.send(HTTPRequest(url: url)).data
+            guard let image = CoverDecode.image(from: data) else {
+                throw URLError(.cannotDecodeContentData)
             }
             CoverDiskCache.write(data, for: url)
             return image

@@ -72,6 +72,7 @@ run() {
         Services/Sources/SourceFilters.swift \
         Services/Network/HTTPTypes.swift \
         Services/Network/Interceptors.swift \
+        Services/Network/CookieJar.swift \
         Utilities/DateParsing.swift \
         tests/V2FoundationChecks.swift
       ;;
@@ -82,6 +83,7 @@ run() {
         Services/Sources/SourceModels.swift \
         Services/Network/HTTPTypes.swift \
         Services/Network/Interceptors.swift \
+        Services/Network/CookieJar.swift \
         Services/EntryLink.swift \
         tests/EntryLinkChecks.swift
       ;;
@@ -159,6 +161,7 @@ run() {
         Services/Sources/SourceModels.swift \
         Services/Network/HTTPTypes.swift \
         Services/Network/Interceptors.swift \
+        Services/Network/CookieJar.swift \
         Services/Network/HTTPClient.swift \
         Services/Images/ChapterCache.swift \
         Services/Images/PageLoader.swift \
