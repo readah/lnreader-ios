@@ -118,6 +118,8 @@ final class WebtoonViewController: UIViewController,
     private var flushScheduled = false
     private var observer: NSObjectProtocol?
     private var touchStoppedScroll = false
+    /// The current touch moved the strip, however little. Reset as a touch lands.
+    private var touchDragged = false
     private var lastScrollTime: CFTimeInterval = 0
     private var speedometer = ScrollSpeedometer()
     private var detents = ScrollDetents()
@@ -607,6 +609,9 @@ final class WebtoonViewController: UIViewController,
         // A finger takes the strip over from a step's animation, which is then
         // cancelled without an end being reported.
         controller.stepSettled()
+        // The tap recognizer runs alongside the pan and only fails after ~10 pt,
+        // so a short flick would also fire a tap zone. A drag is never a tap.
+        touchDragged = true
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
@@ -650,7 +655,7 @@ final class WebtoonViewController: UIViewController,
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
         // A finger that landed to stop the strip is not a tap: it would hit a
         // tap zone and scroll a screenful the moment the reader stops to read.
-        guard !touchStoppedScroll else { return }
+        guard !touchStoppedScroll, !touchDragged else { return }
         onTap?(gesture.location(in: view))
     }
 
@@ -660,6 +665,7 @@ final class WebtoonViewController: UIViewController,
         touchStoppedScroll = collectionView.isDecelerating
             || collectionView.isDragging
             || CACurrentMediaTime() - lastScrollTime < 0.1
+        touchDragged = false
         return !(touch.view is UIControl)
     }
 
