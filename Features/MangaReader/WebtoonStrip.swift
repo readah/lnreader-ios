@@ -219,18 +219,22 @@ final class WebtoonViewController: UIViewController,
             && zip(a.pages, b.pages).allSatisfy { $0.url == $1.url }
     }
 
-    /// Auto scroll and hold-scroll move the offset from a display link, which the
-    /// scroll view does not report as dragging: without this a trim or a height
-    /// correction would land mid-crawl and show as a jump.
+    /// Auto scroll, hold-scroll and a tap's screenful move the offset without
+    /// the scroll view reporting a drag: without this a trim or a height
+    /// correction would land mid-move and show as a jump.
     private var isMoving: Bool {
         collectionView.isTracking || collectionView.isDragging || collectionView.isDecelerating
-            || controller.isAutoScrolling || controller.holdSpeed != nil
+            || controller.isAutoScrolling || controller.holdSpeed != nil || controller.isStepping
     }
 
     private func applyDeferredTrim() {
         guard !isMoving else { return }
         if !pendingRatios.isEmpty {
             flushRatios()
+            // The flush only invalidates. Settle it before a trim measures the
+            // rows it removes, or the compensation is computed against the
+            // heights the flush just replaced.
+            collectionView.layoutIfNeeded()
         }
         guard let pending = deferredSegments else { return }
         deferredSegments = nil
@@ -496,6 +500,8 @@ final class WebtoonViewController: UIViewController,
 
     private func jump(to index: Int) {
         guard itemCount > 0 else { return }
+        // A jump replaces a step's animation, which then reports no end.
+        controller.stepSettled()
         collectionView.layoutIfNeeded()
         let item = min(max(index, 0), itemCount - 1)
         guard let frame = layout.layoutAttributesForItem(at: IndexPath(item: item, section: 0))?.frame else { return }
@@ -586,18 +592,38 @@ final class WebtoonViewController: UIViewController,
         let targetY = min(max(startY + progress * maxOffset, 0), maxOffsetY)
 
         controller.stopAuto()
+        // A scrub replaces a step's animation, which then reports no end.
+        controller.stepSettled()
         collectionView.setContentOffset(CGPoint(x: 0, y: targetY), animated: false)
         playScrollHaptics(top: targetY, userDriven: true)
     }
 
-    // A trim held back while the strip moved goes in once it stops.
+    // MARK: Rest
+    //
+    // A trim or a height correction held back while the strip moved goes in once
+    // it stops.
+
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        // A finger takes the strip over from a step's animation, which is then
+        // cancelled without an end being reported.
+        controller.stepSettled()
+    }
+
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         if !decelerate { applyDeferredTrim() }
     }
 
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { applyDeferredTrim() }
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        controller.stepSettled()
+        applyDeferredTrim()
+    }
 
-    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) { applyDeferredTrim() }
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        // Settle first: the trim and the ratio flush below both refuse to run
+        // while the strip is moving, and this is the step's last frame.
+        controller.stepSettled()
+        applyDeferredTrim()
+    }
 
     // MARK: Haptics
 

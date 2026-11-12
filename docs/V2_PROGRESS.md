@@ -83,7 +83,13 @@ Pure rules live in `Features/MangaReader/MangaReaderControls.swift`, checked hea
 - **R5/R6 scrolling.** `WebtoonScrollController` drives the `UIScrollView` from a
   `CADisplayLink` (SwiftUI has no per-frame offset API); the finger always wins. Hold-to-scroll
   disables the pan recognizer so the drag changes speed instead of position, and suppresses
-  the would-be tap for 0.4 s. Both webtoon only.
+  the would-be tap for 0.4 s. Both webtoon only. A tap's screenful is a programmatic
+  `setContentOffset(animated:)`, which UIKit does not report as dragging or decelerating, so
+  the controller flags it (`isStepping`, cleared on the animation's end, on a finger and on a
+  jump). Without that flag a trim or a height correction lands mid-step, cuts the animation
+  short and moves the strip by the mismeasured height of the pages above — a tap that looks
+  like it skipped several pages, only on the first pass over a chapter (once the aspect
+  ratios are known there is nothing to correct).
 - **Settings sheet:** layout, direction and tap zones are per series; volume keys and scroll
   speeds are global.
 

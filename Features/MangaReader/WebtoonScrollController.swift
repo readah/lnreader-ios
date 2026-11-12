@@ -102,6 +102,7 @@ final class WebtoonScrollController {
     func detach() {
         stopAuto()
         endHold()
+        stepSettled()
         scrollView?.removeGestureRecognizer(holdRecognizer)
         scrollView = nil
     }
@@ -129,13 +130,29 @@ final class WebtoonScrollController {
 
     // MARK: - Paging by a screenful
 
-    /// Scroll roughly one screen, for the volume keys.
+    /// A screenful is being animated by `setContentOffset(animated:)`.
+    ///
+    /// UIKit reports a finger's drag and its momentum (`isDragging`,
+    /// `isDecelerating`) but not a programmatic animated scroll, so the strip
+    /// believes it is at rest while a tap's step is still running. It would then
+    /// land a height correction (`flushRatios`) or a trim in the middle of that
+    /// animation, which cuts the step short and moves the strip by however much
+    /// the pages above it had been mismeasured — a tap that skips several pages.
+    @ObservationIgnored private(set) var isStepping = false
+
+    /// The step's animation ended, or was cancelled by a finger or a jump.
+    func stepSettled() { isStepping = false }
+
+    /// Scroll roughly one screen, for a tap zone or a volume key.
     func scrollScreen(forward: Bool, fraction: CGFloat = ScrollStep.screenful) {
         guard let view = scrollView else { return }
         let minY = -view.adjustedContentInset.top
         let maxY = maxOffset(view)
         let delta = view.bounds.height * fraction * (forward ? 1 : -1)
         let target = min(max(view.contentOffset.y + delta, minY), maxY)
+        // A step that cannot move (already at the end) does not animate, so it
+        // never reports an end; it must not leave the flag set either.
+        if abs(target - view.contentOffset.y) > 0.5 { isStepping = true }
         view.setContentOffset(CGPoint(x: view.contentOffset.x, y: target), animated: true)
         onScrollActivity?()
     }
