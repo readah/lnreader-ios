@@ -91,6 +91,9 @@ enum AniListConfig {
 }
 
 /// The token lives in the Keychain, never in UserDefaults or a backup.
+///
+/// Reads are cached: `SecItemCopyMatching` is a synchronous IPC to `securityd`,
+/// and every AniList request reads the token.
 enum AniListTokenStore {
     private static let base: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
@@ -98,24 +101,45 @@ enum AniListTokenStore {
         kSecAttrAccount as String: "token",
     ]
 
+    private static let lock = NSLock()
+    /// `nil`: the Keychain has not been asked yet. `.some(nil)`: it has no token.
+    private static var cached: String??
+
     static func load() -> String? {
-        var result: CFTypeRef?
-        let query = base.merging([kSecReturnData as String: true]) { _, new in new }
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        lock.withLock {
+            if let cached { return cached }
+
+            var result: CFTypeRef?
+            let query = base.merging([kSecReturnData as String: true]) { _, new in new }
+            let status = SecItemCopyMatching(query as CFDictionary, &result)
+            // A locked device (before the first unlock after a reboot) is not an
+            // answer; caching it would keep the app logged out until relaunch.
+            guard status == errSecSuccess || status == errSecItemNotFound else { return nil }
+
+            let token = (result as? Data).flatMap { String(data: $0, encoding: .utf8) }
+            cached = .some(token)
+            return token
+        }
     }
 
     static func save(_ token: String) {
-        clear()
-        let add = base.merging([
-            kSecValueData as String: Data(token.utf8),
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-        ]) { _, new in new }
-        SecItemAdd(add as CFDictionary, nil)
+        lock.withLock {
+            SecItemDelete(base as CFDictionary)
+            let add = base.merging([
+                kSecValueData as String: Data(token.utf8),
+                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            ]) { _, new in new }
+            // Cache only a token that reached the Keychain, or the login is gone at launch.
+            cached = SecItemAdd(add as CFDictionary, nil) == errSecSuccess ? .some(token) : nil
+        }
     }
 
-    static func clear() { SecItemDelete(base as CFDictionary) }
+    static func clear() {
+        lock.withLock {
+            SecItemDelete(base as CFDictionary)
+            cached = .some(nil)
+        }
+    }
 }
 
 final class AniListClient: @unchecked Sendable {

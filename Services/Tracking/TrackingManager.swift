@@ -5,6 +5,7 @@
 import Foundation
 import Observation
 import SwiftData
+import UIKit
 
 @MainActor
 @Observable
@@ -12,7 +13,10 @@ final class TrackingManager {
 
     private(set) var userName: String?
     private(set) var userId: Int?
-    var isLoggedIn: Bool { AniListClient.shared.token != nil }
+    /// Stored so views observe it. Set from the Keychain at launch and when
+    /// protected data becomes available (a launch before the first unlock reads
+    /// nothing), then only by `login` and `logout`.
+    private(set) var isLoggedIn = false
 
     /// "Update AniList when a chapter is finished". On by default.
     var autoUpdate: Bool {
@@ -26,7 +30,7 @@ final class TrackingManager {
     @ObservationIgnored private var container: ModelContainer?
     @ObservationIgnored private var debounce: [PersistentIdentifier: Task<Void, Never>] = [:]
     @ObservationIgnored private var isFlushing = false
-    @ObservationIgnored private var networkObserver: NSObjectProtocol?
+    @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     /// Manual "mark as read" bursts (a dozen taps, a bulk select) collapse into one update.
     private static let debounceInterval: Duration = .seconds(3)
@@ -35,22 +39,37 @@ final class TrackingManager {
         userName = UserDefaults.standard.string(forKey: Self.nameKey)
         let stored = UserDefaults.standard.integer(forKey: Self.idKey)
         userId = stored == 0 ? nil : stored
+        isLoggedIn = AniListClient.shared.token != nil
     }
 
     func configure(container: ModelContainer) {
         self.container = container
-        guard networkObserver == nil else { return }
-        networkObserver = NotificationCenter.default.addObserver(
-            forName: Notification.Name("LNReaderNetworkChanged"), object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in await self?.flushPending() }
-        }
+        guard observers.isEmpty else { return }
+        let center = NotificationCenter.default
+        observers = [
+            center.addObserver(
+                forName: Notification.Name("LNReaderNetworkChanged"), object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in await self?.flushPending() }
+            },
+            center.addObserver(
+                forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, !self.isLoggedIn else { return }
+                    self.isLoggedIn = AniListClient.shared.token != nil
+                    await self.flushPending()
+                }
+            },
+        ]
     }
 
     // MARK: - Account
 
     func login() async throws {
         _ = try await AniListClient.shared.login()
+        // Before `viewer()`, which can fail: the token is saved either way.
+        isLoggedIn = AniListClient.shared.token != nil
         let viewer = try await AniListClient.shared.viewer()
         userId = viewer.id
         userName = viewer.name
@@ -61,6 +80,7 @@ final class TrackingManager {
 
     func logout() {
         AniListClient.shared.logout()
+        isLoggedIn = false
         userId = nil
         userName = nil
         UserDefaults.standard.removeObject(forKey: Self.idKey)
