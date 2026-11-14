@@ -39,7 +39,6 @@ struct BrowseView: View {
     @State private var showDisplay = false
     /// Same keys as the Library's default display, so the two always agree.
     @AppStorage("general.defaultDisplayMode") private var displayMode = DisplayMode.comfortable
-    @AppStorage(LibraryGridColumns.key) private var columnCount = LibraryGridColumns.automatic
     /// The source whose entries are being migrated, if any.
     @State private var migratingSource: MigratingSource?
     /// The source whose catalogue is open.
@@ -80,10 +79,7 @@ struct BrowseView: View {
                 .toolbar { toolbarContent }
                 .sheet(isPresented: $showDisplay) {
                     NavigationStack {
-                        DisplayOptionsList(
-                            displayMode: $displayMode,
-                            columnCount: $columnCount
-                        )
+                        DisplayOptionsList(displayMode: $displayMode)
                         .navigationTitle("Display")
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {

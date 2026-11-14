@@ -102,7 +102,6 @@ struct LibraryView: View {
                     filter: activeFilterBinding,
                     sort: activeSortBinding,
                     displayMode: displayModeBinding,
-                    scopeName: selectedCategory?.name ?? "All",
                     hasSortOverride: sortStore.hasOverride(for: selectedCategory?.name),
                     hasDisplayOverride: displayStore.hasOverride(for: selectedCategory?.name),
                     onResetSort: resetActiveSort,
@@ -845,17 +844,25 @@ enum LibraryKindFilter: String, CaseIterable, Identifiable {
 /// it.
 struct LibraryEntryQuickActions: View {
     let entry: Entry
+    var onOpen: (() -> Void)? = nil
     var onArrange: () -> Void
     var onRemove: () -> Void
 
     @Environment(\.modelContext) private var modelContext
     @Environment(SourceManager.self) private var sourceManager
+    @Environment(ReaderRouter.self) private var readerRouter
 
     var body: some View {
         Button {
+            continueReading()
+        } label: {
+            AppLabel("Continue reading", systemName: "arrow.right.circle", size: 17, relativeTo: .body)
+        }
+
+        Button {
             markAllRead()
         } label: {
-            AppLabel("Mark all as read", systemName: "checkmark.circle", size: 17, relativeTo: .body)
+            AppLabel("Mark as read", systemName: "checkmark.circle", size: 17, relativeTo: .body)
         }
 
         if !entry.isLocal {
@@ -906,6 +913,79 @@ struct LibraryEntryQuickActions: View {
         LibraryChapterCounts.shared.invalidate([entry.persistentModelID])
         NotificationCenter.default.post(name: .lnreaderChapterReadChanged, object: entry)
         Haptics.shared.notify(.success)
+    }
+
+    private func continueReading() {
+        guard readerRouter.request == nil else { return }
+        let entryID = entry.persistentModelID
+        let sourceKey = entry.sourceKey
+        let entryURL = entry.url
+        let kind = entry.kind
+        let container = modelContext.container
+
+        Task {
+            let target = await Self.resolveResumeChapter(
+                entryID: entryID,
+                sourceKey: sourceKey,
+                entryURL: entryURL,
+                container: container
+            )
+            guard readerRouter.request == nil else { return }
+            if let target {
+                Haptics.shared.impact(.light)
+                readerRouter.open(
+                    sourceKey: sourceKey,
+                    entryURL: entryURL,
+                    kind: kind,
+                    chapterURL: target.url,
+                    chapterName: target.name
+                )
+            } else {
+                onOpen?()
+            }
+        }
+    }
+
+    @concurrent
+    private nonisolated static func resolveResumeChapter(
+        entryID: PersistentIdentifier,
+        sourceKey: String,
+        entryURL: String,
+        container: ModelContainer
+    ) async -> (url: String, name: String)? {
+        let context = ModelContext(container)
+
+        var descriptor = FetchDescriptor<Chapter>(
+            predicate: #Predicate<Chapter> {
+                $0.entry?.persistentModelID == entryID && !$0.hidden
+            },
+            sortBy: [SortDescriptor(\.sourceOrder)]
+        )
+        descriptor.relationshipKeyPathsForPrefetching = []
+
+        var lastOpened = FetchDescriptor<History>(
+            predicate: #Predicate<History> {
+                $0.chapter?.entry?.url == entryURL && $0.chapter?.entry?.sourceKey == sourceKey
+            },
+            sortBy: [SortDescriptor(\.lastRead, order: .reverse)]
+        )
+        lastOpened.fetchLimit = 1
+
+        guard let chapters = try? context.fetch(descriptor), !chapters.isEmpty else {
+            return nil
+        }
+
+        let oldestFirst = ChapterOrder.oldestFirst(chapters)
+        let lastOpenedPath = (try? context.fetch(lastOpened))?.first?.chapterURL
+
+        guard let chapter = ChapterOrder.resume(
+            oldestFirst: oldestFirst,
+            lastOpenedPath: lastOpenedPath,
+            isUnread: { !$0.read }
+        ) else {
+            return nil
+        }
+        return (chapter.url, chapter.name)
     }
 }
 

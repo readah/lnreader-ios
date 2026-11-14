@@ -12,6 +12,7 @@ struct ChapterOrderChecks {
     static func main() {
         checkStoredOrder()
         checkDisplayOrder()
+        checkResumeChapter()
         checkNormalizesAnOldestFirstList()
         checkNormalizesANewestFirstList()
         checkAStrayChapterDoesNotFlipTheList()
@@ -19,8 +20,8 @@ struct ChapterOrderChecks {
         checkTrustsAListWithNoSignal()
         checkDegenerateLists()
         print("PASS: chapter order (sourceOrder invariant, newest-first display, "
-            + "normalising oldest/newest-first sources, stray chapters, date fallback, "
-            + "no-signal lists, empty and single-chapter lists)")
+            + "resume selection, normalising oldest/newest-first sources, stray chapters, "
+            + "date fallback, no-signal lists, empty and single-chapter lists)")
     }
 
     // MARK: - Stored order
@@ -64,6 +65,35 @@ struct ChapterOrderChecks {
         let rows = chapters([1, 0, 2])
         precondition(ChapterOrder.display(rows, ascending: false).map(\.sourceOrder) == [2, 1, 0])
         precondition(ChapterOrder.display(rows, ascending: true).map(\.sourceOrder) == [0, 1, 2])
+    }
+
+    private static func checkResumeChapter() {
+        let rows = chapters([0, 1, 2, 3])
+        // Nothing read yet -> first chapter.
+        precondition(ChapterOrder.resume(oldestFirst: rows, lastOpenedPath: nil, isUnread: { !$0.read })?.url == "ch/0")
+
+        // Last opened chapter is still unread -> reopen it even if earlier ones are unread.
+        rows[0].read = true
+        precondition(ChapterOrder.resume(oldestFirst: rows, lastOpenedPath: "ch/2", isUnread: { !$0.read })?.url == "ch/2")
+
+        // Last opened chapter was finished -> advance to the first unread after the latest read.
+        rows[2].read = true
+        precondition(ChapterOrder.resume(oldestFirst: rows, lastOpenedPath: "ch/2", isUnread: { !$0.read })?.url == "ch/3")
+
+        // Latest read is the last chapter -> fall back to the earliest unread chapter.
+        rows[3].read = true
+        precondition(ChapterOrder.resume(oldestFirst: rows, lastOpenedPath: "ch/3", isUnread: { !$0.read })?.url == "ch/1")
+
+        // All chapters read -> newest chapter.
+        rows[1].read = true
+        precondition(ChapterOrder.resume(oldestFirst: rows, lastOpenedPath: "ch/1", isUnread: { !$0.read })?.url == "ch/3")
+
+        // Last opened path is missing (e.g. hidden by scanlator rules) -> ignored.
+        rows[1].read = false
+        precondition(ChapterOrder.resume(oldestFirst: rows, lastOpenedPath: "ch/hidden", isUnread: { !$0.read })?.url == "ch/1")
+
+        // Empty list -> nil.
+        precondition(ChapterOrder.resume(oldestFirst: [Chapter](), lastOpenedPath: nil, isUnread: { !$0.read }) == nil)
     }
 
     // MARK: - The boundary

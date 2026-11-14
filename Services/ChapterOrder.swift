@@ -79,6 +79,29 @@ enum ChapterOrder {
         ascending ? oldestFirst(items) : newestFirst(items)
     }
 
+    /// Which chapter "Continue reading" opens, given chapters in `oldestFirst`
+    /// order.
+    ///
+    /// Reopens the chapter opened last if it is still unread; otherwise the
+    /// first unread chapter after the latest one read, then the first unread
+    /// chapter, then the newest.
+    static func resume<T: ChapterOrdered>(
+        oldestFirst: [T],
+        lastOpenedPath: String?,
+        isUnread: (T) -> Bool
+    ) -> T? {
+        if let lastOpenedPath,
+           let lastOpened = oldestFirst.first(where: { $0.orderIdentity == lastOpenedPath }),
+           isUnread(lastOpened) {
+            return lastOpened
+        }
+        if let latestRead = oldestFirst.lastIndex(where: { !isUnread($0) }),
+           let next = oldestFirst[latestRead...].first(where: isUnread) {
+            return next
+        }
+        return oldestFirst.first(where: isUnread) ?? oldestFirst.last
+    }
+
     // MARK: - The boundary
 
     /// Put an incoming source list in the one order the app stores.

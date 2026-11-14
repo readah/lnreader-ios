@@ -509,22 +509,11 @@ struct EntryDetailView: View {
         // would not be the other.
         let oldestFirst = ChapterOrder.oldestFirst(base)
         orderedChapters = ChapterOrder.newestFirst(base)
-        resumeChapter = Self.resumeChapter(
+        resumeChapter = ChapterOrder.resume(
             oldestFirst: oldestFirst,
-            lastOpened: lastOpenedPath.flatMap { path in allChapters.first { $0.path == path } }
+            lastOpenedPath: lastOpenedPath,
+            isUnread: \.unread
         )
-    }
-
-    /// Reopen the chapter opened last if it is unfinished; otherwise the first
-    /// unread chapter after the latest one read, then the first unread one,
-    /// then the newest.
-    private static func resumeChapter(oldestFirst: [ChapterDisplay], lastOpened: ChapterDisplay?) -> ChapterDisplay? {
-        if let lastOpened, lastOpened.unread { return lastOpened }
-        if let latestRead = oldestFirst.lastIndex(where: { !$0.unread }),
-           let next = oldestFirst[latestRead...].first(where: \.unread) {
-            return next
-        }
-        return oldestFirst.first(where: \.unread) ?? oldestFirst.last
     }
 
     private var filteredChapters: [ChapterDisplay] {
