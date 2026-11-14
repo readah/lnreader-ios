@@ -52,7 +52,7 @@ Headless alternatives, from a normal terminal:
 
 ```sh
 ./scripts/build-ipa.sh release      # unsigned IPA, written to this folder
-./scripts/install-release.sh        # build, install and launch on the first connected device
+./scripts/install-release.sh        # build, install and launch (asks which device when several are paired)
 ```
 
 The IPA is unsigned; Sideloadly, AltStore or Xcode have to re-sign it. Both commands need a

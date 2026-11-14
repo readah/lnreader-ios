@@ -1,7 +1,7 @@
 #!/bin/sh
-# profile-device.sh — build a Release LNReader, install it on the first paired
-# iPhone/iPad (USB or Wi-Fi), launch it under Instruments, record, and open the
-# trace.
+# profile-device.sh — build a Release LNReader, install it on a paired
+# iPhone/iPad (USB or Wi-Fi; asks which one when more than one is paired),
+# launch it under Instruments, record, and open the trace.
 #
 #   ./scripts/profile-device.sh                 # build + install + record 30 s
 #   ./scripts/profile-device.sh 60              # record 60 s
@@ -29,7 +29,7 @@ for argument in "$@"; do
   esac
 done
 
-DEVICE=$(./scripts/lib/pick-device.sh)
+DEVICE=$(./scripts/lib/pick-device.py)
 if [ -z "$DEVICE" ]; then
   echo "profile-device: no paired physical device." >&2
   echo "Pair it (USB once, then Connect via network in Xcode > Devices), then check:  xcrun devicectl list devices" >&2
@@ -41,7 +41,9 @@ DEVICE_NAME=$(printf '%s' "$DEVICE" | cut -f3)
 [ -n "$UDID" ] || { echo "profile-device: $DEVICE_NAME reported no UDID" >&2; exit 1; }
 
 if [ "$INSTALL" -eq 1 ]; then
-  ./scripts/install-release.sh --no-launch
+  # The device is already chosen: asking again could install onto another one,
+  # and then the trace would record a phone that is not the one being used.
+  ./scripts/install-release.sh --no-launch --device "$DEVICE_ID"
 fi
 
 APP=.build/device/Build/Products/Release-iphoneos/LNReader.app

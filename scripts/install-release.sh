@@ -1,10 +1,11 @@
 #!/bin/sh
-# install-release.sh — build a Release LNReader and install it on the first
-# connected physical iPhone/iPad.
+# install-release.sh — build a Release LNReader and install it on a paired
+# physical iPhone/iPad. Asks which one when more than one is paired.
 #
 #   ./scripts/install-release.sh            # build, install, launch
 #   ./scripts/install-release.sh --no-launch
 #   ./scripts/install-release.sh fast       # Debug build (alias: debug): incremental, far quicker than Release
+#   ./scripts/install-release.sh --device iPhone   # that device, no question
 #
 # Works over USB or Wi-Fi (the phone must be on the same network).
 # Signs with the project's automatic signing settings, so the
@@ -15,19 +16,31 @@ cd "$(dirname "$0")/.."
 
 LAUNCH=1
 CONFIG=Release
-for argument in "$@"; do
-  case "$argument" in
+WANTED=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     --no-launch) LAUNCH=0 ;;
     debug|fast|--debug|--fast) CONFIG=Debug ;;
-    *) echo "install-release: unknown option '$argument'" >&2; exit 2 ;;
+    --device)
+      [ "$#" -ge 2 ] || { echo "install-release: --device needs a name, UDID or device id" >&2; exit 2; }
+      WANTED=$2
+      shift
+      ;;
+    *) echo "install-release: unknown option '$1'" >&2; exit 2 ;;
   esac
+  shift
 done
 
 DERIVED=.build/device
 EXTRA=""
 # ENABLE_DEBUG_DYLIB=NO: the default Debug build is a stub launcher plus a dylib.
 [ "$CONFIG" = Debug ] && EXTRA="ENABLE_DEBUG_DYLIB=NO"
-DEVICE=$(./scripts/lib/pick-device.sh)
+
+if [ -n "$WANTED" ]; then
+  DEVICE=$(./scripts/lib/pick-device.py "$WANTED")
+else
+  DEVICE=$(./scripts/lib/pick-device.py)
+fi
 
 if [ -z "$DEVICE" ]; then
   echo "install-release: no paired physical device." >&2
