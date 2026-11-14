@@ -869,13 +869,13 @@ struct LibraryEntryQuickActions: View {
             Button {
                 ChapterDownloadManager.shared.enqueueUnread(nil, in: entry)
             } label: {
-                AppLabel("Download unread chapters", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
+                AppLabel("Download unread", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
             }
         }
 
         if let shareURL {
             ShareLink(item: shareURL) {
-                AppLabel("Share link", systemName: "square.and.arrow.up", size: 17, relativeTo: .body)
+                AppLabel("Share", systemName: "square.and.arrow.up", size: 17, relativeTo: .body)
             }
         }
 
