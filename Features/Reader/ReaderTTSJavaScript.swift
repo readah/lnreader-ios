@@ -208,7 +208,7 @@ enum ReaderTTSJavaScript {
             var diffY = e.clientY - startY;
             var elapsed = Date.now() - startTime;
 
-            // Check if there is active selection
+            // Check if there is native selection (comments keep it).
             var selection = window.getSelection().toString();
             if (selection && selection.trim().length > 0) {
                 return;

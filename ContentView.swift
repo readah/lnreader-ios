@@ -85,7 +85,8 @@ struct ContentView: View {
                 entryURL: request.entryURL,
                 kind: request.kind,
                 chapterURL: request.chapterURL,
-                chapterName: request.chapterName
+                chapterName: request.chapterName,
+                highlightParagraph: request.paragraphIndex
             )
             .environment(readerRouter)
         }

@@ -13,6 +13,7 @@ struct ChapterReader: View {
     let kind: ContentKind
     let chapterURL: String
     let chapterName: String
+    var highlightParagraph: Int? = nil
 
     var body: some View {
         switch kind {
@@ -28,7 +29,8 @@ struct ChapterReader: View {
                 chapterPath: chapterURL,
                 chapterName: chapterName,
                 sourceKey: sourceKey,
-                entryURL: entryURL
+                entryURL: entryURL,
+                highlightParagraph: highlightParagraph
             )
         }
     }

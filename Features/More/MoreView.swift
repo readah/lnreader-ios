@@ -217,6 +217,7 @@ struct MoreView: View {
 
     private var libraryManagementSection: some View {
         Section {
+            link("Bookmarks", symbol: "highlighter") { BookmarksView() }
             link("Downloads", symbol: "arrow.down.circle") { OfflineLibraryView() }
             link("Categories", symbol: "square.grid.2x2") { CategoriesSettingsView() }
             link("Library updates", symbol: "arrow.triangle.2.circlepath") { LibraryUpdateSettingsView() }

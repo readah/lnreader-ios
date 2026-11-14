@@ -15,6 +15,8 @@ struct ReaderRequest: Identifiable, Hashable {
     let kind: ContentKind
     let chapterURL: String
     let chapterName: String
+    /// A paragraph to open at, used by Bookmarks.
+    var paragraphIndex: Int? = nil
 }
 
 @Observable
@@ -28,14 +30,16 @@ final class ReaderRouter {
         entryURL: String?,
         kind: ContentKind,
         chapterURL: String,
-        chapterName: String
+        chapterName: String,
+        paragraphIndex: Int? = nil
     ) {
         request = ReaderRequest(
             sourceKey: sourceKey,
             entryURL: entryURL,
             kind: kind,
             chapterURL: chapterURL,
-            chapterName: chapterName
+            chapterName: chapterName,
+            paragraphIndex: paragraphIndex
         )
     }
 

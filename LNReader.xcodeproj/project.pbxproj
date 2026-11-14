@@ -125,6 +125,11 @@
 		A20AEBDF82B2FBE78CFA23F2 /* SchemaV1.swift in Sources */ = {isa = PBXBuildFile; fileRef = 411A922DF6EBC87D54E6D854 /* SchemaV1.swift */; };
 		A20AEBDF82B2FBE78CFA2301 /* SchemaV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 411A922DF6EBC87D54E62301 /* SchemaV2.swift */; };
 		A4FBFDFEFA8DAB3E3F26B5AE /* DisplayMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BAC8A5A6A4148EFD000C5E /* DisplayMode.swift */; };
+		ABCD35010000000000000001 /* SchemaV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD35000000000000000001 /* SchemaV3.swift */; };
+		ABCD35010000000000000002 /* ReaderHighlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD35000000000000000002 /* ReaderHighlight.swift */; };
+		ABCD35010000000000000003 /* ReaderHighlightJavaScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD35000000000000000003 /* ReaderHighlightJavaScript.swift */; };
+		ABCD35010000000000000004 /* BookmarksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD35000000000000000004 /* BookmarksView.swift */; };
+		ABCD35010000000000000005 /* ReaderEditMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD35000000000000000005 /* ReaderEditMenu.swift */; };
 		A68075468E239F35711B5DA1 /* ReaderTTSJavaScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412E463FAEFE042C2A0891BD /* ReaderTTSJavaScript.swift */; };
 		A7C9F15B2D4E4D5099B98101 /* GlurBackdrop in Frameworks */ = {isa = PBXBuildFile; productRef = A7C9F15B2D4E4D5099B98102 /* GlurBackdrop */; };
 		A808755A9ED9DE0C3FB473C8 /* SortOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 529ECBBE4EC3C2A151959310 /* SortOrder.swift */; };
@@ -282,6 +287,11 @@
 		3F49621AC64A71C72F9450BE /* ChapterTransitionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChapterTransitionCard.swift; sourceTree = "<group>"; };
 		411A922DF6EBC87D54E6D854 /* SchemaV1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV1.swift; sourceTree = "<group>"; };
 		411A922DF6EBC87D54E62301 /* SchemaV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV2.swift; sourceTree = "<group>"; };
+		ABCD35000000000000000001 /* SchemaV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV3.swift; sourceTree = "<group>"; };
+		ABCD35000000000000000002 /* ReaderHighlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHighlight.swift; sourceTree = "<group>"; };
+		ABCD35000000000000000003 /* ReaderHighlightJavaScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHighlightJavaScript.swift; sourceTree = "<group>"; };
+		ABCD35000000000000000004 /* BookmarksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarksView.swift; sourceTree = "<group>"; };
+		ABCD35000000000000000005 /* ReaderEditMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderEditMenu.swift; sourceTree = "<group>"; };
 		412E463FAEFE042C2A0891BD /* ReaderTTSJavaScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderTTSJavaScript.swift; sourceTree = "<group>"; };
 		41D501E72071F4D5F9CBE58C /* ChapterCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChapterCache.swift; sourceTree = "<group>"; };
 		42F3F148E4D1241508B6D797 /* More/Settings/ConnectionsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = More/Settings/ConnectionsSettingsView.swift; sourceTree = "<group>"; };
@@ -474,6 +484,9 @@
 			children = (
 				9702A50839CC133D304D202D /* TTSPlaybackControls.swift */,
 				412E463FAEFE042C2A0891BD /* ReaderTTSJavaScript.swift */,
+				ABCD35000000000000000002 /* ReaderHighlight.swift */,
+				ABCD35000000000000000003 /* ReaderHighlightJavaScript.swift */,
+				ABCD35000000000000000005 /* ReaderEditMenu.swift */,
 				4C4CCC920C4381FB8A63F2AE /* NovelFireCommentsView.swift */,
 				8A3F4D29864B2CD889170153 /* ReaderChapterListSheet.swift */,
 				DD1ED2CBFBA44AE1B6E75001 /* ReaderAppearance.swift */,
@@ -510,6 +523,7 @@
 				8B349DA56B56781BD2C10072 /* SchemaMigrationPlan.swift */,
 				411A922DF6EBC87D54E6D854 /* SchemaV1.swift */,
 				411A922DF6EBC87D54E62301 /* SchemaV2.swift */,
+				ABCD35000000000000000001 /* SchemaV3.swift */,
 				2F271CE6759A7893EA806D65 /* UpdateStrategy.swift */,
 			);
 			path = Schema;
@@ -576,6 +590,7 @@
 				ABCD26880000000000000000 /* Services/ChapterDownloadManager.swift */,
 				0BACDEFA4D3A76B48456098C /* AboutView.swift */,
 				22DDF1DFDE958E4744082B1B /* MoreView.swift */,
+				ABCD35000000000000000004 /* BookmarksView.swift */,
 				D2D010962F3B606729E91A2B /* StatisticsView.swift */,
 				3F9E82D3F3028F05619EFFB0 /* Settings */,
 			);
@@ -946,6 +961,11 @@
 				ABCD26890000000000000000 /* Services/ChapterDownloadManager.swift in Sources */,
 				295E3A3C6DA5D18305CFC473 /* TTSPlaybackControls.swift in Sources */,
 				A68075468E239F35711B5DA1 /* ReaderTTSJavaScript.swift in Sources */,
+				ABCD35010000000000000002 /* ReaderHighlight.swift in Sources */,
+				ABCD35010000000000000003 /* ReaderHighlightJavaScript.swift in Sources */,
+				ABCD35010000000000000005 /* ReaderEditMenu.swift in Sources */,
+				ABCD35010000000000000004 /* BookmarksView.swift in Sources */,
+				ABCD35010000000000000001 /* SchemaV3.swift in Sources */,
 				2484C593F6D40E679494C6CC /* BookAudioDownloadsView.swift in Sources */,
 				D98D203BBBEF09D9B8E99C39 /* TTSAudioAppDelegate.swift in Sources */,
 				76AB4E1FBB6ED32F82E3CDFB /* TTSChapterSource.swift in Sources */,

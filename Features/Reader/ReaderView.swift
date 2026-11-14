@@ -32,6 +32,11 @@ struct ReaderView: View {
     let sourceKey: String
     let entryURL: String?
 
+    // Highlights
+    @State private var chapterHighlights: [Highlight] = []
+    /// Set when Bookmarks opens a chapter at a saved highlight.
+    @State private var pendingHighlightParagraph: Int?
+
     private func fetchEntry() -> Entry? {
         guard let entryURL else { return nil }
         let key = sourceKey
@@ -90,9 +95,16 @@ struct ReaderView: View {
 
     @ObservedObject private var focusManager = FocusModeManager.shared
 
-    init(chapterPath: String, chapterName: String, sourceKey: String, entryURL: String?) {
+    init(
+        chapterPath: String,
+        chapterName: String,
+        sourceKey: String,
+        entryURL: String?,
+        highlightParagraph: Int? = nil
+    ) {
         self._currentChapterPath = State(initialValue: chapterPath)
         self._currentChapterName = State(initialValue: chapterName)
+        self._pendingHighlightParagraph = State(initialValue: highlightParagraph)
         self.sourceKey = sourceKey
         self.entryURL = entryURL
     }
@@ -199,6 +211,9 @@ struct ReaderView: View {
                 ttsManager.seek(paragraph: position.paragraphIndex, offset: position.offset)
                 ttsManager.resume()
                 ttsBridge.resumeFollowing()
+            }
+            .onReceive(ttsBridge.highlightRequestPublisher) { request in
+                saveHighlight(request)
             }
             .confirmationDialog("Playback speed", isPresented: $showSpeedPicker) {
                 ForEach([0.75, 1, 1.25, 1.5, 1.75, 2, 2.5], id: \.self) { speed in
@@ -419,7 +434,17 @@ struct ReaderView: View {
         guard ready else { return }
         ttsBridge.setSpeechMode(isCurrentSpeech)
         if isCurrentSpeech { ttsBridge.setActiveWord(displayedSpeechWord) }
-        if !isCurrentSpeech, let lastIndex = currentChapter?.paragraphIndex, lastIndex > 0 {
+
+        // A reload gives every paragraph its index again, so this is the
+        // moment to repaint the saved highlights.
+        refreshChapterHighlights()
+        applyStoredHighlights()
+
+        if let paragraph = pendingHighlightParagraph {
+            pendingHighlightParagraph = nil
+            ttsBridge.scrollToParagraph(paragraph)
+            ttsBridge.flashParagraph(paragraph)
+        } else if !isCurrentSpeech, let lastIndex = currentChapter?.paragraphIndex, lastIndex > 0 {
             ttsBridge.scrollToParagraph(lastIndex)
         }
         if startTTSWhenReady {
@@ -463,6 +488,65 @@ struct ReaderView: View {
             isLoading = true
             Task { await loadChapter() }
         }
+    }
+
+    // MARK: - Highlights
+
+    /// A color chosen from the native selection menu: replace any highlight it
+    /// overlaps, then repaint the page.
+    private func saveHighlight(_ request: ReaderHighlightRequest) {
+        guard let color = request.readerColor else { return }
+        let overlapping = chapterHighlights.filter {
+            $0.paragraphIndex == request.paragraphIndex
+                && $0.startOffset < request.endOffset
+                && request.startOffset < $0.endOffset
+        }
+        for highlight in overlapping { modelContext.delete(highlight) }
+
+        if !color.isClearSwatch {
+            let entry = fetchEntry()
+            let highlight = Highlight(
+                text: request.text,
+                color: color.rawValue,
+                sourceKey: sourceKey,
+                entryURL: entryURL,
+                chapterURL: currentChapterPath,
+                chapterName: currentChapterName,
+                chapterNumber: currentChapter?.chapterNumber ?? -1,
+                sourceOrder: currentChapter?.sourceOrder ?? 0,
+                paragraphIndex: request.paragraphIndex,
+                startOffset: request.startOffset,
+                endOffset: request.endOffset,
+                bookTitle: entry?.displayTitle ?? currentChapterName,
+                bookCoverURL: entry?.displayThumbnailURL
+            )
+            modelContext.insert(highlight)
+        }
+        try? modelContext.save()
+        refreshChapterHighlights()
+        applyStoredHighlights()
+    }
+
+    private func refreshChapterHighlights() {
+        let chapterURL = currentChapterPath
+        let descriptor = FetchDescriptor<Highlight>(
+            predicate: #Predicate { $0.chapterURL == chapterURL },
+            sortBy: [SortDescriptor(\.paragraphIndex), SortDescriptor(\.startOffset)]
+        )
+        chapterHighlights = (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private func applyStoredHighlights() {
+        let payload = chapterHighlights.compactMap { highlight -> ReaderStoredHighlight? in
+            guard !highlight.color.isEmpty else { return nil }
+            return ReaderStoredHighlight(
+                paragraphIndex: highlight.paragraphIndex,
+                startOffset: highlight.startOffset,
+                endOffset: highlight.endOffset,
+                color: highlight.color
+            )
+        }
+        ttsBridge.applyHighlights(payload)
     }
 
     private var resolvedBackgroundColor: Color {

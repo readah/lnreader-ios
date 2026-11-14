@@ -12,11 +12,11 @@ import SwiftData
 struct V2SchemaChecks {
 
     static func main() throws {
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV3.self)
         let container = try ModelContainer(
             for: schema,
             migrationPlan: LNReaderSchemaMigrationPlan.self,
-            configurations: ModelConfiguration("V2SchemaChecks", schema: schema, isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration("V3SchemaChecks", schema: schema, isStoredInMemoryOnly: true)
         )
         let context = ModelContext(container)
 
@@ -25,11 +25,14 @@ struct V2SchemaChecks {
         try checkCategories(context)
         try checkHistoryCascade(context)
         try checkDownloadQueue(context)
+        try checkHighlights(context)
         try checkEntryUniqueConstraint(container)
         try checkMigrationFromV1()
+        try checkMigrationFromV2ToV3()
 
-        print("PASS: v2 schema — library round-trip, chapter state, categories, "
-            + "history cascade, download queue, entry uniqueness, V1 → V2 store migration")
+        print("PASS: v3 schema — library round-trip, chapter state, categories, "
+            + "history cascade, download queue, highlights, entry uniqueness, "
+            + "V1 → V3 and V2 → V3 store migration")
     }
 
     // MARK: Library
@@ -55,7 +58,7 @@ struct V2SchemaChecks {
             try context.save()
         }
 
-        let current = Schema(versionedSchema: SchemaV2.self)
+        let current = Schema(versionedSchema: SchemaV3.self)
         let container = try ModelContainer(
             for: current, migrationPlan: LNReaderSchemaMigrationPlan.self,
             configurations: ModelConfiguration(schema: current, url: file))
@@ -67,6 +70,96 @@ struct V2SchemaChecks {
         try context.save()
         let visible = try context.fetchCount(FetchDescriptor<Chapter>(predicate: #Predicate { !$0.hidden }))
         precondition(visible == 0, "the column is queryable")
+        let highlights = try context.fetchCount(FetchDescriptor<Highlight>())
+        precondition(highlights == 0, "the new table starts empty")
+    }
+
+    /// A V2 store opens through the plan and gains the highlight table without
+    /// touching the rows it already has.
+    private static func checkMigrationFromV2ToV3() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "V3Migration-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appending(path: "migrate.store")
+
+        do {
+            let old = Schema(versionedSchema: SchemaV2.self)
+            let container = try ModelContainer(for: old, configurations: ModelConfiguration(schema: old, url: file))
+            let context = ModelContext(container)
+            let entry = Entry(kind: .novel, sourceKey: "ln:reader", url: "/n", title: "Newer")
+            context.insert(entry)
+            let chapter = Chapter(url: "c1", name: "Chapter 1", chapterNumber: 1)
+            context.insert(chapter)
+            chapter.entry = entry
+            try context.save()
+        }
+
+        let current = Schema(versionedSchema: SchemaV3.self)
+        let container = try ModelContainer(
+            for: current, migrationPlan: LNReaderSchemaMigrationPlan.self,
+            configurations: ModelConfiguration(schema: current, url: file))
+        let context = ModelContext(container)
+        let entries = try context.fetch(FetchDescriptor<Entry>())
+        precondition(entries.count == 1 && entries[0].chapters.count == 1, "V2 rows survive V2 → V3")
+        let emptyHighlights = try context.fetchCount(FetchDescriptor<Highlight>())
+        precondition(emptyHighlights == 0)
+
+        let highlight = Highlight(
+            text: "a line worth keeping", color: "green",
+            sourceKey: "ln:reader", entryURL: "/n",
+            chapterURL: "c1", chapterName: "Chapter 1", chapterNumber: 1, sourceOrder: 0,
+            paragraphIndex: 4, startOffset: 10, endOffset: 31,
+            bookTitle: "Newer", bookCoverURL: nil)
+        context.insert(highlight)
+        try context.save()
+        let storedHighlights = try context.fetchCount(FetchDescriptor<Highlight>())
+        precondition(storedHighlights == 1)
+    }
+
+    // MARK: Highlights
+
+    private static func checkHighlights(_ context: ModelContext) throws {
+        let entry = Entry(kind: .novel, sourceKey: "ln:highlight", url: "/book", title: "Highlighted")
+        context.insert(entry)
+        let chapter = Chapter(url: "/book/1", name: "Chapter 1", chapterNumber: 1)
+        context.insert(chapter)
+        chapter.entry = entry
+        try context.save()
+
+        let first = Highlight(
+            text: "The first thing worth remembering",
+            color: "pink",
+            sourceKey: entry.sourceKey,
+            entryURL: entry.url,
+            chapterURL: chapter.url,
+            chapterName: chapter.name,
+            chapterNumber: chapter.chapterNumber,
+            sourceOrder: chapter.sourceOrder,
+            paragraphIndex: 7, startOffset: 12, endOffset: 44,
+            bookTitle: entry.title,
+            bookCoverURL: entry.thumbnailURL)
+        let second = Highlight(
+            text: "and the second", color: "indigo",
+            sourceKey: "ln:elsewhere", entryURL: "/other",
+            chapterURL: chapter.url, chapterName: chapter.name,
+            chapterNumber: chapter.chapterNumber, sourceOrder: chapter.sourceOrder,
+            paragraphIndex: 9, startOffset: 0, endOffset: 14,
+            bookTitle: "Elsewhere", bookCoverURL: nil)
+        context.insert(first)
+        context.insert(second)
+        try context.save()
+
+        let chapterURL = chapter.url
+        let forChapter = try context.fetch(FetchDescriptor<Highlight>(
+            predicate: #Predicate { $0.chapterURL == chapterURL },
+            sortBy: [SortDescriptor(\.paragraphIndex)]))
+        precondition(forChapter.count == 2, "highlights are queryable by chapter")
+        precondition(forChapter[0].color == "pink" && forChapter[0].startOffset == 12)
+        precondition(forChapter[0].entryKey != forChapter[1].entryKey, "book identity separates sources")
+
+        context.delete(forChapter[1])
+        try context.save()
+        try expectCount(context, Highlight.self, 1)
     }
 
     private static func checkLibraryRoundTrip(_ context: ModelContext) throws {

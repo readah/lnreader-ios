@@ -110,7 +110,14 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
                 readerLog.debug("didFinish navigation")
                 failedLoads = 0
+                ReaderEditMenu.installIfNeeded(in: webView)
                 bridge?.contentDidFinishLoad()
+            }
+
+            /// The last chance to adopt the interaction before its menu is
+            /// built, and the moment a newly created one can be found.
+            func webView(_ webView: WKWebView, willPresentEditMenuWithAnimator animator: UIEditMenuInteractionAnimating) {
+                ReaderEditMenu.installIfNeeded(in: webView)
             }
 
             // iOS kills the page's WebContent process while the app sits in the
@@ -171,6 +178,12 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             }
 
             func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+                if message.name == "readerSelectionChanged" {
+                    if let webView = message.webView {
+                        ReaderEditMenu.installIfNeeded(in: webView)
+                    }
+                    return
+                }
                 if bridge?.receive(message.name, body: message.body) == true { return }
                 if message.name == "tapParagraph",
                    let body = message.body as? String,
@@ -231,6 +244,8 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             userContentController.add(helper, name: "scrollParagraph")
             userContentController.add(helper, name: "jsError")
             userContentController.add(helper, name: "toggleControls")
+            userContentController.add(helper, name: "readerHighlightRequest")
+            userContentController.add(helper, name: "readerSelectionChanged")
             userContentController.add(helper, name: "loadMoreComments")
             userContentController.add(helper, name: "likeComment")
             userContentController.add(helper, name: "dislikeComment")
@@ -250,6 +265,9 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             context.coordinator.watchLifecycle(webView)
             Haptics.shared.prepare()
             bridge.setWebView(webView)
+            DispatchQueue.main.async {
+                ReaderEditMenu.installIfNeeded(in: webView)
+            }
 
             return webView
         }
@@ -576,6 +594,8 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             userContentController.add(helper, name: "ttsFollowChanged")
             userContentController.add(helper, name: "scrollParagraph")
             userContentController.add(helper, name: "toggleControls")
+            userContentController.add(helper, name: "readerHighlightRequest")
+            userContentController.add(helper, name: "readerSelectionChanged")
             userContentController.add(helper, name: "loadMoreComments")
             userContentController.add(helper, name: "likeComment")
             userContentController.add(helper, name: "dislikeComment")
@@ -787,6 +807,7 @@ extension ReaderContent {
             }
             :root { --reader-text-align: \(justifyText ? "justify" : "start"); --reader-top-inset: \(topOffset)px; --reader-highlight: \(ReaderAppearance.highlightCSS(background: backgroundColorHex, custom: highlightColorHex, opacity: highlightOpacity)); }
             ::selection { background: var(--reader-highlight); }
+            \(ReaderHighlightJavaScript.css)
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
                 font-family: '\(fontFamily)', 'Georgia', serif;
@@ -1232,6 +1253,9 @@ extension ReaderContent {
             </script>
             <script>
             \(getTTSJavaScriptSource())
+            </script>
+            <script>
+            \(ReaderHighlightJavaScript.source)
             </script>
             </body>
             </html>

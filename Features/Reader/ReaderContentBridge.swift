@@ -30,6 +30,8 @@ final class ReaderContentBridge: ObservableObject {
     @Published private(set) var isFollowing = true
     let paragraphScrollPublisher = PassthroughSubject<ReaderScrollPosition, Never>()
     let wordTapPublisher = PassthroughSubject<TTSSourcePosition, Never>()
+    /// A color was chosen from the native selection menu.
+    let highlightRequestPublisher = PassthroughSubject<ReaderHighlightRequest, Never>()
     private var activeWord: TTSWordTiming?
     private var activeIndex: Int?
     private var speechMode = false
@@ -50,6 +52,13 @@ final class ReaderContentBridge: ObservableObject {
             wordTapPublisher.send(.init(paragraphIndex: paragraph, offset: offset)); return true
         }
         if name == "ttsFollowChanged", let following = body as? Bool { isFollowing = following; return true }
+        if name == "readerHighlightRequest" {
+            if let json = body as? String, let data = json.data(using: .utf8),
+               let request = try? JSONDecoder().decode(ReaderHighlightRequest.self, from: data) {
+                highlightRequestPublisher.send(request)
+            }
+            return true
+        }
         return false
     }
     func onParagraphScroll(_ message: String) {
@@ -83,5 +92,25 @@ final class ReaderContentBridge: ObservableObject {
         activeIndex = nil; activeWord = nil
         evaluate("window.clearTTSActive && window.clearTTSActive()")
     }
+
+    // MARK: Highlights
+
+    func applyHighlights(_ highlights: [ReaderStoredHighlight]) {
+        guard isReady,
+              let data = try? JSONEncoder().encode(highlights),
+              let json = String(data: data, encoding: .utf8),
+              let literal = javaScriptLiteral(json) else { return }
+        evaluate("window.lnrApplyHighlights && window.lnrApplyHighlights(\(literal))")
+    }
+
+    func flashParagraph(_ index: Int) {
+        evaluate("window.lnrFlashParagraph && window.lnrFlashParagraph(\(index))")
+    }
+
+    private func javaScriptLiteral(_ value: String) -> String? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     private func evaluate(_ script: String) { guard isReady else { return }; webView?.evaluateJavaScript(script) }
 }
