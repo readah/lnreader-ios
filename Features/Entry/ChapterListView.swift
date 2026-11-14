@@ -2,6 +2,7 @@
 // Sortable, filterable chapter list. Pagination and filtering are driven
 // from the parent (EntryDetailView); this view only renders what it receives.
 
+import SwiftData
 import SwiftUI
 
 struct ChapterListView: View {
@@ -301,6 +302,62 @@ struct ChapterDisplay: Identifiable, Hashable {
         self.kind = kind
         self.hidden = false
     }
+
+    /// A stored chapter whose values the caller already holds.
+    ///
+    /// The manga reader fetches its list on a background context and has plain
+    /// values rather than a `Chapter` row to hand over.
+    init(
+        stored chapter: StoredChapter,
+        position: Int,
+        sourceKey: String,
+        entryURL: String?,
+        kind: ContentKind
+    ) {
+        self.id = chapter.url
+        self.name = chapter.name
+        self.path = chapter.url
+        self.releaseDate = chapter.dateUpload
+        self.unread = !chapter.read
+        self.bookmarked = chapter.bookmark
+        self.downloaded = chapter.downloaded
+        self.progress = chapter.progress > 0 ? Int(chapter.progress) : nil
+        self.isInProgress = !chapter.read && chapter.progress > 0
+        self.position = position
+        self.chapterNumber = chapter.chapterNumber >= 0 ? chapter.chapterNumber : nil
+        self.scanlator = chapter.scanlator
+        self.sortNumber = chapter.chapterNumber >= 0 ? chapter.chapterNumber : Double(position + 1)
+        self.sourceKey = sourceKey
+        self.entryURL = entryURL
+        self.kind = kind
+        self.hidden = chapter.hidden
+    }
+}
+
+/// A stored chapter as plain values, so a screen can read the list off the main
+/// actor.
+///
+/// A `Chapter` belongs to the `ModelContext` that fetched it and cannot be
+/// handed to another one, so a background fetch has to return this instead. It
+/// carries what the chapter lists show and the identifier that turns back into
+/// the row — for a write, or for state the list does not display (`lastPageRead`,
+/// which is read from the row).
+struct StoredChapter: Sendable {
+    /// The row, for the one write that needs a `Chapter`.
+    let id: PersistentIdentifier
+    let url: String
+    let name: String
+    let chapterNumber: Double
+    let scanlator: String?
+    /// The source's own index, `0` = oldest. The tie-break when two chapters
+    /// carry the same number.
+    let sourceOrder: Int
+    let dateUpload: Date?
+    let read: Bool
+    let bookmark: Bool
+    let progress: Double
+    let hidden: Bool
+    let downloaded: Bool
 }
 
 /// A row's `position` is its index in the source's list, `0` = oldest — the same

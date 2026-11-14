@@ -44,7 +44,9 @@ struct MangaReaderView: View {
     /// wait for the strip to be past the divider instead of landing in a frame.
     /// A reference box, so writing to it does not re-render the whole reader.
     @State private var promotion = PromotionBox()
-    @State private var storedChapters: [Chapter] = []
+    /// Values, not rows: the list is fetched off the main actor, and a `Chapter`
+    /// belongs to the context that fetched it (see `loadStoredChapters`).
+    @State private var storedChapters: [StoredChapter] = []
     @State private var sourceChapters: [SourceChapter] = []
     @State private var isLoadingChapters = false
     @State private var chapterListError: String?
@@ -107,8 +109,10 @@ struct MangaReaderView: View {
     }
 
     private var displayCover: String? {
+        // The stored chapters belong to the entry `localEntry` fetches — same
+        // url, same source — so asking one of them for its thumbnail only asked
+        // that row again.
         localEntry?.displayThumbnailURL
-            ?? storedChapters.first?.entry?.displayThumbnailURL
             ?? chapterSourceEntry?.thumbnailURL
     }
 
@@ -122,8 +126,16 @@ struct MangaReaderView: View {
         return seriesSettings.resolved.direction
     }
 
-    private var storedChapter: Chapter? {
-        storedChapters.first { $0.url == chapterURL }
+    /// The open chapter as a row.
+    ///
+    /// The list is values, and a write — or the resume page — needs the `Chapter`
+    /// itself: that is a lookup of one row, not the fetch of the whole series
+    /// this replaced. After the first one the row is registered in `modelContext`,
+    /// and it is also the live copy, so it has the `read`/`lastPageRead` the
+    /// reader has written since the list was read.
+    private var storedChapterModel: Chapter? {
+        guard let id = storedChapters.first(where: { $0.url == chapterURL })?.id else { return nil }
+        return modelContext.model(for: id) as? Chapter
     }
 
     private var chapterChoices: [SourceChapter] {
@@ -169,6 +181,10 @@ struct MangaReaderView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .task {
+            // The series' chapters do not change as the reader moves through
+            // them, so the list is read once, here. Only the chapter sheet reads
+            // it again, because that is where changed read state shows.
+            await loadStoredChapters()
             await loadChapter()
             await loadChapterChoices()
         }
@@ -457,7 +473,6 @@ struct MangaReaderView: View {
         segments = []
         stripID = UUID()
         errorMessage = nil
-        loadStoredChapters()
 
         if let downloaded = await Self.offlinePages(
             sourceKey: sourceKey, entryURL: entryURL, chapterURL: requestedURL
@@ -467,8 +482,8 @@ struct MangaReaderView: View {
             segments = [ReaderSegment(id: requestedURL, name: chapterName, pages: downloaded)]
             currentIndex = resumeIndex(pageCount: downloaded.count)
             isLoading = false
-            if let storedChapter, let entry = storedChapter.entry {
-                libraryManager.recordHistory(entry: entry, chapter: storedChapter, context: modelContext)
+            if let openChapter = storedChapterModel, let entry = openChapter.entry {
+                libraryManager.recordHistory(entry: entry, chapter: openChapter, context: modelContext)
             }
             return
         }
@@ -488,8 +503,8 @@ struct MangaReaderView: View {
             currentIndex = resumeIndex(pageCount: fetched.count)
             isLoading = false
 
-            if let storedChapter, let entry = storedChapter.entry {
-                libraryManager.recordHistory(entry: entry, chapter: storedChapter, context: modelContext)
+            if let openChapter = storedChapterModel, let entry = openChapter.entry {
+                libraryManager.recordHistory(entry: entry, chapter: openChapter, context: modelContext)
             }
             await loader.prefetch(pages, current: currentIndex, sourceKey: sourceKey)
         } catch {
@@ -500,24 +515,82 @@ struct MangaReaderView: View {
         }
     }
 
-    private func loadStoredChapters() {
+    /// The series' stored chapters, read off the main actor.
+    ///
+    /// Once per reader, and again when the chapter sheet opens — not on every
+    /// chapter change, which is what this used to do. It ran a `fetch` on the
+    /// main context whose predicate walked `entry?.url` for every chapter in the
+    /// store: a whole-series fetch plus a sort inside the frame that opened a
+    /// chapter. It is now two background queries and a mapping to values, so
+    /// none of that runs on the main thread.
+    private func loadStoredChapters() async {
         guard let entryURL else {
             storedChapters = []
             return
         }
-        let key = sourceKey
-        let predicate = #Predicate<Chapter> { $0.entry?.url == entryURL && $0.entry?.sourceKey == key }
-        let descriptor = FetchDescriptor<Chapter>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\.sourceOrder)]
+        storedChapters = await Self.storedChapterRows(
+            sourceKey: sourceKey,
+            entryURL: entryURL,
+            container: modelContext.container
         )
-        storedChapters = ((try? modelContext.fetch(descriptor)) ?? []).sorted { lhs, rhs in
+        rebuildNavigable()
+    }
+
+    /// The rows behind `loadStoredChapters`, on a context of their own.
+    ///
+    /// The entry's identity is looked up first so its chapters can be matched on
+    /// `persistentModelID`; comparing `entry?.url` per chapter was the walk that
+    /// made this slow. Finished downloads come from one query as well, instead
+    /// of a `downloadItem` fault per chapter when the chapter sheet is built.
+    @concurrent
+    private nonisolated static func storedChapterRows(
+        sourceKey: String,
+        entryURL: String,
+        container: ModelContainer
+    ) async -> [StoredChapter] {
+        let context = ModelContext(container)
+        var entryDescriptor = FetchDescriptor<Entry>(predicate: #Predicate<Entry> {
+            $0.url == entryURL && $0.sourceKey == sourceKey
+        })
+        entryDescriptor.fetchLimit = 1
+        let foundEntry = try? context.fetch(entryDescriptor)
+        guard let entry = foundEntry?.first else { return [] }
+        let entryID = entry.persistentModelID
+        let isLocal = entry.isLocal
+
+        let chapters = (try? context.fetch(FetchDescriptor<Chapter>(predicate: #Predicate<Chapter> {
+            $0.entry?.persistentModelID == entryID
+        }))) ?? []
+
+        let completed = DownloadState.completed
+        let downloads = (try? context.fetch(FetchDescriptor<DownloadItem>(predicate: #Predicate<DownloadItem> {
+            $0.state == completed
+                && $0.chapter?.entry?.url == entryURL
+                && $0.chapter?.entry?.sourceKey == sourceKey
+        }))) ?? []
+        let downloaded = Set(downloads.compactMap { $0.chapter?.url })
+
+        return chapters.map { chapter in
+            StoredChapter(
+                id: chapter.persistentModelID,
+                url: chapter.url,
+                name: chapter.name,
+                chapterNumber: chapter.chapterNumber,
+                scanlator: chapter.scanlator,
+                sourceOrder: chapter.sourceOrder,
+                dateUpload: chapter.dateUpload,
+                read: chapter.read,
+                bookmark: chapter.bookmark,
+                progress: chapter.progress,
+                hidden: chapter.hidden,
+                downloaded: isLocal || downloaded.contains(chapter.url)
+            )
+        }.sorted { lhs, rhs in
             if lhs.chapterNumber != rhs.chapterNumber {
                 return lhs.chapterNumber < rhs.chapterNumber
             }
             return lhs.sourceOrder < rhs.sourceOrder
         }
-        rebuildNavigable()
     }
 
     private func loadChapterChoices() async {
@@ -542,14 +615,18 @@ struct MangaReaderView: View {
     }
 
     /// Resume a chapter that was left part-read, otherwise start at the top.
+    ///
+    /// The row, not the snapshot: the reader writes `read` and `lastPageRead` as
+    /// it goes, and a chapter it has just finished opens at the top again rather
+    /// than where it stopped.
     private func resumeIndex(pageCount: Int) -> Int {
         guard pageCount > 0 else { return 0 }
         if landOnLastPage {
             landOnLastPage = false
             return pageCount - 1
         }
-        guard let storedChapter, !storedChapter.read else { return 0 }
-        return min(max(storedChapter.lastPageRead, 0), pageCount - 1)
+        guard let chapter = storedChapterModel, !chapter.read else { return 0 }
+        return min(max(chapter.lastPageRead, 0), pageCount - 1)
     }
 
     // MARK: - Progress
@@ -583,7 +660,7 @@ struct MangaReaderView: View {
         // read to its end; moving back up leaves it where the reader last was.
         // An earlier crossing still waiting goes first, so chapters finish in order.
         runPromotionWork()
-        let leaving = storedChapter
+        let leaving = storedChapterModel
         let leftCount = pages.count
         if target > from {
             settledPage?.cancel()
@@ -603,7 +680,7 @@ struct MangaReaderView: View {
         // with every chapter read. The strip removes them once it is at rest.
         let firstKept = StripWindow.firstKept(current: target)
         if firstKept > 0 { segments.removeFirst(firstKept) }
-        let entering = storedChapter
+        let entering = storedChapterModel
         let manager = libraryManager
         let context = modelContext
         let finishLeft = target > from
@@ -691,9 +768,9 @@ struct MangaReaderView: View {
     }
 
     private func recordProgress(_ index: Int) {
-        guard let storedChapter, pages.indices.contains(index) else { return }
+        guard pages.indices.contains(index), let chapter = storedChapterModel else { return }
         libraryManager.recordMangaProgress(
-            chapter: storedChapter,
+            chapter: chapter,
             pageIndex: index,
             pageCount: pages.count,
             context: modelContext
@@ -954,7 +1031,7 @@ struct MangaReaderView: View {
         let key = sourceKey, bookURL = entryURL
         return navigableChapters.enumerated().map { index, chapter in
             if let saved = stored[chapter.url] {
-                return ChapterDisplay(chapter: saved, position: index,
+                return ChapterDisplay(stored: saved, position: index,
                                       sourceKey: key, entryURL: bookURL, kind: .manga)
             }
             return ChapterDisplay(sourceChapter: chapter, position: index, sourceKey: sourceKey,
@@ -976,7 +1053,7 @@ struct MangaReaderView: View {
         Group {
             if !chapterChoices.isEmpty {
                 ChapterDirectoryView(
-                    entry: storedChapters.first?.entry ?? localEntry,
+                    entry: localEntry,
                     chapters: directoryChapters,
                     sourceKey: sourceKey,
                     currentChapterPath: chapterURL,
@@ -1010,7 +1087,13 @@ struct MangaReaderView: View {
             }
         }
         .environment(\.coverTint, coverTint)
-        .task { await loadChapterChoices() }
+        .task {
+            // The reader holds the chapter list from when it opened; this is
+            // where the read state it has written since shows, and where a
+            // library update's new chapters appear.
+            await loadStoredChapters()
+            await loadChapterChoices()
+        }
     }
 
     private func jumpToChapter(_ chapter: SourceChapter) async {
