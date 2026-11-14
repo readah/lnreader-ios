@@ -278,8 +278,7 @@ struct TTSVoiceChip: View {
         .foregroundStyle(.white)
         .padding(.horizontal, 13)
         .padding(.vertical, 9)
-        .background { VoiceGlowSurface(voiceId: voiceId, animated: animated) }
-        .overlay(Capsule().strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
+        .background { VoiceGlowSurface(voiceId: voiceId, animated: animated, halo: 16) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Voice: \(name)")
     }

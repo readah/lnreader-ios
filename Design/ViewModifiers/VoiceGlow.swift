@@ -14,12 +14,17 @@ import SwiftUI
 /// it stops exactly on the frame a still surface draws. `animated: false`
 /// starts already there, which is what the reader and every unselected voice
 /// use.
+///
+/// `halo` is the room the glow spills into, on every side. The surface reports
+/// the frame it backs and draws `halo` points beyond it, so give it a quarter
+/// of the shape's height and nothing clips the glow.
 struct VoiceGlowSurface: View {
     let voiceId: String
     /// Nil makes a capsule, which is a circle on a square frame.
     var cornerRadius: CGFloat? = nil
     var animated = true
     var intensity: Double = 1
+    var halo: CGFloat = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -45,6 +50,7 @@ struct VoiceGlowSurface: View {
                     VoiceGlassShape(cornerRadius: radius(for: geometry.size))
                         .fill(LinearGradient(colors: TTSVoicePalette.colors(for: voiceId),
                                              startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .padding(halo)
                 }
             } else if animated && !reduceMotion, let start {
                 TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: settled)) { timeline in
@@ -57,6 +63,8 @@ struct VoiceGlowSurface: View {
                 glass(hues: hues, phase: phase)
             }
         }
+        // The surface reports the frame it backs and draws the halo outside it.
+        .padding(-halo)
         .onAppear {
             settled = false
             start = .now
@@ -78,12 +86,12 @@ struct VoiceGlowSurface: View {
     private func glass(hues: SIMD3<Float>, phase: Float) -> some View {
         GeometryReader { geometry in
             let size = geometry.size
-            let shape = VoiceGlassShape(cornerRadius: radius(for: size))
-            shape
+            Rectangle()
                 .fill(.white)
                 .colorEffect(ShaderLibrary.voiceGlass(
                     .float2(Float(size.width), Float(size.height)),
-                    .float(Float(shape.cornerRadius)),
+                    .float(Float(halo)),
+                    .float(Float(radius(for: size))),
                     .float(phase),
                     .float3(hues.x, hues.y, hues.z),
                     .float(Float(intensity))
@@ -92,9 +100,11 @@ struct VoiceGlowSurface: View {
     }
 
     /// The shader gets the radius as a number, so it has to agree with the path.
+    /// The shape is the frame less the halo on every side.
     private func radius(for size: CGSize) -> CGFloat {
-        let wanted = cornerRadius ?? size.height / 2
-        return max(0, min(wanted, min(size.width, size.height) / 2))
+        let inner = CGSize(width: max(0, size.width - 2 * halo), height: max(0, size.height - 2 * halo))
+        let wanted = cornerRadius ?? inner.height / 2
+        return max(0, min(wanted, min(inner.width, inner.height) / 2))
     }
 
     private struct VoiceGlassShape: Shape {
@@ -121,8 +131,7 @@ struct VoiceGlowDot: View {
     let voiceId: String
 
     var body: some View {
-        VoiceGlowSurface(voiceId: voiceId)
+        VoiceGlowSurface(voiceId: voiceId, halo: 5)
             .frame(width: 12, height: 12)
-            .overlay(Circle().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
     }
 }

@@ -239,7 +239,7 @@ struct BookAudioDownloadsView: View {
             List {
                 Section {
                     dashboard
-                        .listRowInsets(EdgeInsets(top: 18, leading: 20, bottom: 18, trailing: 20))
+                        .padding(.vertical, 6)
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 }
@@ -468,8 +468,7 @@ struct BookAudioDownloadsView: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
-            .background { VoiceGlowSurface(voiceId: activeVoice) }
-            .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
+            .background { VoiceGlowSurface(voiceId: activeVoice, halo: 15) }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
