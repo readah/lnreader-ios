@@ -533,7 +533,7 @@ struct ChapterDirectoryView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { if let onClose { onClose() } else { dismiss() } } }
             }
             .toolbar { if showsPager { pagerItems(items, pageCount: pageCount, page: page) } }
-            .toolbar(showsPager || selection.isActive ? .visible : .hidden, for: .bottomBar)
+            .toolbar(showsPager ? .visible : .hidden, for: .bottomBar)
             .chapterSelectionToolbar(
                 selection: selection, entry: entry, ordered: items,
                 allChapters: chapters, sourceKey: sourceKey)

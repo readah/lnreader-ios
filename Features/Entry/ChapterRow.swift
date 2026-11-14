@@ -11,6 +11,8 @@ struct ChapterRow: View {
     @State private var showAudioDownloads = false
     /// A hold ends with a lift that the button also reads as a tap; without this
     /// the tap would toggle the row the hold just selected straight back off.
+    /// Cleared on the next press-start (see `ChapterRowButtonStyle`), so a long
+    /// hold whose lift comes late still suppresses that lift's tap.
     @State private var suppressTap = false
     let chapter: ChapterDisplay
     let entry: Entry?
@@ -29,6 +31,15 @@ struct ChapterRow: View {
     var showsNumber = false
     private var isSelecting: Bool { selection?.isActive == true }
     private var isSelected: Bool { selection?.paths.contains(chapter.path) == true }
+    /// Whether the metadata line under the title has anything to show. A row
+    /// with no scanlator, date or progress is just the title, so it gets extra
+    /// vertical padding to keep the same height as a row that has the line.
+    private var hasMetadata: Bool {
+        if let scanlator = chapter.scanlator, !scanlator.isEmpty { return true }
+        if chapter.releaseDate != nil { return true }
+        if chapter.unread, let progress = chapter.progress, progress > 0, progress < 100 { return true }
+        return false
+    }
     private var bookPath: String { entry?.url ?? chapter.entryURL ?? chapter.path }
     private var bookID: String { TTSBookIdentity.make(pluginId: sourceKey, novelPath: bookPath) }
     private var audioCount: Int { audioLibrary.downloads(bookId: bookID, chapterId: chapter.path).filter(\.isAvailable).count }
@@ -112,24 +123,26 @@ struct ChapterRow: View {
                         .foregroundStyle(chapter.unread ? .primary : .secondary)
                         .lineLimit(2)
 
-                    HStack(spacing: 8) {
-                        if let scanlator = chapter.scanlator, !scanlator.isEmpty {
-                            Text(scanlator.prefix(1).uppercased() + scanlator.dropFirst())
-                                .font(Typography.small)
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                        }
+                    if hasMetadata {
+                        HStack(spacing: 8) {
+                            if let scanlator = chapter.scanlator, !scanlator.isEmpty {
+                                Text(scanlator.prefix(1).uppercased() + scanlator.dropFirst())
+                                    .font(Typography.small)
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
 
-                        if let releaseTime = chapter.releaseTime {
-                            Text(releaseTime)
-                                .font(Typography.small)
-                                .foregroundStyle(.tertiary)
-                        }
+                            if let releaseTime = chapter.releaseTime {
+                                Text(releaseTime)
+                                    .font(Typography.small)
+                                    .foregroundStyle(.tertiary)
+                            }
 
-                        if chapter.unread, let progress = chapter.progress, progress > 0, progress < 100 {
-                            Text("\(progress)%")
-                                .font(Typography.small)
-                                .foregroundStyle(.secondary)
+                            if chapter.unread, let progress = chapter.progress, progress > 0, progress < 100 {
+                                Text("\(progress)%")
+                                    .font(Typography.small)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -151,12 +164,12 @@ struct ChapterRow: View {
             }
             .padding(.leading, 16)
             .padding(.trailing, showsDownload ? 4 : 16)
-            .padding(.vertical, 10)
+            .padding(.vertical, hasMetadata ? 10 : 18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .bookTransitionSource(chapter.path, in: chapterTransition)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ChapterRowButtonStyle { suppressTap = false })
         // Hold to start selecting; hold another row while selecting to take
         // everything between. Per-chapter actions (download, audio) live in the
         // selection bar, so there is no context menu competing for the hold.
@@ -165,8 +178,6 @@ struct ChapterRow: View {
                 guard let selection else { return }
                 Haptics.shared.impact(.medium)
                 suppressTap = true
-                // The lift may not report a tap at all; don't eat the next real one.
-                Task { try? await Task.sleep(for: .milliseconds(600)); suppressTap = false }
                 if selection.isActive {
                     selection.extend(to: chapter.path, in: orderedPaths())
                 } else {
@@ -180,6 +191,20 @@ struct ChapterRow: View {
 }
 
 // MARK: - Download control
+
+/// A plain button style that reports the start of each press. The row uses it
+/// to clear `suppressTap` on a fresh touch, so the lift-tap of a hold (the same
+/// touch) stays suppressed while the next real tap is not — no timer involved.
+private struct ChapterRowButtonStyle: ButtonStyle {
+    let onPressStart: () -> Void
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed { onPressStart() }
+            }
+    }
+}
 
 /// The download button at the end of a chapter row. One tap downloads; once a
 /// download exists the same spot opens a menu for what can be done to it.
@@ -339,11 +364,14 @@ extension Notification.Name {
     static let lnreaderChapterReadChanged = Notification.Name("LNReaderChapterReadChanged")
 }
 
-/// Selection actions as a system bottom bar: read state, download and a menu for
-/// the rest. Apply with `chapterSelectionToolbar`, so the host's own bottom items
-/// stay untouched while nothing is selected.
+/// Selection actions as a floating glass bar pinned to the bottom of the host:
+/// cancel, read state, download and a menu for the rest. Apply with
+/// `chapterSelectionToolbar`, so the host's own bottom items stay untouched
+/// while nothing is selected. The bar is a `GlassEffectContainer`, so entering
+/// and leaving selection morphs the controls with the system glass animation.
 struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) private var modelContext
     @Environment(TrackingManager.self) private var tracking
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Passed on to the audio sheet by hand. The sheet is attached here, below
     /// the detail screen's `.environment(\.coverTint,…)`, so whether it inherits
     /// depends on modifier order — reading it here makes that independent.
@@ -366,52 +394,40 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
 
     func body(content: Content) -> some View {
         content
-            .toolbar { if selection.isActive { selectionItems } }
-            .toolbar(selection.isActive ? .visible : .automatic, for: .bottomBar)
+            .overlay(alignment: .bottom) {
+                Group {
+                    if selection.isActive {
+                        ChapterSelectionBar(
+                            selection: selection,
+                            canDownload: canDownload,
+                            onMarkRead: { setRead(true) },
+                            onMarkUnread: { setRead(false) },
+                            onDownload: download,
+                            moreMenu: { moreMenuItems }
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                    }
+                }
+                .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: selection.isActive)
+            }
             .toolbarVisibility(selection.isActive ? .hidden : .automatic, for: .tabBar)
             .sheet(isPresented: $showAudio) { audioSheet }
     }
 
-    @ToolbarContentBuilder private var selectionItems: some ToolbarContent {
-        ToolbarItem(placement: .cancellationAction) {
-            Button { selection.end() } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "xmark")
-                    Text("\(selection.paths.count)").monospacedDigit()
-                }
-                .font(.subheadline.weight(.semibold))
-            }
-            .accessibilityLabel("Cancel selection")
-            .accessibilityValue("\(selection.paths.count) selected")
+    @ViewBuilder private var moreMenuItems: some View {
+        Button("Select all below", systemImage: "arrow.down.to.line") { selection.selectBelow(in: orderedPaths) }
+        Button("Select all", systemImage: "checklist") { selection.selectAll(in: orderedPaths) }
+        Button("Invert selection", systemImage: "arrow.left.arrow.right") { selection.invert(in: orderedPaths) }
+        Divider()
+        Button("Mark previous as read", systemImage: "eye") { markPreviousRead() }
+        Button(allBookmarked ? "Remove bookmark" : "Bookmark", systemImage: "bookmark") { toggleBookmark() }
+        if selection.paths.count == 1, (entry?.kind ?? .novel) == .novel {
+            Button("Chapter audio", systemImage: "headphones") { showAudio = true }
         }
-        ToolbarItemGroup(placement: .bottomBar) {
-            Button { setRead(true) } label: { Label("Mark as read", systemImage: "eye") }
-            Button { setRead(false) } label: { Label("Mark as unread", systemImage: "eye.slash") }
-            if canDownload {
-                Button { download() } label: { Label("Download", systemImage: "arrow.down.circle") }
-            }
-        }
-        ToolbarSpacer(.flexible, placement: .bottomBar)
-        ToolbarItem(placement: .bottomBar) { moreMenu }
-    }
-
-    private var moreMenu: some View {
-        Menu {
-            Button("Select all below", systemImage: "arrow.down.to.line") { selection.selectBelow(in: orderedPaths) }
-            Button("Select all", systemImage: "checklist") { selection.selectAll(in: orderedPaths) }
-            Button("Invert selection", systemImage: "arrow.left.arrow.right") { selection.invert(in: orderedPaths) }
+        if canDownload {
             Divider()
-            Button("Mark previous as read", systemImage: "eye") { markPreviousRead() }
-            Button(allBookmarked ? "Remove bookmark" : "Bookmark", systemImage: "bookmark") { toggleBookmark() }
-            if selection.paths.count == 1, (entry?.kind ?? .novel) == .novel {
-                Button("Chapter audio", systemImage: "headphones") { showAudio = true }
-            }
-            if canDownload {
-                Divider()
-                Button("Delete download", systemImage: "trash", role: .destructive) { deleteDownloads() }
-            }
-        } label: {
-            Label("More", systemImage: "ellipsis.circle")
+            Button("Delete download", systemImage: "trash", role: .destructive) { deleteDownloads() }
         }
     }
 
@@ -479,6 +495,77 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
     private func deleteDownloads() {
         for item in picked.compactMap(\.downloadItem) { ChapterDownloadManager.shared.remove(item) }
         selection.end()
+    }
+}
+
+/// The floating selection bar. One glass container so the controls morph in and
+/// out together with the system glass animation; cancel is prominent red and
+/// download prominent yellow, the rest plain glass.
+private struct ChapterSelectionBar<MenuItems: View>: View {
+    let selection: ChapterSelection
+    let canDownload: Bool
+    let onMarkRead: () -> Void
+    let onMarkUnread: () -> Void
+    let onDownload: () -> Void
+    @ViewBuilder let moreMenu: () -> MenuItems
+    @Namespace private var glass
+
+    var body: some View {
+        GlassEffectContainer(spacing: 8) {
+            HStack(spacing: 8) {
+                Button { selection.end() } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "xmark")
+                        Text("\(selection.paths.count)").monospacedDigit()
+                    }
+                    .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.glassProminent)
+                .tint(.red)
+                .foregroundStyle(.white)
+                .controlSize(.large)
+                .buttonBorderShape(.capsule)
+                .glassEffectID("cancel", in: glass)
+                .accessibilityLabel("Cancel selection")
+                .accessibilityValue("\(selection.paths.count) selected")
+
+                Button(action: onMarkRead) { Image(systemName: "eye") }
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+                    .buttonBorderShape(.circle)
+                    .glassEffectID("read", in: glass)
+                    .accessibilityLabel("Mark as read")
+
+                Button(action: onMarkUnread) { Image(systemName: "eye.slash") }
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+                    .buttonBorderShape(.circle)
+                    .glassEffectID("unread", in: glass)
+                    .accessibilityLabel("Mark as unread")
+
+                if canDownload {
+                    Button(action: onDownload) { Image(systemName: "arrow.down.circle") }
+                        .buttonStyle(.glassProminent)
+                        .tint(.yellow)
+                        .foregroundStyle(.black)
+                        .controlSize(.large)
+                        .buttonBorderShape(.capsule)
+                        .glassEffectID("download", in: glass)
+                        .accessibilityLabel("Download")
+                }
+
+                Menu {
+                    moreMenu()
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                .buttonBorderShape(.circle)
+                .glassEffectID("more", in: glass)
+                .accessibilityLabel("More")
+            }
+        }
     }
 }
 
