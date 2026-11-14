@@ -6,13 +6,13 @@ using namespace metal;
 // refract pixels in this layer: drawing a second fountain above it bypasses optics.
 [[ stitchable ]] half4 liquidGlassLens(
     float2 position, SwiftUI::Layer layer, float2 center, float2 radius,
-    float power, float dispersion
+    float power, float dispersion, float letteringOnly
 ) {
     half4 original = layer.sample(position);
     float2 delta = position - center;
     float2 n = delta / max(radius, float2(1.0));
     float r = length(n);
-    if (r > 1.005) return original;
+    if (r > 1.005) return letteringOnly > 0.5 ? half4(0.0h) : original;
 
     float2 direction = r > 0.0001 ? n / r : float2(0.0);
     float2 tangent = float2(-direction.y, direction.x);
@@ -29,6 +29,14 @@ using namespace metal;
     // Color comes exclusively from wavelength-separated samples. No rainbow
     // palette, colored caustic, cobalt crescent or warm tint is painted on glass.
     half3 color = half3(red.r, green.g, blue.b);
+    float feather = 1.0 / max(min(radius.x, radius.y), 1.0);
+    float mask = 1.0 - smoothstep(1.0 - feather, 1.0 + feather, r);
+    if (letteringOnly > 0.5) {
+        // Preserve premultiplied alpha for the hidden title. This reveals only
+        // refracted letters, without covering the fountain with another sphere.
+        half alpha = max(red.a, max(green.a, blue.a));
+        return half4(color, alpha) * half(mask);
+    }
 
     float z = sqrt(max(1.0 - min(r * r, 1.0), 0.0));
     float frost = mix(0.12, 0.015, power) * (0.4 + 0.6 * (1.0 - z));
@@ -38,7 +46,5 @@ using namespace metal;
     float rim = smoothstep(0.965, 0.995, r) * (1.0 - smoothstep(0.995, 1.005, r));
     float shade = smoothstep(0.80, 0.965, r) * (1.0 - rim) * 0.025;
     color += half3(specular + rim * 0.32 - shade);
-    float feather = 1.0 / max(min(radius.x, radius.y), 1.0);
-    float mask = 1.0 - smoothstep(1.0 - feather, 1.0 + feather, r);
     return mix(original, half4(clamp(color, half3(0.0h), half3(1.0h)), 1.0h), half(mask));
 }

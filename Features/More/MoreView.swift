@@ -13,8 +13,9 @@ struct MoreView: View {
     @Query private var profiles: [UserProfile]
 
     @State private var showingEditProfile = false
-    @State private var showingAuth = false
+    @State private var showingSignIn = false
     @State private var showingRestore = false
+    @State private var showingSignOut = false
     @State private var showingRestartOnboarding = false
 
     private var userProfile: UserProfile {
@@ -34,8 +35,13 @@ struct MoreView: View {
             .sheet(isPresented: $showingEditProfile) {
                 ProfileEditSheet(profile: userProfile)
             }
-            .sheet(isPresented: $showingAuth) {
-                AuthView()
+            .navigationDestination(isPresented: $showingSignIn) {
+                LiquidGlassOnboardingView(onComplete: {
+                    showingSignIn = false
+                }, entryPoint: .signIn)
+                .navigationBarBackButtonHidden()
+                .toolbar(.hidden, for: .navigationBar)
+                .toolbar(.hidden, for: .tabBar)
             }
             .confirmationDialog(
                 "Show the onboarding intro again?",
@@ -99,7 +105,7 @@ struct MoreView: View {
         if let currentUser = syncManager.currentUser {
             return currentUser.displayUsername ?? currentUser.username ?? "Signed in"
         }
-        return "Local Profile"
+        return "Reading on this device"
     }
 
     @ViewBuilder
@@ -126,10 +132,28 @@ struct MoreView: View {
             syncStatus
 
             if syncManager.currentUser == nil {
-                Button("Login") {
-                    showingAuth = true
+                Button {
+                    Haptics.shared.impact(.light)
+                    showingSignIn = true
+                } label: {
+                    HStack(spacing: 12) {
+                        AppIcon(systemName: "person.crop.circle.badge.plus", size: 22, relativeTo: .title2)
+                            .font(Typography.title)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Sign in or create account")
+                                .font(Typography.headline)
+                            Text("Set up optional cloud sync")
+                                .font(Typography.body)
+                        }
+                        Spacer(minLength: 0)
+                        AppIcon(systemName: "chevron.right", size: 17, relativeTo: .body)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
                 }
-                .primaryActionStyle()
+                .accessibilityHint("Opens account setup. An account is not required to read.")
             } else {
                 Button {
                     Task {
@@ -142,7 +166,7 @@ struct MoreView: View {
                     }
                 } label: {
                     HStack {
-                        AppLabel("Sync now", systemName: "arrow.triangle.2.circlepath", size: 17, relativeTo: .body)
+                        AppLabel("Sync library now", systemName: "arrow.triangle.2.circlepath", size: 17, relativeTo: .body)
                         if syncManager.isWorking {
                             Spacer()
                             ProgressView()
@@ -154,32 +178,46 @@ struct MoreView: View {
                 Button {
                     showingRestore = true
                 } label: {
-                    AppLabel("Download from backend", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
+                    AppLabel("Restore from cloud", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
                 }
                 .disabled(syncManager.isWorking)
                 .confirmationDialog(
-                    "Download your library from the backend?",
+                    "Restore your library from the cloud?",
                     isPresented: $showingRestore,
                     titleVisibility: .visible
                 ) {
-                    Button("Download", action: download)
+                    Button("Restore from cloud", action: download)
                     Button("Cancel", role: .cancel) {}
                 } message: {
-                    Text("The backend's copy wins wherever the two disagree. Reading progress made here since the last sync is replaced.")
+                    Text("The cloud copy wins wherever the two disagree. Reading progress made on this device since the last sync is replaced.")
                 }
 
                 Button(role: .destructive) {
-                    Task { await syncManager.signOut() }
+                    showingSignOut = true
                 } label: {
                     AppLabel("Sign out", systemName: "rectangle.portrait.and.arrow.right", size: 17, relativeTo: .body)
                 }
                 .disabled(syncManager.isWorking)
+                .confirmationDialog(
+                    "Sign out of cloud sync?",
+                    isPresented: $showingSignOut,
+                    titleVisibility: .visible
+                ) {
+                    Button("Sign out", role: .destructive) {
+                        Task { await syncManager.signOut() }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Your library stays on this device, and your cloud copy is not deleted. Sync first if you want your latest changes available on other devices.")
+                }
             }
         } header: {
             Text("Cloud sync")
         } footer: {
             if syncManager.currentUser != nil {
-                Text("Download replaces matching titles with the backend's copy.")
+                Text("Cloud sync includes your profile, sources, and non-local library entries. Restore replaces matching titles with the cloud copy. Local reading remains available when you sign out.")
+            } else {
+                Text("Your library and reading progress stay on this device. Sign in only if you want cloud sync; no account is needed to read.")
             }
         }
     }
@@ -199,7 +237,7 @@ struct MoreView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else if syncManager.currentUser == nil {
-            AppLabel("Cloud sync offline", systemName: "cloud.fill", size: 13, relativeTo: .footnote)
+            AppLabel("On-device reading · Not signed in", systemName: "iphone", size: 13, relativeTo: .footnote)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else if !syncManager.hasSynced {
@@ -207,7 +245,7 @@ struct MoreView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else {
-            AppLabel("Cloud synced", systemName: "icloud.fill", size: 13, relativeTo: .footnote)
+            AppLabel("Cloud sync connected", systemName: "icloud.fill", size: 13, relativeTo: .footnote)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

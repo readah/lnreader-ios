@@ -15,6 +15,7 @@ struct LNReaderApp: App {
         tracking.configure(container: Self.modelContainer)
         _trackingManager = State(initialValue: tracking)
     }
+
     @Environment(\.scenePhase) private var scenePhase
     #if os(iOS)
     @UIApplicationDelegateAdaptor(TTSAudioAppDelegate.self) private var audioDelegate

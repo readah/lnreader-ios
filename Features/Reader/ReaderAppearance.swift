@@ -61,6 +61,14 @@ enum ReaderDim {
 }
 
 enum AppMotion {
+    static func onboardingPage(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .spring(response: 0.56, dampingFraction: 0.88)
+    }
+
+    static func onboardingControl(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .smooth(duration: 0.4)
+    }
+
     static func onboardingExit(reduceMotion: Bool) -> Animation? {
         reduceMotion ? nil : .easeOut(duration: 0.48)
     }
