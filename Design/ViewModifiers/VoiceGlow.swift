@@ -34,9 +34,9 @@ struct VoiceGlowSurface: View {
     /// One eased drift. `phase(at:)` stops changing after this, so the paused
     /// timeline and the resting frame agree exactly.
     ///
-    /// The distance and duration are set so the lights open at a little under
-    /// the old six-second loop's speed (0.167 loop/s), then decelerate into
-    /// the resting frame rather than stopping dead.
+    /// The distance and duration put the drift's peak at about the old
+    /// six-second loop's speed (0.167 loop/s). It eases in from rest and out
+    /// into the resting frame, so it neither starts nor stops with a jerk.
     static let settleDuration: TimeInterval = 1.5
     private static let drift: Double = 0.135
     /// The frame every surface rests on, and the one the drift arrives at.
@@ -115,11 +115,11 @@ struct VoiceGlowSurface: View {
         }
     }
 
-    /// Ease-out sine over a fixed distance: the lights start at the old loop's
-    /// pace, slow smoothly, and land on the resting frame with no final step.
+    /// Smoothstep over a fixed distance: the lights ease in from rest, drift at
+    /// roughly the old loop's pace, and land on the resting frame with no step.
     static func phase(at date: Date, since start: Date) -> Float {
         let progress = min(max(date.timeIntervalSince(start) / settleDuration, 0), 1)
-        let eased = sin(progress * .pi / 2)
+        let eased = progress * progress * (3 - 2 * progress)
         return startPhase + Float(eased) * Float(drift)
     }
 
