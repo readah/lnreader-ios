@@ -52,7 +52,7 @@ struct ReaderSheetHeader: View {
                         Spacer(minLength: 0)
                         if let onConfirm {
                             Button(action: onConfirm) {
-                                Image(systemName: "checkmark")
+                                AppIcon(systemName: "checkmark", size: 16, relativeTo: .body)
                                     .font(.system(size: 16, weight: .bold))
                                     .foregroundStyle(.black)
                                     .frame(width: 38, height: 38)
@@ -71,7 +71,7 @@ struct ReaderSheetHeader: View {
 
     private var closeButton: some View {
         Button(action: onClose) {
-            Image(systemName: "xmark")
+            AppIcon(systemName: "xmark", size: 15, relativeTo: .body)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(foreground)
                 .frame(width: 38, height: 38)
@@ -98,7 +98,7 @@ struct GlassToggleSegment: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
+            AppIcon(systemName: symbol, size: 17)
                 .font(GlassMetrics.iconFont)
                 .foregroundStyle(isOn ? Color.black : Color.primary)
                 .frame(height: GlassMetrics.side)
@@ -128,7 +128,7 @@ struct SheetActionButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                Image(systemName: systemImage)
+                AppIcon(systemName: systemImage, size: 15, relativeTo: .subheadline)
                     .font(.system(size: 15, weight: .medium))
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
@@ -158,7 +158,7 @@ struct InfoButton: View {
         Button {
             isShowing = true
         } label: {
-            Image(systemName: "info.circle")
+            AppIcon(systemName: "info.circle", size: 13, relativeTo: .body)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .contentShape(.rect)

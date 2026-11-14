@@ -11,7 +11,7 @@ struct ChapterTransitionCard: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: direction == .next ? "chevron.down.circle" : "chevron.up.circle")
+            AppIcon(systemName: direction == .next ? "chevron.down.circle" : "chevron.up.circle", size: 34, relativeTo: .largeTitle)
                 .font(.largeTitle.weight(.light))
                 .imageScale(.large)
                 .foregroundStyle(coverTint ?? .white)

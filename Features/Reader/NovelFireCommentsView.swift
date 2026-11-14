@@ -53,7 +53,7 @@ struct NovelFireCommentsView: View {
                 }
                 if let errorMessage {
                     ContentUnavailableView {
-                        Label("Couldn't load comments", systemImage: "exclamationmark.circle")
+                        AppLabel("Couldn't load comments", systemName: "exclamationmark.circle", size: 17, relativeTo: .body)
                     } description: {
                         Text(errorMessage)
                     } actions: {
@@ -69,7 +69,7 @@ struct NovelFireCommentsView: View {
                 if hasMoreComments {
                     Button { Task { await loadMore() } } label: {
                         Group {
-                            if isLoading { ProgressView() } else { Label("More comments", systemImage: "arrow.down.circle") }
+                            if isLoading { ProgressView() } else { AppLabel("More comments", systemName: "arrow.down.circle", size: 17, relativeTo: .body) }
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -92,9 +92,9 @@ struct NovelFireCommentsView: View {
                         Toggle("Hide spoilers", isOn: $hideSpoilers)
                         Toggle("With replies", isOn: $onlyReplies)
                         Divider()
-                        Button { showLoginSheet = true } label: { Label("Sign in to \(site.displayName)", systemImage: "person.crop.circle") }
+                        Button { showLoginSheet = true } label: { AppLabel("Sign in to \(site.displayName)", systemName: "person.crop.circle", size: 17, relativeTo: .body) }
                     } label: {
-                        Label("Comment filters and account", systemImage: hideSpoilers || onlyReplies ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+                        AppLabel("Comment filters and account", systemName: hideSpoilers || onlyReplies ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease", size: 17, relativeTo: .body)
                     }
                 }
             }
@@ -226,7 +226,7 @@ private struct NativeCommentThread: View {
                 Button {
                     withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) { expanded.toggle() }
                 } label: {
-                    Label(expanded ? "Hide replies" : "\(replies.count) replies", systemImage: expanded ? "chevron.up" : "bubble.left.and.bubble.right")
+                    AppLabel(expanded ? "Hide replies" : "\(replies.count) replies", systemName: expanded ? "chevron.up" : "bubble.left.and.bubble.right", size: 15, relativeTo: .subheadline)
                         .font(.subheadline.weight(.medium))
                 }.buttonStyle(.borderless)
                 if expanded {
@@ -259,9 +259,9 @@ private struct NativeCommentThread: View {
                 Text(item.text).font(.body).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 20) {
-                Button { onVote(item.id, true) } label: { Label("\(item.likes)", systemImage: "hand.thumbsup") }
+                Button { onVote(item.id, true) } label: { AppLabel("\(item.likes)", systemName: "hand.thumbsup", size: 17, relativeTo: .body) }
                     .accessibilityLabel("Like comment by \(item.author), \(item.likes) likes")
-                Button { onVote(item.id, false) } label: { Label("\(item.dislikes)", systemImage: "hand.thumbsdown") }
+                Button { onVote(item.id, false) } label: { AppLabel("\(item.dislikes)", systemName: "hand.thumbsdown", size: 12, relativeTo: .caption) }
                     .accessibilityLabel("Dislike comment by \(item.author), \(item.dislikes) dislikes")
                 if activeVotes.contains(item.id) { ProgressView().controlSize(.mini) }
             }

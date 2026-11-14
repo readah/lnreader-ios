@@ -6,9 +6,20 @@ import SwiftUI
 struct AppearanceSettingsView: View {
     @AppStorage(AppearanceTint.enabledKey) private var tintDetails = false
     @AppStorage(AppearanceTint.strengthKey) private var strength = AppearanceTint.defaultStrength
+    @AppStorage(IconPack.storageKey) private var iconPack = IconPack.swiftIcons.rawValue
 
     var body: some View {
         List {
+            Section {
+                Picker("Icon Pack", selection: $iconPack) {
+                    ForEach(IconPack.allCases) { pack in
+                        Text(pack.displayName).tag(pack.rawValue)
+                    }
+                }
+            } header: {
+                Text("Icons")
+            }
+
             Section {
                 Toggle("Tint details from the cover", isOn: $tintDetails)
                 VStack(alignment: .leading, spacing: 4) {

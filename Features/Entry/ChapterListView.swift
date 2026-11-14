@@ -92,8 +92,8 @@ struct ChapterListView: View {
             label: "Sort and filter chapters"
         ) {
             Picker("Order", selection: $ascending) {
-                Label("Newest first", systemImage: "arrow.down").tag(false)
-                Label("Oldest first", systemImage: "arrow.up").tag(true)
+                AppLabel("Newest first", systemName: "arrow.down", size: 17, relativeTo: .body).tag(false)
+                AppLabel("Oldest first", systemName: "arrow.up", size: 17, relativeTo: .body).tag(true)
             }
             Picker("Filter chapters", selection: $selectedFilter) {
                 ForEach(ChapterFilter.allCases) { Text($0.rawValue).tag($0) }
@@ -101,7 +101,7 @@ struct ChapterListView: View {
             if scanlatorSettings != nil, !scanlators.isEmpty {
                 Section {
                     Button { showScanlators = true } label: {
-                        Label("Scanlators…", systemImage: hasActiveScanlatorRules ? "person.2.fill" : "person.2")
+                        AppLabel("Scanlators…", systemName: hasActiveScanlatorRules ? "person.2.fill" : "person.2", size: 17, relativeTo: .body)
                     }
                 }
             }
@@ -431,16 +431,16 @@ struct ChapterDirectoryView: View {
 
     private func pagerItems(_ items: [ChapterDisplay], pageCount: Int, page: Int) -> some ToolbarContent {
         ToolbarItemGroup(placement: .bottomBar) {
-            Button { self.page = max(0, page - 1) } label: { Label("Previous 50 chapters", systemImage: "chevron.left").labelStyle(.iconOnly) }
+            Button { self.page = max(0, page - 1) } label: { AppLabel("Previous 50 chapters", systemName: "chevron.left", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
                 .disabled(page == 0)
             Spacer()
             Menu {
                 ForEach(0..<pageCount, id: \.self) { index in
                     Button(label(for: index, in: items)) { self.page = index }
                 }
-            } label: { Label("\(label(for: page, in: items)) · \(page + 1)/\(pageCount)", systemImage: "rectangle.split.3x1").font(.subheadline.monospacedDigit()) }
+            } label: { AppLabel("\(label(for: page, in: items)) · \(page + 1)/\(pageCount)", systemName: "rectangle.split.3x1", size: 15, relativeTo: .subheadline).font(.subheadline.monospacedDigit()) }
             Spacer()
-            Button { self.page = min(pageCount - 1, page + 1) } label: { Label("Next 50 chapters", systemImage: "chevron.right").labelStyle(.iconOnly) }
+            Button { self.page = min(pageCount - 1, page + 1) } label: { AppLabel("Next 50 chapters", systemName: "chevron.right", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
                 .disabled(page + 1 >= pageCount)
         }
     }
@@ -471,12 +471,12 @@ struct ChapterDirectoryView: View {
                             Text("\(chapters.count) chapters").font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button { goToCurrent() } label: { Label("Go to current chapter", systemImage: "location.fill").labelStyle(.iconOnly) }
+                        Button { goToCurrent() } label: { AppLabel("Go to current chapter", systemName: "location.fill", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
                             .buttonStyle(.borderless)
                             .tint(coverTint)
                     }
                     HStack {
-                        Label { TextField("Jump to chapter", text: $jumpNumber).keyboardType(.numberPad).focused($jumpFocused) } icon: { Image(systemName: "number") }
+                        Label { TextField("Jump to chapter", text: $jumpNumber).keyboardType(.numberPad).focused($jumpFocused) } icon: { AppIcon(systemName: "number", size: 12, relativeTo: .caption) }
                         Button("Go", action: jump).buttonStyle(.borderless).disabled(jumpNumber.isEmpty)
                             .tint(coverTint)
                     }
@@ -493,8 +493,8 @@ struct ChapterDirectoryView: View {
                                     HStack {
                                         Text(chapter.name).font(.subheadline).fontWeight(chapter.path == currentChapterPath ? .semibold : .regular).foregroundStyle(.primary).lineLimit(2)
                                         Spacer()
-                                        if chapter.path == currentChapterPath { Image(systemName: "book.fill").foregroundStyle(coverTint ?? .primary) }
-                                        else if chapter.bookmarked { Image(systemName: "bookmark.fill").foregroundStyle(.secondary) }
+                                        if chapter.path == currentChapterPath { AppIcon(systemName: "book.fill", size: 17, relativeTo: .body).foregroundStyle(coverTint ?? .primary) }
+                                        else if chapter.bookmarked { AppIcon(systemName: "bookmark.fill", size: 17, relativeTo: .body).foregroundStyle(.secondary) }
                                     }.frame(minHeight: 44).contentShape(Rectangle())
                                 }.buttonStyle(.plain)
                             } else {
@@ -526,7 +526,7 @@ struct ChapterDirectoryView: View {
                             ForEach(ChapterFilter.allCases) { Text($0.rawValue).tag($0) }
                         }
                     } label: {
-                        Label("Filter chapters", systemImage: selectedFilter != .all ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+                        AppLabel("Filter chapters", systemName: selectedFilter != .all ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease", size: 17, relativeTo: .body)
                             .foregroundStyle(selectedFilter != .all ? (coverTint ?? .primary) : .primary)
                     }
                 }

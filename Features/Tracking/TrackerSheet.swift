@@ -57,7 +57,7 @@ struct TrackerSheet: View {
 
     private var loggedOut: some View {
         ContentUnavailableView {
-            Label("Not logged in", systemImage: "person.crop.circle.badge.questionmark")
+            AppLabel("Not logged in", systemName: "person.crop.circle.badge.questionmark", size: 17, relativeTo: .body)
         } description: {
             Text("Log in to AniList to track your progress.")
         } actions: {
@@ -202,7 +202,7 @@ struct TrackerSheet: View {
         HStack {
             if let date {
                 DatePicker(title, selection: Binding(get: { date }, set: { set($0) }), displayedComponents: .date)
-                Button { set(nil) } label: { Label("Clear \(title.lowercased()) date", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }
+                Button { set(nil) } label: { AppLabel("Clear \(title.lowercased()) date", systemName: "xmark.circle.fill", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
                     .buttonStyle(.borderless).foregroundStyle(.secondary)
             } else {
                 Text(title)

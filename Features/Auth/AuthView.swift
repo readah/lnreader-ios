@@ -53,7 +53,7 @@ struct AuthView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: "person.crop.circle.badge.checkmark")
+            AppIcon(systemName: "person.crop.circle.badge.checkmark", size: 22, relativeTo: .title2)
                 .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(.primary)
                 .accessibilityHidden(true)
@@ -104,13 +104,13 @@ struct AuthView: View {
     private var statusSection: some View {
         if let error = syncManager.lastError {
             Section {
-                Label(error, systemImage: "exclamationmark.circle")
+                AppLabel(error, systemName: "exclamationmark.circle", size: 13, relativeTo: .footnote)
                     .font(.footnote)
                     .foregroundStyle(AppTheme.destructive)
             }
         } else if let message = syncManager.lastMessage {
             Section {
-                Label(message, systemImage: "checkmark.circle")
+                AppLabel(message, systemName: "checkmark.circle", size: 13, relativeTo: .footnote)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

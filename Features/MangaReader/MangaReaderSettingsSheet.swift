@@ -155,7 +155,7 @@ struct MangaReaderSettingsSheet: View {
                 }
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: "play.circle")
+                    AppIcon(systemName: "play.circle", size: 15, relativeTo: .body)
                         .font(.system(size: 15))
                         .frame(width: 22)
                         .foregroundStyle(.secondary)
@@ -169,7 +169,7 @@ struct MangaReaderSettingsSheet: View {
                         .font(.system(size: 15))
                         .foregroundStyle(.secondary)
 
-                    Image(systemName: "chevron.up.chevron.down")
+                    AppIcon(systemName: "chevron.up.chevron.down", size: 10, relativeTo: .body)
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.secondary)
                 }
@@ -183,7 +183,7 @@ struct MangaReaderSettingsSheet: View {
 
             Toggle(isOn: $controls.holdScrollEnabled) {
                 HStack(spacing: 10) {
-                    Image(systemName: "hand.point.up.left")
+                    AppIcon(systemName: "hand.point.up.left", size: 15, relativeTo: .body)
                         .font(.system(size: 15))
                         .frame(width: 22)
                         .foregroundStyle(.secondary)
@@ -406,7 +406,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
     ) -> some View {
         Button(action: action) {
             VStack(spacing: 6) {
-                Image(systemName: icon)
+                AppIcon(systemName: icon, size: 22)
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(isSelected ? .primary : .secondary)
 
@@ -641,7 +641,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
                 Label {
                     Text(title)
                 } icon: {
-                    Image(systemName: symbol)
+                    AppIcon(systemName: symbol, size: 17)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -665,7 +665,7 @@ struct ReadingModeCard: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 8) {
-                Image(systemName: mode.iconName)
+                AppIcon(systemName: mode.iconName, size: 22)
                     .font(.system(size: 22, weight: .regular))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .frame(height: 26)
@@ -766,7 +766,7 @@ struct TapZoneDiagram: View {
             if !narrow { zoneText("Menu") }
         } else if narrow {
             // An edge strip is too thin for a word.
-            Image(systemName: zone.action == .previous ? "chevron.left" : "chevron.right")
+            AppIcon(systemName: zone.action == .previous ? "chevron.left" : "chevron.right", size: 10 * scale, relativeTo: .caption2)
                 .font(.system(size: 10 * scale, weight: .bold))
                 .foregroundStyle(.white.opacity(0.85))
         } else {

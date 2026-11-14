@@ -37,7 +37,7 @@ struct IconBadge: View {
     var color: Color = .secondary
 
     var body: some View {
-        Image(systemName: icon)
+        AppIcon(systemName: icon, size: 11, relativeTo: .caption2)
             .font(Typography.small.weight(.bold))
             .imageScale(.small)
             .foregroundStyle(AppTheme.onPrimaryFill)

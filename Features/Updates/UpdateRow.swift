@@ -57,7 +57,7 @@ struct UpdateRow: View {
 
             // Unread indicator
             if !chapter.read {
-                Image(systemName: "circle.fill")
+                AppIcon(systemName: "circle.fill", size: 11, relativeTo: .caption2)
                     .font(Typography.small)
                     .imageScale(.small)
                     .foregroundStyle(.primary)

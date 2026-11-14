@@ -8,7 +8,7 @@ struct DeleteBadge: View {
 
     var body: some View {
         Button(role: .destructive, action: action) {
-            Image(systemName: "minus")
+            AppIcon(systemName: "minus", size: 17, relativeTo: .body)
                 .font(.body.weight(.bold))
         }
         .buttonStyle(.glass)

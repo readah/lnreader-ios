@@ -90,7 +90,7 @@ private struct RunToggle: View {
                 Text("+\(count)")
                     .font(Typography.small.weight(.semibold))
                     .monospacedDigit()
-                Image(systemName: "chevron.down")
+                AppIcon(systemName: "chevron.down", size: 11, relativeTo: .caption2)
                     .font(Typography.small.weight(.bold))
                     .rotationEffect(.degrees(isExpanded ? -180 : 0))
             }

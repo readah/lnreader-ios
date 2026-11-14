@@ -141,7 +141,7 @@ struct OfflineLibraryView: View {
                     if !completed.isEmpty {
                         Button("Delete all downloads", systemImage: "trash", role: .destructive) { confirmClearAll = true }
                     }
-                } label: { Label("More", systemImage: "ellipsis.circle") }
+                } label: { AppLabel("More", systemName: "ellipsis.circle", size: 17, relativeTo: .body) }
             }
         }
     }
@@ -192,11 +192,11 @@ private struct DownloadQueueRow: View {
         case .downloading:
             DownloadProgressRing(progress: progress).frame(width: 25, height: 25)
         case .paused:
-            Image(systemName: "pause.circle").font(.system(size: 25, weight: .light)).foregroundStyle(.primary)
+            AppIcon(systemName: "pause.circle", size: 25, relativeTo: .body).font(.system(size: 25, weight: .light)).foregroundStyle(.primary)
         case .failed:
-            Image(systemName: "arrow.clockwise.circle").font(.system(size: 25, weight: .light)).foregroundStyle(AppTheme.warning)
+            AppIcon(systemName: "arrow.clockwise.circle", size: 25, relativeTo: .body).font(.system(size: 25, weight: .light)).foregroundStyle(AppTheme.warning)
         default:
-            Image(systemName: "ellipsis.circle").font(.system(size: 25, weight: .light)).foregroundStyle(.primary)
+            AppIcon(systemName: "ellipsis.circle", size: 25, relativeTo: .body).font(.system(size: 25, weight: .light)).foregroundStyle(.primary)
         }
     }
 
@@ -315,8 +315,8 @@ private struct PerTitleUpdatesView: View {
                 ForEach(UpdateStrategy.allCases, id: \.self) { Text($0.displayName).tag(UpdateStrategy?.some($0)) }
             }
         } label: {
-            Label("Filter", systemImage: scope == nil
-                  ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+            AppLabel("Filter", systemName: scope == nil
+                  ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill", size: 17, relativeTo: .body)
         }
     }
 
@@ -351,7 +351,7 @@ private struct PerTitleUpdateRow: View {
             } label: {
                 HStack(spacing: 4) {
                     Text(entry.updateStrategy.displayName)
-                    Image(systemName: "chevron.up.chevron.down").imageScale(.small)
+                    AppIcon(systemName: "chevron.up.chevron.down", size: 15, relativeTo: .subheadline).imageScale(.small)
                 }
                 .font(Typography.body)
             }
@@ -802,7 +802,7 @@ struct LNReaderBackupPreviewSheet: View {
             List {
                 Section {
                     HStack(spacing: 14) {
-                        Image(systemName: "externaldrive.badge.checkmark")
+                        AppIcon(systemName: "externaldrive.badge.checkmark", size: 28, relativeTo: .body)
                             .font(.system(size: 28))
                             .foregroundStyle(Color.accentColor)
                         VStack(alignment: .leading, spacing: 2) {
@@ -876,7 +876,7 @@ struct MihonBackupPreviewSheet: View {
             List {
                 Section {
                     HStack(spacing: 14) {
-                        Image(systemName: "arrow.down.doc.fill")
+                        AppIcon(systemName: "arrow.down.doc.fill", size: 28, relativeTo: .body)
                             .font(.system(size: 28))
                             .foregroundStyle(Color.accentColor)
                         VStack(alignment: .leading, spacing: 2) {
@@ -905,7 +905,7 @@ struct MihonBackupPreviewSheet: View {
                 Section("Sources") {
                     if preview.matched > 0 {
                         HStack {
-                            Image(systemName: "checkmark.circle.fill")
+                            AppIcon(systemName: "checkmark.circle.fill", size: 15, relativeTo: .subheadline)
                                 .foregroundStyle(Color.green)
                             Text("\(preview.matched) titles from built-in sources")
                                 .font(Typography.body)
@@ -914,7 +914,7 @@ struct MihonBackupPreviewSheet: View {
                     if !preview.unmatched.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                Image(systemName: "exclamationmark.triangle.fill")
+                                AppIcon(systemName: "exclamationmark.triangle.fill", size: 15, relativeTo: .subheadline)
                                     .foregroundStyle(AppTheme.warning)
                                 let missingCount = preview.unmatched.values.reduce(0, +)
                                 Text("\(missingCount) titles from uninstalled sources")
@@ -980,7 +980,7 @@ struct BackupProgressSheet: View {
                     Section {
                         if progress.isFinished {
                             HStack(spacing: 12) {
-                                Image(systemName: progress.icon)
+                                AppIcon(systemName: progress.icon, size: 22, relativeTo: .title2)
                                     .font(.title2)
                                     .foregroundStyle(iconColor(progress))
                                 VStack(alignment: .leading, spacing: 2) {
@@ -1147,7 +1147,7 @@ struct LibraryBackupView: View {
                                 showRecoveryKey.toggle()
                                 Haptics.shared.selection()
                             } label: {
-                                Image(systemName: showRecoveryKey ? "eye.slash" : "eye")
+                                AppIcon(systemName: showRecoveryKey ? "eye.slash" : "eye", size: 17)
                                     .foregroundStyle(.secondary)
                                     .frame(width: 32, height: 32)
                                     .contentShape(Rectangle())
@@ -1161,7 +1161,7 @@ struct LibraryBackupView: View {
                         copyRecoveryKey()
                     } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: copiedKey ? "checkmark.circle.fill" : "doc.on.doc")
+                            AppIcon(systemName: copiedKey ? "checkmark.circle.fill" : "doc.on.doc", size: 15, relativeTo: .subheadline)
                                 .foregroundStyle(copiedKey ? Color.green : AppTheme.accent)
                             Text(copiedKey ? "Copied recovery key" : "Copy recovery key")
                                 .font(Typography.body)
@@ -1181,7 +1181,7 @@ struct LibraryBackupView: View {
                     export()
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: "square.and.arrow.up")
+                        AppIcon(systemName: "square.and.arrow.up", size: 15, relativeTo: .subheadline)
                             .foregroundStyle(isExportDisabled ? .secondary : AppTheme.accent)
                         Text("Export .lnbk backup")
                             .font(Typography.body)
@@ -1219,7 +1219,7 @@ struct LibraryBackupView: View {
                             importKey = ""
                             Haptics.shared.selection()
                         } label: {
-                            Image(systemName: "xmark.circle.fill")
+                            AppIcon(systemName: "xmark.circle.fill", size: 17, relativeTo: .body)
                                 .foregroundStyle(.secondary)
                                 .frame(width: 32, height: 32)
                                 .contentShape(Rectangle())
@@ -1231,7 +1231,7 @@ struct LibraryBackupView: View {
                         showImportKey.toggle()
                         Haptics.shared.selection()
                     } label: {
-                        Image(systemName: showImportKey ? "eye.slash" : "eye")
+                        AppIcon(systemName: showImportKey ? "eye.slash" : "eye", size: 17)
                             .foregroundStyle(.secondary)
                             .frame(width: 32, height: 32)
                             .contentShape(Rectangle())
@@ -1244,7 +1244,7 @@ struct LibraryBackupView: View {
                     pasteImportKey()
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: pastedKey ? "checkmark.circle.fill" : "doc.on.clipboard")
+                        AppIcon(systemName: pastedKey ? "checkmark.circle.fill" : "doc.on.clipboard", size: 15, relativeTo: .subheadline)
                             .foregroundStyle(pastedKey ? Color.green : AppTheme.accent)
                         Text(pastedKey ? "Pasted recovery key" : "Paste from clipboard")
                             .font(Typography.body)
@@ -1262,7 +1262,7 @@ struct LibraryBackupView: View {
                     importing = true
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: "square.and.arrow.down")
+                        AppIcon(systemName: "square.and.arrow.down", size: 15, relativeTo: .subheadline)
                             .foregroundStyle((backupManager.isRunning || readingFile) ? .secondary : AppTheme.accent)
                         Text("Choose .lnbk backup")
                             .font(Typography.body)
@@ -1285,7 +1285,7 @@ struct LibraryBackupView: View {
                     exportTachibk()
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: "square.and.arrow.up")
+                        AppIcon(systemName: "square.and.arrow.up", size: 15, relativeTo: .subheadline)
                             .foregroundStyle((backupManager.isRunning || readingFile) ? .secondary : AppTheme.accent)
                         Text("Export .tachibk backup")
                             .font(Typography.body)
@@ -1303,7 +1303,7 @@ struct LibraryBackupView: View {
                     importing = true
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: "square.and.arrow.down")
+                        AppIcon(systemName: "square.and.arrow.down", size: 15, relativeTo: .subheadline)
                             .foregroundStyle((backupManager.isRunning || readingFile) ? .secondary : AppTheme.accent)
                         Text("Choose .tachibk backup")
                             .font(Typography.body)

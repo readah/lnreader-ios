@@ -99,7 +99,7 @@ struct MigrationCandidatePicker: View {
         .onSubmit(of: .search) { Task { await search() } }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { showSources = true } label: { Label("Sources", systemImage: "slider.horizontal.3") }
+                Button { showSources = true } label: { AppLabel("Sources", systemName: "slider.horizontal.3", size: 17, relativeTo: .body) }
             }
         }
         .sheet(isPresented: $showSources, onDismiss: { Task { await search() } }) {
@@ -226,7 +226,7 @@ struct MigrationSourcesView: View {
                             HStack {
                                 Text(source.name).foregroundStyle(.primary)
                                 Spacer()
-                                Image(systemName: "plus.circle").foregroundStyle(.secondary)
+                                AppIcon(systemName: "plus.circle", size: 17, relativeTo: .body).foregroundStyle(.secondary)
                             }
                             .contentShape(Rectangle())
                         }

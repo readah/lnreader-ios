@@ -52,7 +52,7 @@ struct NarrationVoicePicker: View {
                 }.buttonStyle(.plain)
                 if let sample = library.records.first(where: { $0.isPreview && $0.isAvailable && $0.rendition.voiceId == voice.id }) {
                     Button { preview.play(sample) } label: {
-                        Label("\(preview.voiceId == voice.id ? "Stop" : "Play") downloaded \(voice.name) preview", systemImage: preview.voiceId == voice.id ? "stop.fill" : "play.fill")
+                        AppLabel("\(preview.voiceId == voice.id ? "Stop" : "Play") downloaded \(voice.name) preview", systemName: preview.voiceId == voice.id ? "stop.fill" : "play.fill", size: 17, relativeTo: .body)
                             .labelStyle(.iconOnly)
                     }
                     .buttonStyle(.borderless)
@@ -62,7 +62,7 @@ struct NarrationVoicePicker: View {
                             do { try await TTSAPIClient().action("retry", renditionId: sample.id); await library.refreshVoices() }
                             catch { library.errorMessage = error.localizedDescription }
                         }
-                    } label: { Label("Retry \(voice.name) preview", systemImage: "arrow.clockwise").labelStyle(.iconOnly) }
+                    } label: { AppLabel("Retry \(voice.name) preview", systemName: "arrow.clockwise", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
                     .buttonStyle(.borderless)
                 } else {
                     ProgressView().accessibilityLabel("Preview is being prepared")
@@ -74,7 +74,7 @@ struct NarrationVoicePicker: View {
                 }
             }
         }
-        Button { showCreateVoice = true } label: { Label("Add your own voice", systemImage: "waveform.badge.plus") }
+        Button { showCreateVoice = true } label: { AppLabel("Add your own voice", systemName: "waveform.badge.plus", size: 17, relativeTo: .body) }
             .sheet(isPresented: $showCreateVoice) {
                 CustomVoiceCreationView { voice in selected = [voice.id] }
             }
@@ -91,7 +91,7 @@ struct NarrationVoicePicker: View {
         NavigationLink {
             VoiceReferencePassageView()
         } label: {
-            Label("Voice recording passage", systemImage: "text.quote")
+            AppLabel("Voice recording passage", systemName: "text.quote", size: 17, relativeTo: .body)
         }
     }
 }
@@ -143,7 +143,7 @@ struct VoiceReferencePassageView: View {
                     UIPasteboard.general.string = Self.passage
                     copied = true
                 } label: {
-                    Label(copied ? "Passage copied" : "Copy passage", systemImage: copied ? "checkmark" : "doc.on.doc")
+                    AppLabel(copied ? "Passage copied" : "Copy passage", systemName: copied ? "checkmark" : "doc.on.doc", size: 17, relativeTo: .body)
                         }
                 .accessibilityHint("Copies only the passage text")
             } header: {
@@ -152,7 +152,7 @@ struct VoiceReferencePassageView: View {
                 Text("A public-domain passage for sampling English speech sounds, by Grant Fairbanks.")
             }
             Section {
-                Link(destination: URL(string: "https://www.dialectsarchive.com/the-rainbow-passage")!) { Label("Read the original at IDEA", systemImage: "arrow.up.right.square") }
+                Link(destination: URL(string: "https://www.dialectsarchive.com/the-rainbow-passage")!) { AppLabel("Read the original at IDEA", systemName: "arrow.up.right.square", size: 17, relativeTo: .body) }
             }
         }
         .navigationTitle("Recording passage")
@@ -258,7 +258,7 @@ struct BookAudioDownloadsView: View {
                             }
                         }
                         if let message = error ?? library.errorMessage ?? (library.engineState?.needsAttention == true ? library.engineState?.message : nil) {
-                            Label(message, systemImage: "exclamationmark.circle")
+                            AppLabel(message, systemName: "exclamationmark.circle", size: 13, relativeTo: .footnote)
                                 .font(Typography.caption)
                                 .foregroundStyle(AppTheme.warning)
                         }
@@ -291,7 +291,7 @@ struct BookAudioDownloadsView: View {
                                 ForEach(library.voices) { Text($0.name).tag($0.id) }
                             }
                         } label: {
-                            Label(stateFilter, systemImage: "line.3.horizontal.decrease")
+                            AppLabel(stateFilter, systemName: "line.3.horizontal.decrease", size: 13, relativeTo: .footnote)
                                 .font(Typography.caption.weight(.medium))
                                 .foregroundStyle(.primary)
                         }
@@ -317,19 +317,19 @@ struct BookAudioDownloadsView: View {
                             let paths = Set(selectedChapters.map(\.path))
                             deleteIDs = bookRecords.filter { paths.contains($0.rendition.chapterId) && (voiceFilter == "all" || $0.rendition.voiceId == voiceFilter) }.map(\.id)
                         }.disabled(bookRecords.isEmpty)
-                    } label: { Label("Audio download options", systemImage: "ellipsis.circle") }
+                    } label: { AppLabel("Audio download options", systemName: "ellipsis.circle", size: 17, relativeTo: .body) }
                 }
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .toolbar(pageCount > 1 ? .visible : .hidden, for: .bottomBar)
             .toolbar {
                 ToolbarItemGroup(placement: .bottomBar) {
-                    Button { chapterPage = max(0, currentPage - 1) } label: { Label("Previous chapters", systemImage: "chevron.left").labelStyle(.iconOnly) }
+                    Button { chapterPage = max(0, currentPage - 1) } label: { AppLabel("Previous chapters", systemName: "chevron.left", size: 12, relativeTo: .caption).labelStyle(.iconOnly) }
                         .disabled(currentPage == 0)
                     Spacer()
                     Text(pageLabel).font(.caption.monospacedDigit())
                     Spacer()
-                    Button { chapterPage = min(pageCount - 1, currentPage + 1) } label: { Label("Next chapters", systemImage: "chevron.right").labelStyle(.iconOnly) }
+                    Button { chapterPage = min(pageCount - 1, currentPage + 1) } label: { AppLabel("Next chapters", systemName: "chevron.right", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
                         .disabled(currentPage + 1 >= pageCount)
                 }
             }
@@ -395,7 +395,7 @@ struct BookAudioDownloadsView: View {
     /// inside this sheet its heading outran the book title above it.
     private var compactEmptyState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "headphones")
+            AppIcon(systemName: "headphones", size: 28, relativeTo: .body)
                 .font(.system(size: 28, weight: .regular))
                 .foregroundStyle(.secondary)
             Text("Nothing downloaded")
@@ -453,7 +453,7 @@ struct BookAudioDownloadsView: View {
         let colors = TTSVoicePalette.colors(for: activeVoice)
         return Button { showVoices = true } label: {
             HStack(spacing: 7) {
-                Image(systemName: "waveform")
+                AppIcon(systemName: "waveform", size: 12, relativeTo: .body)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                 Text(name)
@@ -462,7 +462,7 @@ struct BookAudioDownloadsView: View {
                 Text("Narrator")
                     .font(Typography.caption)
                     .foregroundStyle(.secondary)
-                Image(systemName: "chevron.right")
+                AppIcon(systemName: "chevron.right", size: 10, relativeTo: .body)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.tertiary)
             }
@@ -482,7 +482,7 @@ struct BookAudioDownloadsView: View {
     private var downloadControls: some View {
         VStack(spacing: 10) {
             Button(action: downloadCurrent) {
-                Label(downloadCurrentTitle, systemImage: "arrow.down.circle.fill")
+                AppLabel(downloadCurrentTitle, systemName: "arrow.down.circle.fill", size: 17, relativeTo: .body)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity)
             }
@@ -493,7 +493,7 @@ struct BookAudioDownloadsView: View {
 
             HStack(spacing: 10) {
                 Button { downloadNext(10) } label: {
-                    Label("Next 10", systemImage: "arrow.down.circle")
+                    AppLabel("Next 10", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity)
                 }
@@ -503,7 +503,7 @@ struct BookAudioDownloadsView: View {
                 .disabled(downloadBlocked)
 
                 Button { showRange = true } label: {
-                    Label("Range…", systemImage: "slider.horizontal.3")
+                    AppLabel("Range…", systemName: "slider.horizontal.3", size: 17, relativeTo: .body)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity)
                 }
@@ -537,10 +537,7 @@ struct BookAudioDownloadsView: View {
             Haptics.shared.impact(.light, intensity: 0.8)
             Task { await library.retryAllFailed(bookId: bookId) }
         } label: {
-            Label(
-                failedRecords.count == 1 ? "Retry 1 failed chapter" : "Retry \(failedRecords.count) failed chapters",
-                systemImage: "arrow.clockwise"
-            )
+            AppLabel(failedRecords.count == 1 ? "Retry 1 failed chapter" : "Retry \(failedRecords.count) failed chapters", systemName: "arrow.clockwise", size: 17, relativeTo: .body)
             .lineLimit(1)
             .frame(maxWidth: .infinity)
         }
@@ -718,13 +715,13 @@ struct BookAudioDownloadsView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 }.buttonStyle(.plain)
                 if let primary, canPlay(primary) {
-                    Button { playAudio(primary) } label: { Label("Play \(chapter.title)", systemImage: "play.circle.fill").labelStyle(.iconOnly).font(.title) }
+                    Button { playAudio(primary) } label: { AppLabel("Play \(chapter.title)", systemName: "play.circle.fill", size: 28, relativeTo: .title).labelStyle(.iconOnly).font(.title) }
                 } else if let primary, ["failed", "paused"].contains(primary.state) {
-                    Button { Task { await library.retry(primary.id) } } label: { Label("Retry \(chapter.title)", systemImage: "arrow.clockwise.circle").labelStyle(.iconOnly).font(.title2) }
+                    Button { Task { await library.retry(primary.id) } } label: { AppLabel("Retry \(chapter.title)", systemName: "arrow.clockwise.circle", size: 22, relativeTo: .title2).labelStyle(.iconOnly).font(.title2) }
                 } else if primary != nil {
                     ProgressView()
                 } else {
-                    Button { downloadChapter(chapter) } label: { Label("Download \(chapter.title)", systemImage: "arrow.down.circle").labelStyle(.iconOnly).font(.title2) }.disabled(preparing)
+                    Button { downloadChapter(chapter) } label: { AppLabel("Download \(chapter.title)", systemName: "arrow.down.circle", size: 22, relativeTo: .title2).labelStyle(.iconOnly).font(.title2) }.disabled(preparing)
                 }
             }.buttonStyle(.borderless)
             if let primary, ["waiting", "downloading"].contains(primary.state) { ProgressView(value: primary.progress) }
@@ -1063,21 +1060,21 @@ private struct CustomVoiceCreationView: View {
                     HStack {
                         Button {
                             if sample.recording { sample.stopRecording() } else { Task { await sample.record() } }
-                        } label: { Label(sample.recording ? "Stop recording" : "Record sample", systemImage: sample.recording ? "stop.circle.fill" : "mic.fill") }
+                        } label: { AppLabel(sample.recording ? "Stop recording" : "Record sample", systemName: sample.recording ? "stop.circle.fill" : "mic.fill", size: 17, relativeTo: .body) }
                         .buttonStyle(.borderless)
                         .disabled(sample.requestingPermission)
                         Spacer()
                         Text("\(Int(sample.duration))s / 60s").monospacedDigit().foregroundStyle(.secondary)
                     }
-                    Button { importing = true } label: { Label("Import audio", systemImage: "square.and.arrow.down") }.disabled(sample.recording)
+                    Button { importing = true } label: { AppLabel("Import audio", systemName: "square.and.arrow.down", size: 17, relativeTo: .body) }.disabled(sample.recording)
                     if sample.file != nil && !sample.recording {
-                        Button { sample.togglePlayback() } label: { Label(sample.playing ? "Stop sample" : "Listen to sample", systemImage: sample.playing ? "stop.fill" : "play.fill") }
+                        Button { sample.togglePlayback() } label: { AppLabel(sample.playing ? "Stop sample" : "Listen to sample", systemName: sample.playing ? "stop.fill" : "play.fill", size: 17, relativeTo: .body) }
                     }
                 } header: { Text("Voice sample") } footer: {
                     Text("Record 3–60 seconds of clear speech without music or other speakers. Speak naturally with a mostly neutral tone. Longer recordings do not guarantee a better clone.")
                 }
                 Section {
-                    NavigationLink { VoiceReferencePassageView() } label: { Label("Read or copy the sample passage", systemImage: "text.quote") }
+                    NavigationLink { VoiceReferencePassageView() } label: { AppLabel("Read or copy the sample passage", systemName: "text.quote", size: 17, relativeTo: .body) }
                     Button("I read the full passage exactly") { transcript = VoiceReferencePassageView.passage }
                         .disabled(sample.recording || sample.file == nil)
                 }
@@ -1153,7 +1150,7 @@ struct TTSChapterAudioDetailView: View {
             if !records.isEmpty { voicesSection }
             if let onAddVoice {
                 Section {
-                    Button(action: onAddVoice) { Label("Download another voice", systemImage: "waveform.badge.plus") }
+                    Button(action: onAddVoice) { AppLabel("Download another voice", systemName: "waveform.badge.plus", size: 17, relativeTo: .body) }
                 }
             }
         }
@@ -1197,7 +1194,7 @@ struct TTSChapterAudioDetailView: View {
             LabeledContent("Size", value: ByteCountFormatter.string(fromByteCount: record.bytesExpected, countStyle: .file))
             if let provider = record.rendition.computeProvider { LabeledContent("Prepared on", value: provider.capitalized) }
             if let message = record.error {
-                Label(message, systemImage: record.state == "waiting" ? "arrow.clockwise" : "exclamationmark.circle")
+                AppLabel(message, systemName: record.state == "waiting" ? "arrow.clockwise" : "exclamationmark.circle", size: 12, relativeTo: .caption)
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -1242,7 +1239,7 @@ struct TTSChapterAudioDetailView: View {
                 HStack(spacing: 8) {
                     VoiceGlowDot(voiceId: record.rendition.voiceId)
                     Text(voiceName(record))
-                    if selected { Image(systemName: "checkmark.circle.fill").accessibilityLabel("Selected") }
+                    if selected { AppIcon(systemName: "checkmark.circle.fill", size: 12, relativeTo: .caption).accessibilityLabel("Selected") }
                 }
             }
             Text(statusText(record)).font(.caption).foregroundStyle(.secondary)
@@ -1263,7 +1260,7 @@ struct TTSChapterAudioDetailView: View {
                 }
                 Spacer(minLength: 0)
                 Button(role: .destructive) { deleteTarget = record } label: {
-                    Label("Delete \(voiceName(record))", systemImage: "trash").labelStyle(.iconOnly)
+                    AppLabel("Delete \(voiceName(record))", systemName: "trash", size: 17, relativeTo: .body).labelStyle(.iconOnly)
                 }
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.circle)
@@ -1277,7 +1274,7 @@ struct TTSChapterAudioDetailView: View {
     }
 
     private func action(_ title: String, _ symbol: String, prominent: Bool, run: @escaping () -> Void) -> some View {
-        Button(action: run) { Label(title, systemImage: symbol) }
+        Button(action: run) { AppLabel(title, systemName: symbol, size: 17, relativeTo: .body) }
             .modifier(RowActionStyle(prominent: prominent))
     }
 

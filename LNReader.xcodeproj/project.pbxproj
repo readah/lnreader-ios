@@ -117,6 +117,7 @@
 		939B509FC87B4E6546B04724 /* ReaderContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89DF43235A3A3FF8323B318A /* ReaderContent.swift */; };
 		94D28F3920B360E7992CF402 /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D146837B0A35B46E96AA935 /* BrowseView.swift */; };
 		964462B69BFEFB77456C4391 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F584AC89AA22BCF08D75E5 /* Theme.swift */; };
+		ABCD40000000000000000002 /* IconPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD40000000000000000001 /* IconPack.swift */; };
 		97808F4EE7491512BF9AFDD9 /* ScrollHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A17CCDEE9E4207E1E77330A /* ScrollHaptics.swift */; };
 		981453E96D42E44C044DF6A6 /* UpdateStrategy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F271CE6759A7893EA806D65 /* UpdateStrategy.swift */; };
 		9820DF3D67143443C3905EB9 /* ChapterRecognition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08FFA9F783FE74CFB5D0A992 /* ChapterRecognition.swift */; };
@@ -375,6 +376,7 @@
 		C3F7CD527439900867B60005 /* CloudflareSolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudflareSolver.swift; sourceTree = "<group>"; };
 		C5EE675CB77CE18FD43663D2 /* CommentSite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentSite.swift; sourceTree = "<group>"; };
 		C7F584AC89AA22BCF08D75E5 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		ABCD40000000000000000001 /* IconPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconPack.swift; sourceTree = "<group>"; };
 		CA3A74FA2C6CA7812E9A5104 /* CategoryTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryTabView.swift; sourceTree = "<group>"; };
 		CA609549517104028BBED534 /* Tracking/TrackingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tracking/TrackingManager.swift; sourceTree = "<group>"; };
 		CAA6EC9C1F5F0F6587444BBF /* ChapterComment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChapterComment.swift; sourceTree = "<group>"; };
@@ -801,6 +803,7 @@
 			children = (
 				788EA87FDCBD419221019BB2 /* Constants.swift */,
 				C7F584AC89AA22BCF08D75E5 /* Theme.swift */,
+				ABCD40000000000000000001 /* IconPack.swift */,
 				3A7C1E0000000000000000C1 /* CoverTint.swift */,
 				06333FFD9AA49A992CECF1BE /* ViewModifiers */,
 			);
@@ -1071,6 +1074,7 @@
 				3A7C1E0000000000000000B4 /* IncognitoMode.swift in Sources */,
 				F284113DD4D3BBD22FA26560 /* TTSSettingsView.swift in Sources */,
 				964462B69BFEFB77456C4391 /* Theme.swift in Sources */,
+				ABCD40000000000000000002 /* IconPack.swift in Sources */,
 				85CDA37BF617A6E77D899825 /* TinyXMLParser.swift in Sources */,
 				4FBA33A806A389FA89FFF285 /* UpdateRow.swift in Sources */,
 				844BC985C7BAC123C2DB2C06 /* UpdatesView.swift in Sources */,

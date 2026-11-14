@@ -141,7 +141,7 @@ struct EntryHeaderView<Actions: View>: View {
                 Label {
                     Text(statusLine)
                 } icon: {
-                    Image(systemName: status.iconName)
+                    AppIcon(systemName: status.iconName, size: 13, relativeTo: .footnote)
                 }
                 .font(Typography.caption)
                 .foregroundStyle(.white.opacity(0.75))
@@ -171,10 +171,7 @@ struct EntryHeaderView<Actions: View>: View {
             onContinueReading()
         } label: {
             VStack(spacing: 2) {
-                Label(
-                    isFinished ? "You're all caught up" : (hasStartedReading ? "Continue reading" : "Start reading"),
-                    systemImage: isFinished ? "checkmark.circle.fill" : "book.fill"
-                )
+                AppLabel(isFinished ? "You're all caught up" : (hasStartedReading ? "Continue reading" : "Start reading"), systemName: isFinished ? "checkmark.circle.fill" : "book.fill", size: 17, relativeTo: .body)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                 if !isFinished, let continueChapterName, !continueChapterName.isEmpty {

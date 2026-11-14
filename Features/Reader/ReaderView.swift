@@ -1025,9 +1025,9 @@ struct ReaderFocusIndicator: View {    @ObservedObject var focusManager = FocusM
                         }
                     } label: {
                         if showLabel {
-                            Label(activeType.displayName, systemImage: activeType.iconName)
+                            AppLabel(activeType.displayName, systemName: activeType.iconName, size: 17, relativeTo: .body)
                         } else {
-                            Label(activeType.displayName, systemImage: activeType.iconName)
+                            AppLabel(activeType.displayName, systemName: activeType.iconName, size: 17, relativeTo: .body)
                                 .labelStyle(.iconOnly)
                         }
                     }
@@ -1092,7 +1092,7 @@ enum OfflineChapterLoad: Sendable {
 struct IncognitoIndicator: View {
     var body: some View {
         if IncognitoMode.shared.isOn {
-            Label("Incognito", systemImage: "eye.slash.fill")
+            AppLabel("Incognito", systemName: "eye.slash.fill", size: 11, relativeTo: .caption2)
                 .labelStyle(.iconOnly)
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(AppTheme.warning)

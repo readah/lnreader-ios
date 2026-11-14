@@ -149,11 +149,11 @@ struct LibraryListRow: View {
                 }
 
                 HStack(spacing: 12) {
-                    Label("\(counts?.total ?? 0)", systemImage: "list.number")
+                    AppLabel("\(counts?.total ?? 0)", systemName: "list.number", size: 17, relativeTo: .body)
                     if let badges = badges {
-                        if badges.unread > 0 { Label("\(badges.unread)", systemImage: "eye.slash") }
-                        if badges.new > 0 { Label("\(badges.new)", systemImage: "sparkles") }
-                        if badges.downloaded > 0 { Label("\(badges.downloaded)", systemImage: "arrow.down.circle") }
+                        if badges.unread > 0 { AppLabel("\(badges.unread)", systemName: "eye.slash", size: 17, relativeTo: .body) }
+                        if badges.new > 0 { AppLabel("\(badges.new)", systemName: "sparkles", size: 17, relativeTo: .body) }
+                        if badges.downloaded > 0 { AppLabel("\(badges.downloaded)", systemName: "arrow.down.circle", size: 11, relativeTo: .caption2) }
                         if let language = badges.language { Text(language) }
                     }
                 }

@@ -62,27 +62,27 @@ struct EntryWebView: View {
             Button {
                 if let item = page.backForwardList.backList.last { page.load(item) }
             } label: {
-                Label("Back", systemImage: "chevron.backward")
+                AppLabel("Back", systemName: "chevron.backward", size: 17, relativeTo: .body)
             }
             .disabled(page.backForwardList.backList.isEmpty)
 
             Button {
                 if let item = page.backForwardList.forwardList.first { page.load(item) }
             } label: {
-                Label("Forward", systemImage: "chevron.forward")
+                AppLabel("Forward", systemName: "chevron.forward", size: 17, relativeTo: .body)
             }
             .disabled(page.backForwardList.forwardList.isEmpty)
 
             Spacer()
 
             Button { page.reload() } label: {
-                Label("Reload", systemImage: "arrow.clockwise")
+                AppLabel("Reload", systemName: "arrow.clockwise", size: 17, relativeTo: .body)
             }
 
             ShareLink(item: currentURL)
 
             Button { openURL(currentURL) } label: {
-                Label("Open in Safari", systemImage: "safari")
+                AppLabel("Open in Safari", systemName: "safari", size: 17, relativeTo: .body)
             }
         }
     }

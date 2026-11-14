@@ -42,7 +42,7 @@ struct NovelFireLoginView: View {
             
             if let error = errorMessage {
                 ContentUnavailableView {
-                    Label("Sign-in failed", systemImage: "exclamationmark.triangle.fill")
+                    AppLabel("Sign-in failed", systemName: "exclamationmark.triangle.fill", size: 17, relativeTo: .body)
                 } description: {
                     Text(error)
                 } actions: {

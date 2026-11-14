@@ -86,7 +86,7 @@ struct MoreView: View {
                     Haptics.shared.impact(.light)
                     showingEditProfile = true
                 } label: {
-                    Image(systemName: "pencil")
+                    AppIcon(systemName: "pencil", size: 17, relativeTo: .body)
                 }
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.circle)
@@ -142,7 +142,7 @@ struct MoreView: View {
                     }
                 } label: {
                     HStack {
-                        Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
+                        AppLabel("Sync now", systemName: "arrow.triangle.2.circlepath", size: 17, relativeTo: .body)
                         if syncManager.isWorking {
                             Spacer()
                             ProgressView()
@@ -154,7 +154,7 @@ struct MoreView: View {
                 Button {
                     showingRestore = true
                 } label: {
-                    Label("Download from backend", systemImage: "arrow.down.circle")
+                    AppLabel("Download from backend", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
                 }
                 .disabled(syncManager.isWorking)
                 .confirmationDialog(
@@ -171,7 +171,7 @@ struct MoreView: View {
                 Button(role: .destructive) {
                     Task { await syncManager.signOut() }
                 } label: {
-                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                    AppLabel("Sign out", systemName: "rectangle.portrait.and.arrow.right", size: 17, relativeTo: .body)
                 }
                 .disabled(syncManager.isWorking)
             }
@@ -191,23 +191,23 @@ struct MoreView: View {
     @ViewBuilder
     private var syncStatus: some View {
         if let error = syncManager.lastError {
-            Label(error, systemImage: "exclamationmark.triangle.fill")
+            AppLabel(error, systemName: "exclamationmark.triangle.fill", size: 13, relativeTo: .footnote)
                 .font(.footnote)
                 .foregroundStyle(AppTheme.destructive)
         } else if let message = syncManager.lastMessage {
-            Label(message, systemImage: "info.circle.fill")
+            AppLabel(message, systemName: "info.circle.fill", size: 13, relativeTo: .footnote)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else if syncManager.currentUser == nil {
-            Label("Cloud sync offline", systemImage: "cloud.fill")
+            AppLabel("Cloud sync offline", systemName: "cloud.fill", size: 13, relativeTo: .footnote)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else if !syncManager.hasSynced {
-            Label("Signed in, nothing synced yet", systemImage: "cloud")
+            AppLabel("Signed in, nothing synced yet", systemName: "cloud", size: 13, relativeTo: .footnote)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else {
-            Label("Cloud synced", systemImage: "icloud.fill")
+            AppLabel("Cloud synced", systemName: "icloud.fill", size: 13, relativeTo: .footnote)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -237,7 +237,7 @@ struct MoreView: View {
             Button {
                 showingRestartOnboarding = true
             } label: {
-                Label("Restart Onboarding", systemImage: "arrow.counterclockwise")
+                AppLabel("Restart Onboarding", systemName: "arrow.counterclockwise", size: 17, relativeTo: .body)
             }
         }
     }
@@ -266,7 +266,7 @@ struct MoreView: View {
             destination()
                 .onAppear { Haptics.shared.impact(haptic) }
         } label: {
-            Label(title, systemImage: symbol)
+            AppLabel(title, systemName: symbol, size: 17, relativeTo: .body)
         }
     }
 }

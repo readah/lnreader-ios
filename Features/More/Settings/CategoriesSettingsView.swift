@@ -99,7 +99,7 @@ struct CategoriesSettingsView: View {
             editor = CategoryEditor(category)
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: "square.grid.2x2")
+                AppIcon(systemName: "square.grid.2x2", size: 13, relativeTo: .footnote)
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -113,7 +113,7 @@ struct CategoriesSettingsView: View {
                 Spacer()
 
                 if CategoryFlags.isExcluded(category.flags) {
-                    Image(systemName: "pause.circle")
+                    AppIcon(systemName: "pause.circle", size: 17, relativeTo: .body)
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Excluded from updates")
                 }
@@ -426,7 +426,7 @@ private struct CategoryTitlesPickerView: View {
                                     .foregroundStyle(.primary)
                                 Spacer()
                                 if memberIDs.contains(entry.persistentModelID) {
-                                    Image(systemName: "checkmark")
+                                    AppIcon(systemName: "checkmark", size: 17, relativeTo: .body)
                                         .foregroundStyle(Color.accentColor)
                                         .accessibilityLabel("In this category")
                                 }

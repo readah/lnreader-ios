@@ -13,10 +13,7 @@ struct FocusStatusRow: View {
     var body: some View {
         switch focusManager.authorization {
         case .unavailable:
-            Label(
-                "Focus status is not available in this build. The reader keeps its manual Focus selector.",
-                systemImage: "info.circle"
-            )
+            AppLabel("Focus status is not available in this build. The reader keeps its manual Focus selector.", systemName: "info.circle", size: 13, relativeTo: .footnote)
             .font(.footnote)
             .foregroundStyle(.secondary)
 
@@ -26,10 +23,7 @@ struct FocusStatusRow: View {
             }
 
         case .denied, .restricted:
-            Label(
-                "Access to Focus status has been denied. You can enable it in iOS Settings > Privacy & Security > Focus.",
-                systemImage: "exclamationmark.triangle"
-            )
+            AppLabel("Access to Focus status has been denied. You can enable it in iOS Settings > Privacy & Security > Focus.", systemName: "exclamationmark.triangle", size: 13, relativeTo: .footnote)
             .font(.footnote)
             .foregroundStyle(AppTheme.warning)
 

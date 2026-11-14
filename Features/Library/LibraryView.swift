@@ -228,14 +228,14 @@ struct LibraryView: View {
     /// paragraph did, so the paragraph is gone.
     private var emptyLibraryState: some View {
         ContentUnavailableView {
-            Label("Library Empty", systemImage: "books.vertical")
+            AppLabel("Library Empty", systemName: "books.vertical", size: 17, relativeTo: .body)
         } actions: {
             VStack(spacing: 10) {
                 Button {
                     Haptics.shared.impact(.light)
                     onExploreSources()
                 } label: {
-                    Label("Explore Sources", systemImage: "safari")
+                    AppLabel("Explore Sources", systemName: "safari", size: 17, relativeTo: .body)
                         .frame(maxWidth: 260)
                 }
                 .primaryActionStyle()
@@ -246,7 +246,7 @@ struct LibraryView: View {
                     Haptics.shared.impact(.light)
                     showFileImporter = true
                 } label: {
-                    Label("Import EPUB", systemImage: "square.and.arrow.down")
+                    AppLabel("Import EPUB", systemName: "square.and.arrow.down", size: 17, relativeTo: .body)
                         .frame(maxWidth: 260)
                 }
                 .buttonStyle(.glass)
@@ -378,7 +378,7 @@ struct LibraryView: View {
 
     private var arrangeHint: some View {
         HStack(spacing: 10) {
-            Image(systemName: "arrow.up.arrow.down")
+            AppIcon(systemName: "arrow.up.arrow.down", size: 13, relativeTo: .footnote)
                 .font(.body.weight(.semibold))
             Text("Drag a book to change its order. Tap Done when you're happy with it.")
                 .font(Typography.caption)
@@ -855,20 +855,20 @@ struct LibraryEntryQuickActions: View {
         Button {
             markAllRead()
         } label: {
-            Label("Mark all as read", systemImage: "checkmark.circle")
+            AppLabel("Mark all as read", systemName: "checkmark.circle", size: 17, relativeTo: .body)
         }
 
         if !entry.isLocal {
             Button {
                 ChapterDownloadManager.shared.enqueueUnread(nil, in: entry)
             } label: {
-                Label("Download unread chapters", systemImage: "arrow.down.circle")
+                AppLabel("Download unread chapters", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
             }
         }
 
         if let shareURL {
             ShareLink(item: shareURL) {
-                Label("Share link", systemImage: "square.and.arrow.up")
+                AppLabel("Share link", systemName: "square.and.arrow.up", size: 17, relativeTo: .body)
             }
         }
 

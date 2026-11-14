@@ -32,7 +32,7 @@ struct GlassIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
+            AppIcon(systemName: symbol, size: 17)
                 .font(GlassMetrics.iconFont)
                 .frame(width: GlassMetrics.side, height: GlassMetrics.side)
                 .contentShape(.circle)
@@ -74,7 +74,7 @@ struct GlassMenuButton<Content: View>: View {
         Menu {
             content()
         } label: {
-            Image(systemName: symbol)
+            AppIcon(systemName: symbol, size: 17)
                 .font(GlassMetrics.iconFont)
                 .frame(width: GlassMetrics.side, height: GlassMetrics.side)
                 .contentShape(.circle)
@@ -95,7 +95,7 @@ private struct GlassSegment: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
+            AppIcon(systemName: symbol, size: 17)
                 .font(GlassMetrics.iconFont)
                 .frame(height: GlassMetrics.side)
                 .padding(.horizontal, GlassMetrics.segmentInset)

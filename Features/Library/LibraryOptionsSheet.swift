@@ -70,7 +70,7 @@ struct LibraryOptionsSheet: View {
     /// One line that answers "am I changing everything, or just this tab?".
     private var scopeCaption: some View {
         HStack(spacing: 6) {
-            Image(systemName: "info.circle")
+            AppIcon(systemName: "info.circle", size: 11, relativeTo: .caption2)
                 .foregroundStyle(.secondary)
             Text(tab == .display
                  ? "Layout for \(scopeDescription). Grid columns are shared."
@@ -137,7 +137,7 @@ struct LibraryOptionsSheet: View {
             Text("Only \(noun)").tag(TriState.include)
             Text("Hide \(noun)").tag(TriState.exclude)
         } label: {
-            Label(title, systemImage: systemImage)
+            AppLabel(title, systemName: systemImage, size: 17, relativeTo: .body)
         }
         .pickerStyle(.menu)
     }
@@ -196,7 +196,7 @@ struct LibraryOptionsSheet: View {
             sort.select(order)
         } label: {
             HStack {
-                Label(order.displayName, systemImage: order.iconName)
+                AppLabel(order.displayName, systemName: order.iconName, size: 17, relativeTo: .body)
                     .foregroundStyle(.primary)
                 Spacer()
                 if selected {
@@ -205,7 +205,7 @@ struct LibraryOptionsSheet: View {
                             .foregroundStyle(.tint)
                             .contentTransition(.symbolEffect(.replace))
                     } else {
-                        Image(systemName: "checkmark").foregroundStyle(.tint)
+                        AppIcon(systemName: "checkmark", size: 17, relativeTo: .body).foregroundStyle(.tint)
                     }
                 }
             }
@@ -309,7 +309,7 @@ struct DisplayModePicker: View {
             withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) { selection = mode }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: mode.iconName)
+                AppIcon(systemName: mode.iconName, size: 20, relativeTo: .title3)
                     .font(.title3)
                     .frame(width: 26)
                 VStack(alignment: .leading, spacing: 2) {

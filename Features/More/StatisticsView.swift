@@ -186,7 +186,7 @@ struct StatisticsView: View {
     private func summaryCard(title: String, value: String, icon: String, color: Color) -> some View {
         CardContainer {
             VStack(alignment: .leading, spacing: 8) {
-                Image(systemName: icon)
+                AppIcon(systemName: icon, size: 17, relativeTo: .headline)
                     .font(.headline)
                     .foregroundStyle(color)
 
@@ -237,7 +237,7 @@ struct StatisticsView: View {
         CardContainer {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
-                    Image(systemName: "chart.bar.fill")
+                    AppIcon(systemName: "chart.bar.fill", size: 17, relativeTo: .headline)
                         .foregroundStyle(Pastel.purple)
                     Text("Weekly Activity")
                         .font(.headline)
@@ -298,7 +298,7 @@ struct StatisticsView: View {
         CardContainer {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
-                    Image(systemName: "percent")
+                    AppIcon(systemName: "percent", size: 17, relativeTo: .headline)
                         .foregroundStyle(Pastel.green)
                     Text("Reading Progress")
                         .font(.headline)
@@ -388,7 +388,7 @@ struct StatisticsView: View {
         CardContainer {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
-                    Image(systemName: "square.grid.2x2.fill")
+                    AppIcon(systemName: "square.grid.2x2.fill", size: 17, relativeTo: .headline)
                         .foregroundStyle(Pastel.orange)
                     Text("Category Breakdown")
                         .font(.headline)
@@ -478,7 +478,7 @@ struct StatisticsView: View {
         CardContainer {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
-                    Image(systemName: "clock.fill")
+                    AppIcon(systemName: "clock.fill", size: 17, relativeTo: .headline)
                         .foregroundStyle(Pastel.blue)
                     Text("Reading Hours")
                         .font(.headline)
@@ -550,7 +550,7 @@ struct StatisticsView: View {
         CardContainer {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
-                    Image(systemName: "globe")
+                    AppIcon(systemName: "globe", size: 17, relativeTo: .headline)
                         .foregroundStyle(Pastel.teal)
                     Text("Books by Source")
                         .font(.headline)
@@ -608,7 +608,7 @@ struct StatisticsView: View {
 
     private func noDataView(message: String) -> some View {
         VStack(spacing: 8) {
-            Image(systemName: "chart.pie")
+            AppIcon(systemName: "chart.pie", size: 13, relativeTo: .footnote)
                 .font(.title2)
                 .foregroundStyle(.secondary)
             Text(message)

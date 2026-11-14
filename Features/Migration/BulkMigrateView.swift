@@ -284,7 +284,7 @@ struct MigrateSourceSheet: View {
                             Text("Search in").foregroundStyle(.primary)
                             Spacer()
                             Text(destinationSummary).foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right")
+                            AppIcon(systemName: "chevron.right", size: 13, relativeTo: .footnote)
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(.tertiary)
                         }
@@ -536,12 +536,12 @@ struct BulkMigrateReviewView: View {
         case .waiting, .searching, .migrating:
             ProgressView().controlSize(.small)
         case .done:
-            Image(systemName: "checkmark").foregroundStyle(.secondary)
+            AppIcon(systemName: "checkmark", size: 17, relativeTo: .body).foregroundStyle(.secondary)
         case .noMatch, .failed:
             Button {
                 Task { await model.retry(row.id, sources: destinations) }
             } label: {
-                Image(systemName: "arrow.clockwise").foregroundStyle(.secondary)
+                AppIcon(systemName: "arrow.clockwise", size: 17, relativeTo: .body).foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Search again")

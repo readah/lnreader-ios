@@ -264,7 +264,7 @@ struct ReaderSettings: View {
     /// is being dragged.
     private var brightnessRow: some View {
         HStack(spacing: 12) {
-            Image(systemName: "sun.min")
+            AppIcon(systemName: "sun.min", size: 13, relativeTo: .body)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
@@ -273,7 +273,7 @@ struct ReaderSettings: View {
                 .tint(.primary)
                 .accessibilityLabel("Brightness")
 
-            Image(systemName: "sun.max")
+            AppIcon(systemName: "sun.max", size: 17, relativeTo: .body)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
@@ -662,7 +662,7 @@ struct ReaderSettings: View {
                 Label {
                     Text(title)
                 } icon: {
-                    Image(systemName: symbol)
+                    AppIcon(systemName: symbol, size: 17)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -789,7 +789,7 @@ struct ReaderSettings: View {
                     HStack(spacing: 4) {
                         Text(isPreviewExpanded ? "Less" : "More")
                             .font(.system(size: 11, weight: .medium))
-                        Image(systemName: isPreviewExpanded ? "chevron.up" : "chevron.down")
+                        AppIcon(systemName: isPreviewExpanded ? "chevron.up" : "chevron.down", size: 10, relativeTo: .caption2)
                             .font(.system(size: 10, weight: .bold))
                     }
                     .foregroundStyle(resolvedLocalTextColor.opacity(0.65))

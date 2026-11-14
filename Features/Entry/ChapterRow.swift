@@ -152,11 +152,11 @@ struct ChapterRow: View {
                 // Status icons
                 HStack(spacing: 8) {
                     if audio > 0 {
-                        Label("\(audio)", systemImage: "headphones").font(Typography.small).foregroundStyle(.secondary)
+                        AppLabel("\(audio)", systemName: "headphones", size: 11, relativeTo: .caption2).font(Typography.small).foregroundStyle(.secondary)
                             .accessibilityLabel("\(audio) voices available offline")
                     }
                     if chapter.bookmarked {
-                        Image(systemName: "bookmark.fill")
+                        AppIcon(systemName: "bookmark.fill", size: 13, relativeTo: .footnote)
                             .foregroundStyle(.primary)
                             .font(Typography.caption)
                     }
@@ -259,15 +259,15 @@ struct ChapterDownloadControl: View {
     @ViewBuilder private var icon: some View {
         switch status {
         case .none:
-            Image(systemName: "arrow.down.circle").font(.system(size: 25, weight: .light)).foregroundStyle(.primary)
+            AppIcon(systemName: "arrow.down.circle", size: 25, relativeTo: .body).font(.system(size: 25, weight: .light)).foregroundStyle(.primary)
         case .queued:
-            Image(systemName: "ellipsis.circle").font(.system(size: 25, weight: .light)).foregroundStyle(.primary)
+            AppIcon(systemName: "ellipsis.circle", size: 25, relativeTo: .body).font(.system(size: 25, weight: .light)).foregroundStyle(.primary)
         case .paused:
-            Image(systemName: "pause.circle").font(.system(size: 25, weight: .light)).foregroundStyle(.primary)
+            AppIcon(systemName: "pause.circle", size: 25, relativeTo: .body).font(.system(size: 25, weight: .light)).foregroundStyle(.primary)
         case .failed:
-            Image(systemName: "exclamationmark.circle").font(.system(size: 25, weight: .light)).foregroundStyle(AppTheme.warning)
+            AppIcon(systemName: "exclamationmark.circle", size: 25, relativeTo: .body).font(.system(size: 25, weight: .light)).foregroundStyle(AppTheme.warning)
         case .downloaded:
-            Image(systemName: "checkmark.circle.fill").font(.system(size: 25)).foregroundStyle(.primary)
+            AppIcon(systemName: "checkmark.circle.fill", size: 25, relativeTo: .body).font(.system(size: 25)).foregroundStyle(.primary)
         case .downloading(let progress):
             DownloadProgressRing(progress: progress).frame(width: 25, height: 25)
         }
@@ -298,7 +298,7 @@ struct DownloadProgressRing: View {
                     .trim(from: 0, to: min(progress, 1))
                     .stroke(.primary, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Image(systemName: "stop.fill").font(.system(size: 8)).foregroundStyle(.primary)
+                AppIcon(systemName: "stop.fill", size: 8, relativeTo: .body).font(.system(size: 8)).foregroundStyle(.primary)
             } else {
                 ProgressView().controlSize(.small)
             }
@@ -534,7 +534,7 @@ private struct ChapterSelectionBar<MenuItems: View>: View {
     private var cancelButton: some View {
         Button { selection.end() } label: {
             HStack(spacing: 6) {
-                Image(systemName: "xmark")
+                AppIcon(systemName: "xmark", size: 15, relativeTo: .subheadline)
                 Text("\(selection.paths.count)").monospacedDigit()
             }
             .font(.subheadline.weight(.semibold))

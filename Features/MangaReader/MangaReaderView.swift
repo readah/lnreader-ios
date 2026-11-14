@@ -319,7 +319,7 @@ struct MangaReaderView: View {
 
     private func errorView(_ message: String) -> some View {
         VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
+            AppIcon(systemName: "exclamationmark.triangle", size: 28, relativeTo: .title)
                 .font(.largeTitle)
                 .foregroundStyle(.white.opacity(0.8))
             Text(message)
@@ -401,7 +401,7 @@ struct MangaReaderView: View {
         Button {
             showReaderSettings = true
         } label: {
-            Image(systemName: "slider.horizontal.3")
+            AppIcon(systemName: "slider.horizontal.3", size: 17, relativeTo: .body)
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
                 .glassEffect(.regular.interactive(), in: .circle)
@@ -434,7 +434,7 @@ struct MangaReaderView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
+            AppIcon(systemName: symbol, size: 17)
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
                 .glassEffect(.regular.interactive(), in: .circle)
@@ -448,7 +448,7 @@ struct MangaReaderView: View {
         return Button {
             Task { await moveChapter(by: offset) }
         } label: {
-            Image(systemName: symbol)
+            AppIcon(systemName: symbol, size: 17)
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
         }
@@ -918,7 +918,7 @@ struct MangaReaderView: View {
             Spacer()
             if scroller.isAutoScrolling {
                 Button { scroller.stopAuto() } label: {
-                    Label("Auto scroll", systemImage: "pause.fill")
+                    AppLabel("Auto scroll", systemName: "pause.fill", size: 15, relativeTo: .body)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 18)

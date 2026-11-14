@@ -294,7 +294,7 @@ private struct TriStateRow: View {
             HStack {
                 Text(name)
                 Spacer()
-                Image(systemName: mode.symbol)
+                AppIcon(systemName: mode.symbol, size: 17)
                     .foregroundStyle(mode == .exclude ? AppTheme.warning : Color.accentColor)
             }
         }
@@ -349,7 +349,7 @@ private struct FilterChoiceList: View {
                     Text(option.name)
                     Spacer()
                     if selection == option.id {
-                        Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+                        AppIcon(systemName: "checkmark", size: 17, relativeTo: .body).foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -382,7 +382,7 @@ private struct FilterOptionList: View {
                     Text(option.name)
                     Spacer()
                     if state.contains(option.id) {
-                        Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+                        AppIcon(systemName: "checkmark", size: 17, relativeTo: .body).foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -421,9 +421,9 @@ private struct FilterExcludableList: View {
                     Text(option.name)
                     Spacer()
                     if state.included.contains(option.id) {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor)
+                        AppIcon(systemName: "checkmark.circle.fill", size: 17, relativeTo: .body).foregroundStyle(Color.accentColor)
                     } else if state.excluded.contains(option.id) {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(AppTheme.warning)
+                        AppIcon(systemName: "xmark.circle.fill", size: 17, relativeTo: .body).foregroundStyle(AppTheme.warning)
                     }
                 }
             }

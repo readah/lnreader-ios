@@ -149,9 +149,9 @@ struct SourceDetailView: View {
             if hasFilters {
                 ToolbarItem(placement: .primaryAction) {
                     Button { showFilters = true } label: {
-                        Label("Filters", systemImage: activeFilterCount > 0
+                        AppLabel("Filters", systemName: activeFilterCount > 0
                             ? "line.3.horizontal.decrease.circle.fill"
-                            : "line.3.horizontal.decrease.circle")
+                            : "line.3.horizontal.decrease.circle", size: 17, relativeTo: .body)
                     }
                     .accessibilityValue(activeFilterCount > 0 ? "\(activeFilterCount) active" : "")
                 }
@@ -161,7 +161,7 @@ struct SourceDetailView: View {
                     NavigationLink(destination: NovelFireLoginView(onLoginSuccess: {
                         Task { await loadPopular() }
                     }, site: site)) {
-                        Label("Login", systemImage: "person.badge.key")
+                        AppLabel("Login", systemName: "person.badge.key", size: 17, relativeTo: .body)
                     }
                 }
             }

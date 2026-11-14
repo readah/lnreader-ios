@@ -18,7 +18,7 @@ struct EmptyStateView: View {
 
     var body: some View {
         ContentUnavailableView {
-            Label(title, systemImage: icon)
+            AppLabel(title, systemName: icon, size: 17, relativeTo: .body)
         } description: {
             if let subtitle {
                 Text(subtitle)

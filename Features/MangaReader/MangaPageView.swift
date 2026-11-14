@@ -28,7 +28,7 @@ struct MangaPageView: View {
                     .frame(maxWidth: .infinity)
             } else if didFail {
                 VStack(spacing: 14) {
-                    Image(systemName: "exclamationmark.triangle")
+                    AppIcon(systemName: "exclamationmark.triangle", size: 28, relativeTo: .title)
                         .font(.title)
                         .foregroundStyle(.white.opacity(0.7))
                     Text("Page \(page.index + 1) could not be loaded")

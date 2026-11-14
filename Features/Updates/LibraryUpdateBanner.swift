@@ -31,7 +31,7 @@ struct LibraryUpdateBanner: View {
     private func backupBannerLabel(_ progress: BackupProgress) -> some View {
         HStack(spacing: 12) {
             if progress.isFinished {
-                Image(systemName: progress.icon)
+                AppIcon(systemName: progress.icon, size: 17)
                     .foregroundStyle(backupIconColor(progress))
             } else {
                 ProgressView(value: progress.fraction)
@@ -42,7 +42,7 @@ struct LibraryUpdateBanner: View {
                 Text(progress.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 0)
-            Image(systemName: "chevron.up").font(.caption).foregroundStyle(.secondary)
+            AppIcon(systemName: "chevron.up", size: 12, relativeTo: .caption).font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -58,7 +58,7 @@ struct LibraryUpdateBanner: View {
     private func bannerLabel(_ progress: LibraryUpdateProgress) -> some View {
         HStack(spacing: 12) {
             if progress.isFinished {
-                Image(systemName: icon(for: progress))
+                AppIcon(systemName: icon(for: progress), size: 17)
                     .foregroundStyle(progress.failures.isEmpty ? Color.green : AppTheme.warning)
             } else {
                 ProgressView(value: progress.fraction)
@@ -69,7 +69,7 @@ struct LibraryUpdateBanner: View {
                 Text(subtitle(progress)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 0)
-            Image(systemName: "chevron.up").font(.caption).foregroundStyle(.secondary)
+            AppIcon(systemName: "chevron.up", size: 12, relativeTo: .caption).font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)

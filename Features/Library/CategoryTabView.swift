@@ -67,7 +67,7 @@ struct CategoryTabView: View {
             HStack(spacing: 4) {
                 Text(title)
                 if isExcluded {
-                    Image(systemName: "pause.circle")
+                    AppIcon(systemName: "pause.circle", size: 13, relativeTo: .footnote)
                         .accessibilityLabel("Excluded from updates")
                 }
             }

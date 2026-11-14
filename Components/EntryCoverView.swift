@@ -43,7 +43,7 @@ struct EntryCoverView: View {
         Rectangle()
             .fill(.quaternary)
             .overlay {
-                Image(systemName: "book.closed.fill")
+                AppIcon(systemName: "book.closed.fill", size: 22, relativeTo: .title2)
                     .font(.title2)
                     .foregroundStyle(.quaternary)
             }

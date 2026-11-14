@@ -20,12 +20,12 @@ struct LibraryToolbar: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             Button(action: onImport) {
-                Image(systemName: "square.and.arrow.down")
+                AppIcon(systemName: "square.and.arrow.down", size: 17, relativeTo: .body)
             }
             .accessibilityLabel("Import EPUB or PDF")
 
             Button(action: onOpenRandom) {
-                Image(systemName: "dice")
+                AppIcon(systemName: "dice", size: 17, relativeTo: .body)
             }
             .disabled(!hasManga || isPickingRandom)
             .accessibilityLabel("Open random unread manga")
@@ -33,9 +33,9 @@ struct LibraryToolbar: ToolbarContent {
             Button(action: onShowOptions) {
                 // The accent is plain white in dark mode, so tinting the icon
                 // cannot show "on". The filled variant of the symbol does.
-                Image(systemName: isCustomised
+                AppIcon(systemName: isCustomised
                       ? "line.3.horizontal.decrease.circle.fill"
-                      : "line.3.horizontal.decrease")
+                      : "line.3.horizontal.decrease", size: 17)
             }
             .accessibilityLabel("Library options: filter, sort and display")
             .accessibilityValue(isCustomised ? "Customised" : "")

@@ -108,7 +108,7 @@ struct BrowseView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Button { showDisplay = true } label: {
-                Image(systemName: "rectangle.grid.2x2")
+                AppIcon(systemName: "rectangle.grid.2x2", size: 17, relativeTo: .body)
             }
             .accessibilityLabel("Display")
         }
@@ -117,7 +117,7 @@ struct BrowseView: View {
                 NavigationLink {
                     GlobalSearchView()
                 } label: {
-                    Image(systemName: "text.magnifyingglass")
+                    AppIcon(systemName: "text.magnifyingglass", size: 17, relativeTo: .body)
                 }
                 .accessibilityLabel("Search all sources")
             }
@@ -280,7 +280,7 @@ private struct SourceRow: View {
                 Spacer(minLength: 8)
 
                 // The rows are buttons, so the disclosure chevron is ours.
-                Image(systemName: "chevron.right")
+                AppIcon(systemName: "chevron.right", size: 13, relativeTo: .footnote)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }

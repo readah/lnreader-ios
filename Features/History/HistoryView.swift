@@ -71,7 +71,7 @@ struct HistoryView: View {
                         Button(role: .destructive) {
                             showClearConfirmation = true
                         } label: {
-                            Label("Clear History", systemImage: "trash")
+                            AppLabel("Clear History", systemName: "trash", size: 17, relativeTo: .body)
                         }
                     }
                 }
@@ -100,10 +100,7 @@ struct HistoryView: View {
             incognito.toggle()
             Haptics.shared.impact(.light, intensity: 0.8)
         } label: {
-            Label(
-                on ? "Incognito on" : "Incognito off",
-                systemImage: on ? "eye.slash.fill" : "eye.slash"
-            )
+            AppLabel(on ? "Incognito on" : "Incognito off", systemName: on ? "eye.slash.fill" : "eye.slash", size: 17, relativeTo: .body)
         }
         .tint(on ? AppTheme.warning : nil)
         .accessibilityAddTraits(on ? .isSelected : [])

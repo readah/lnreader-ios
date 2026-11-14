@@ -44,7 +44,7 @@ struct TTSPlaybackControls: View {
 
     private var followBanner: some View {
         GlassPillButton(action: onFollow) {
-            Label("Back to current", systemImage: "arrow.uturn.backward.circle.fill")
+            AppLabel("Back to current", systemName: "arrow.uturn.backward.circle.fill", size: 17, relativeTo: .body)
         }
         .accessibilityLabel("Back to current reading position")
         .padding(.top, 72)
@@ -103,7 +103,7 @@ struct TTSPlaybackControls: View {
         HStack(spacing: 0) {
             Button(action: onSleep) {
                 VStack(spacing: 2) {
-                    Image(systemName: sleepActive ? "moon.zzz.fill" : "moon.zzz")
+                    AppIcon(systemName: sleepActive ? "moon.zzz.fill" : "moon.zzz", size: 20, relativeTo: .title3)
                         .font(.title3)
                     if sleepActive {
                         Text(sleepTimerLabel)
@@ -170,7 +170,7 @@ struct TTSPlaybackControls: View {
         ZStack {
             HStack {
                 Button(action: onSettings) {
-                    Label("Reader settings", systemImage: "textformat.size")
+                    AppLabel("Reader settings", systemName: "textformat.size", size: 20, relativeTo: .title3)
                         .labelStyle(.iconOnly)
                         .font(.title3)
                         .frame(minWidth: 44, minHeight: 44)
@@ -182,7 +182,7 @@ struct TTSPlaybackControls: View {
                 Spacer()
 
                 Button(action: onBookmark) {
-                    Label("Bookmark", systemImage: "bookmark")
+                    AppLabel("Bookmark", systemName: "bookmark", size: 20, relativeTo: .title3)
                         .labelStyle(.iconOnly)
                         .font(.title3)
                         .frame(minWidth: 44, minHeight: 44)
@@ -272,7 +272,7 @@ struct TTSVoiceChip: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "waveform").font(.caption.weight(.semibold))
+            AppIcon(systemName: "waveform", size: 12, relativeTo: .caption).font(.caption.weight(.semibold))
             Text(name).font(.subheadline.weight(.semibold)).lineLimit(1)
         }
         .foregroundStyle(.white)

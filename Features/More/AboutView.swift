@@ -43,7 +43,7 @@ struct AboutView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: "book.fill")
+            AppIcon(systemName: "book.fill", size: 22, relativeTo: .title2)
                 .font(.largeTitle)
                 .foregroundStyle(.primary)
                 .accessibilityHidden(true)

@@ -116,7 +116,7 @@ struct UpdatesView: View {
                             if isClearing {
                                 ProgressView()
                             } else {
-                                Label("Clear Updates", systemImage: "trash")
+                                AppLabel("Clear Updates", systemName: "trash", size: 17, relativeTo: .body)
                             }
                         }
                         .disabled(isClearing)
@@ -130,7 +130,7 @@ struct UpdatesView: View {
                         if libraryManager.isUpdating {
                             ProgressView()
                         } else {
-                            Image(systemName: "arrow.clockwise")
+                            AppIcon(systemName: "arrow.clockwise", size: 17, relativeTo: .body)
                         }
                     }
                     .disabled(libraryManager.isUpdating)

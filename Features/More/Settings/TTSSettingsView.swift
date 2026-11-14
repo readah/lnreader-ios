@@ -14,7 +14,7 @@ struct TTSSettingsView: View {
             } header: { Text("Default narrator") }
             Section {
                 if let engine = library.engineState, engine.needsAttention {
-                    Label(engine.message, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.secondary)
+                    AppLabel(engine.message, systemName: "exclamationmark.triangle", size: 12, relativeTo: .caption).font(.caption).foregroundStyle(.secondary)
                 }
                 NavigationLink("Manage downloaded audio") {
                     List {
@@ -25,9 +25,9 @@ struct TTSSettingsView: View {
                                     Text(record.rendition.title).font(.caption)
                                     Text("\(library.voices.first { $0.id == record.rendition.voiceId }?.name ?? record.manifest?.voiceName ?? record.rendition.voiceId) · \(record.isAvailable ? "Available offline" : record.state)").font(.caption).foregroundStyle(.secondary)
                                 }
-                                if let message = record.error { Image(systemName: "exclamationmark.circle.fill").foregroundStyle(AppTheme.warning).accessibilityLabel(message) }
+                                if let message = record.error { AppIcon(systemName: "exclamationmark.circle.fill", size: 17, relativeTo: .body).foregroundStyle(AppTheme.warning).accessibilityLabel(message) }
                                 Spacer()
-                                Button(role: .destructive) { Task { await library.delete(record.id) } } label: { Image(systemName: "trash") }
+                                Button(role: .destructive) { Task { await library.delete(record.id) } } label: { AppIcon(systemName: "trash", size: 17, relativeTo: .body) }
                                     .buttonStyle(.borderless)
                                     .accessibilityLabel("Delete audio")
                             }

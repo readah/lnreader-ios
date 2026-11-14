@@ -28,26 +28,36 @@ struct ContentView: View {
                 selectedTab = tab
             }
         )) {
-            Tab(AppTab.library.title, systemImage: AppTab.library.icon, value: .library) {
+            Tab(value: .library) {
                 LibraryView(openedEntry: $openedEntry) {
                     selectedTab = .browse
                 }
+            } label: {
+                AppTabLabel(title: AppTab.library.title, systemName: AppTab.library.icon)
             }
 
-            Tab(AppTab.updates.title, systemImage: AppTab.updates.icon, value: .updates) {
+            Tab(value: .updates) {
                 UpdatesView()
+            } label: {
+                AppTabLabel(title: AppTab.updates.title, systemName: AppTab.updates.icon)
             }
 
-            Tab(AppTab.history.title, systemImage: AppTab.history.icon, value: .history) {
+            Tab(value: .history) {
                 HistoryView(resumeTrigger: historyResume)
+            } label: {
+                AppTabLabel(title: AppTab.history.title, systemName: AppTab.history.icon)
             }
 
-            Tab(AppTab.browse.title, systemImage: AppTab.browse.icon, value: .browse) {
+            Tab(value: .browse) {
                 BrowseView()
+            } label: {
+                AppTabLabel(title: AppTab.browse.title, systemName: AppTab.browse.icon)
             }
 
-            Tab(AppTab.more.title, systemImage: AppTab.more.icon, value: .more) {
+            Tab(value: .more) {
                 MoreView()
+            } label: {
+                AppTabLabel(title: AppTab.more.title, systemName: AppTab.more.icon)
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)

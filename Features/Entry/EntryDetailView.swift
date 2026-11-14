@@ -236,7 +236,7 @@ struct EntryDetailView: View {
                 }
                 if let shareURL {
                     ShareLink(item: shareURL) {
-                        Label("Share link", systemImage: "square.and.arrow.up")
+                        AppLabel("Share link", systemName: "square.and.arrow.up", size: 17, relativeTo: .body)
                     }
                     .accessibilityLabel("Share link")
                 }
@@ -347,7 +347,7 @@ struct EntryDetailView: View {
             if isRefetching {
                 ProgressView()
             } else {
-                Label("Refresh", systemImage: "arrow.clockwise")
+                AppLabel("Refresh", systemName: "arrow.clockwise", size: 17, relativeTo: .body)
             }
         }
         .disabled(isRefetching)
@@ -359,7 +359,7 @@ struct EntryDetailView: View {
     /// single item is a door with one room behind it.
     private var migrateButton: some View {
         Button { showMigrate = true } label: {
-            Label("Migrate to another source", systemImage: "arrow.triangle.swap")
+            AppLabel("Migrate to another source", systemName: "arrow.triangle.swap", size: 17, relativeTo: .body)
         }
         .accessibilityLabel("Migrate to another source")
     }
@@ -393,7 +393,7 @@ struct EntryDetailView: View {
     /// site shows, or to clear a Cloudflare check, when the source misbehaves.
     private var webViewButton: some View {
         Button { showWebView = true } label: {
-            Label("Open in web view", systemImage: "globe")
+            AppLabel("Open in web view", systemName: "globe", size: 17, relativeTo: .body)
         }
         .accessibilityLabel("Open in web view")
     }
@@ -601,7 +601,7 @@ struct EntryDetailView: View {
     @ViewBuilder
     private var copyToast: some View {
         if titleCopied {
-            Label("Title copied", systemImage: "checkmark")
+            AppLabel("Title copied", systemName: "checkmark", size: 13, relativeTo: .footnote)
                 .font(Typography.caption)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
