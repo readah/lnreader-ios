@@ -276,7 +276,10 @@ struct EntryDetailView: View {
                 sourceKey: sourceKey,
                 entryURL: bookPath,
                 chapters: allChapters.map { TTSChapterChoice($0) },
-                coverURL: displayCover
+                coverURL: displayCover,
+                // The sheet's chapter, download and range actions start where
+                // the reader is, not at the oldest chapter of a long book.
+                initialChapter: resumeChapter?.path
             )
             // Applied to the sheet content directly: the sheet is chained after
             // the `.environment(\.coverTint,…)` above, so it does not inherit it.

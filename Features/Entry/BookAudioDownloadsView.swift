@@ -239,16 +239,28 @@ struct BookAudioDownloadsView: View {
             List {
                 Section {
                     dashboard
-                        .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
-                        .listRowBackground(Rectangle().fill(.regularMaterial))
+                        .listRowInsets(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
                 if preparing || error != nil || library.errorMessage != nil || library.engineState?.needsAttention == true {
                     Section {
                         if preparing {
-                            HStack { ProgressView(); Text(preparationProgress).font(.caption); Spacer(); Button("Stop") { preparationTask?.cancel() }.buttonStyle(.borderless) }
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                Text(preparationProgress)
+                                    .font(Typography.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Stop") { preparationTask?.cancel() }
+                                    .font(Typography.caption.weight(.semibold))
+                                    .buttonStyle(.borderless)
+                            }
                         }
                         if let message = error ?? library.errorMessage ?? (library.engineState?.needsAttention == true ? library.engineState?.message : nil) {
-                            Label(message, systemImage: "exclamationmark.circle").font(.caption).foregroundStyle(AppTheme.warning)
+                            Label(message, systemImage: "exclamationmark.circle")
+                                .font(Typography.caption)
+                                .foregroundStyle(AppTheme.warning)
                         }
                     }
                 }
@@ -260,18 +272,15 @@ struct BookAudioDownloadsView: View {
                         chapterRow(chapter, records: indexed[chapter.path] ?? [])
                     }
                     if visible.isEmpty {
-                        ContentUnavailableView(
-                            "Nothing downloaded",
-                            systemImage: "headphones",
-                            description: Text(search.isEmpty && stateFilter == "All"
-                                ? "Use the buttons above to download this chapter, the next ten, or a range."
-                                : "Try another search or filter.")
-                        )
-                        .listRowBackground(Rectangle().fill(.regularMaterial))
+                        compactEmptyState
+                            .listRowBackground(Rectangle().fill(.regularMaterial))
                     }
                 } header: {
                     HStack {
                         Text("Downloaded · \(visibleAll.count)")
+                            .font(Typography.caption.weight(.semibold))
+                            .textCase(nil)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Menu {
                             Picker("Status", selection: $stateFilter) {
@@ -281,19 +290,21 @@ struct BookAudioDownloadsView: View {
                                 Text("All voices").tag("all")
                                 ForEach(library.voices) { Text($0.name).tag($0.id) }
                             }
-                        } label: { Label(stateFilter, systemImage: "line.3.horizontal.decrease") }
+                        } label: {
+                            Label(stateFilter, systemImage: "line.3.horizontal.decrease")
+                                .font(Typography.caption.weight(.medium))
+                                .foregroundStyle(.primary)
+                        }
                     }
                 } footer: {
-                    Text(offlineSummary).font(Typography.small)
+                    Text(offlineSummary).font(Typography.caption)
                 }
             }
-            .listSectionSpacing(12)
+            .listSectionSpacing(16)
             .scrollContentBackground(.hidden)
-            .background {
-                if let coverTint { coverTint.opacity(0.16).ignoresSafeArea() }
-            }
+            .background { CoverBackdrop(url: coverURL, tint: coverTint) }
             .navigationTitle("Audio")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
@@ -374,31 +385,56 @@ struct BookAudioDownloadsView: View {
         let preferred = library.selectedVoice(bookId: bookId, chapterId: initialChapter ?? "")
         return selectedVoices.contains(preferred) ? preferred : selectedVoices.sorted().first ?? preferred
     }
-    private var offlineChapterCount: Int {
-        Set(bookRecords.filter(\.isAvailable).map { $0.rendition.chapterId }).count
-    }
-    /// The download total, moved out of the header and onto the bottom of the
-    /// downloaded card, where it describes the list above it.
+    /// The header already counts downloaded chapters; the footer only adds how
+    /// much room they take on this phone.
     private var offlineSummary: String {
-        let chapters = offlineChapterCount == 1 ? "1 chapter" : "\(offlineChapterCount) chapters"
-        return "\(chapters) offline · \(ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file))"
+        "\(ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)) stored on this phone"
     }
 
-    /// Cover, current chapter and narrator, then the download actions. One row
-    /// in the list, so its text lines up with every other row on this screen.
+    /// A quiet empty row. `ContentUnavailableView` is sized for a whole screen;
+    /// inside this sheet its heading outran the book title above it.
+    private var compactEmptyState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "headphones")
+                .font(.system(size: 28, weight: .regular))
+                .foregroundStyle(.secondary)
+            Text("Nothing downloaded")
+                .font(Typography.headline)
+            Text(search.isEmpty && stateFilter == "All"
+                 ? "Use the buttons above to download this chapter, the next ten, or a range."
+                 : "Try another search or filter.")
+                .font(Typography.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+    }
+
+    /// Cover, chapter and narrator on the blurred artwork, then the actions.
+    /// The artwork is the only large graphic on the sheet, so the cover is the
+    /// thing that names the book rather than another competing card.
     private var dashboard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 14) {
-                EntryCoverView(url: coverURL, cornerRadius: 8).frame(width: 58, height: 82)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(bookTitle).font(.headline).lineLimit(2)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 16) {
+                EntryCoverView(url: coverURL, cornerRadius: 10)
+                    .frame(width: 96)
+                    .shadow(color: .black.opacity(0.35), radius: 12, y: 6)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(bookTitle)
+                        .font(Typography.title)
+                        .lineLimit(2)
                     if let currentChoice {
-                        Text(currentChoice.title)
-                            .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        Text("Chapter \(currentChoice.position + 1) · \(currentChoice.title)")
+                            .font(Typography.body)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
                     }
+                    narratorButton
+                        .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                narratorCard
             }
 
             downloadControls
@@ -409,34 +445,35 @@ struct BookAudioDownloadsView: View {
         }
     }
 
-    /// The narrator in the space beside the cover. The card is the voice's own
-    /// glass, the same light as its chip at card size, so a voice is recognised
-    /// the same way in the picker and on the dashboard.
-    private var narratorCard: some View {
+    /// The narrator as a compact control under the chapter: the voice's own
+    /// colour marks the icon, its name is the value, and the chevron opens the
+    /// picker. A card here used to compete with the cover for the first glance.
+    private var narratorButton: some View {
         let name = library.voices.first { $0.id == activeVoice }?.name ?? "Narrator"
+        let colors = TTSVoicePalette.colors(for: activeVoice)
         return Button { showVoices = true } label: {
-            VStack(spacing: 5) {
+            HStack(spacing: 7) {
                 Image(systemName: "waveform")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                 Text(name)
-                    .font(Typography.small.weight(.semibold))
+                    .font(Typography.body.weight(.semibold))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
                 Text("Narrator")
-                    .font(.caption2)
-                    .opacity(0.62)
+                    .font(Typography.caption)
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.tertiary)
             }
-            .foregroundStyle(.white)
-            .frame(width: 86, height: 82)
-            .background { VoiceGlowSurface(voiceId: activeVoice, cornerRadius: 14) }
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(.white.opacity(0.16), lineWidth: 0.5)
-            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(.white.opacity(0.10), lineWidth: 0.5))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Narrator")
-        .accessibilityValue(name)
+        .accessibilityLabel("Narrator: \(name)")
         .accessibilityHint("Choose a narrator voice")
     }
 
@@ -466,7 +503,7 @@ struct BookAudioDownloadsView: View {
                 .disabled(downloadBlocked)
 
                 Button { showRange = true } label: {
-                    Label("Range", systemImage: "slider.horizontal.3")
+                    Label("Range…", systemImage: "slider.horizontal.3")
                         .lineLimit(1)
                         .frame(maxWidth: .infinity)
                 }
@@ -482,7 +519,7 @@ struct BookAudioDownloadsView: View {
     /// so the header no longer repeats it.
     private var downloadCurrentTitle: String {
         guard let currentChoice else { return "Download chapter" }
-        return "Download \(currentChoice.position + 1)"
+        return "Download chapter \(currentChoice.position + 1)"
     }
 
     /// Only failed renditions for this book. Paused ones are excluded: the user
@@ -542,82 +579,104 @@ struct BookAudioDownloadsView: View {
         throughChapter = min(chapters.count, fromChapter + count - 1)
         prepareSelected()
     }
-    /// The third of the three direct actions. A two-handle slider with a
-    /// stepper on each side: dragging picks a span quickly, the buttons land on
-    /// an exact chapter, which a slider alone cannot do on a phone.
+    /// The third of the three direct actions: a two-handle slider for picking a
+    /// span quickly, with a stepper per edge for landing on an exact chapter.
+    ///
+    /// The steppers never dead-end. Moving one edge past the other takes the
+    /// other with it, so a collapsed range at chapter 1 still grows whichever
+    /// way the user pushes; the old version disabled the button they reached for.
     private var rangePicker: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    HStack(spacing: 12) {
-                        rangeValuePanel(
-                            "From", value: $fromChapter,
-                            lowerBound: 1, upperBound: max(1, throughChapter))
-                        rangeValuePanel(
-                            "Through", value: $throughChapter,
-                            lowerBound: max(1, fromChapter), upperBound: max(1, chapters.count))
-                    }
-
-                    ChapterRangeSlider(lower: $fromChapter, upper: $throughChapter, count: chapters.count)
-
-                    Text(rangeSummary)
-                        .font(Typography.small)
+            Form {
+                Section {
+                    VStack(spacing: 12) {
+                        ChapterRangeSlider(lower: $fromChapter, upper: $throughChapter, count: chapters.count)
+                        HStack {
+                            Text("1")
+                            Spacer()
+                            Text(max(chapters.count, 1).formatted())
+                        }
+                        .font(Typography.small.monospacedDigit())
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                    }
+                    .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
+                    rangeStepperRow("From", value: fromChapterBinding)
+                    rangeStepperRow("Through", value: throughChapterBinding)
+                } header: {
+                    Text("Chapters")
+                } footer: {
+                    Text(rangeSummary)
                 }
-                .padding(20)
             }
             .navigationTitle("Range")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showRange = false } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Download") { commitRange() }
-                        .disabled(selectedChapters.isEmpty || selectedVoices.isEmpty || preparing)
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button { commitRange() } label: {
+                    Text(rangeDownloadTitle).frame(maxWidth: .infinity)
                 }
+                .primaryActionStyle()
+                .disabled(selectedChapters.isEmpty || selectedVoices.isEmpty || preparing)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.bar)
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
-    private func rangeValuePanel(
-        _ title: String, value: Binding<Int>, lowerBound: Int, upperBound: Int
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(Typography.small).foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                Button { value.wrappedValue = Swift.max(lowerBound, value.wrappedValue - 1) } label: {
-                    Image(systemName: "minus")
-                }
-                .disabled(value.wrappedValue <= lowerBound)
-
-                Text("\(value.wrappedValue)")
-                    .font(.title2.monospacedDigit().weight(.semibold))
-                    .contentTransition(.numericText())
-                    .frame(maxWidth: .infinity)
-
-                Button { value.wrappedValue = Swift.min(upperBound, value.wrappedValue + 1) } label: {
-                    Image(systemName: "plus")
-                }
-                .disabled(value.wrappedValue >= upperBound)
+    private func rangeStepperRow(_ title: String, value: Binding<Int>) -> some View {
+        Stepper(value: value, in: 1...max(chapters.count, 1)) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(value.wrappedValue.formatted())
+                    .font(Typography.body.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.circle)
-            .controlSize(.small)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityValue("Chapter \(value.wrappedValue)")
+    }
+
+    private var rangeDownloadTitle: String {
+        let count = selectedChapters.count
+        return count == 1 ? "Download 1 chapter" : "Download \(count) chapters"
+    }
+
+    private var fromChapterBinding: Binding<Int> {
+        Binding(get: { fromChapter }, set: { setRangeStart($0) })
+    }
+
+    private var throughChapterBinding: Binding<Int> {
+        Binding(get: { throughChapter }, set: { setRangeEnd($0) })
+    }
+
+    private func setRangeStart(_ value: Int) {
+        let next = min(max(value, 1), max(chapters.count, 1))
+        fromChapter = next
+        if throughChapter < next { throughChapter = next }
+    }
+
+    private func setRangeEnd(_ value: Int) {
+        let next = min(max(value, 1), max(chapters.count, 1))
+        throughChapter = next
+        if fromChapter > next { fromChapter = next }
     }
 
     private var rangeSummary: String {
         let count = selectedChapters.count
         let voices = selectedVoices.count
+        guard voices > 0 else { return "Choose a narrator before preparing this range." }
         return "\(count) chapter\(count == 1 ? "" : "s") in \(voices) voice\(voices == 1 ? "" : "s"), prepared in the background and kept on this phone."
     }
 
     private func commitRange() {
-        fromChapter = min(max(1, fromChapter), max(1, chapters.count))
-        throughChapter = min(max(fromChapter, throughChapter), chapters.count)
+        setRangeStart(fromChapter)
+        setRangeEnd(throughChapter)
         showRange = false
         prepareSelected()
     }
@@ -732,53 +791,96 @@ struct BookAudioDownloadsView: View {
     }
 }
 
-/// Two handles over the chapter numbers. One gesture picks whichever handle is
-/// nearer the touch and drags it; when both sit on the same chapter, a drag to
-/// the left grows the range backwards and a drag to the right grows it forwards,
-/// so a single tap never leaves both handles fighting over the finger.
+/// The book's cover, blurred and darkened, behind the whole sheet — the way
+/// Apple Music lays an album page over its own artwork. The scrim keeps labels
+/// legible and stays dark, which the app's dark-only appearance makes safe.
+private struct CoverBackdrop: View {
+    let url: String?
+    var tint: Color?
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Color(.systemBackground)
+                if let urlString = url, let imageURL = URL(string: urlString) {
+                    CustomAsyncImage(url: imageURL) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.clear
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
+                    // The blur eats its own edges; grow the artwork past the
+                    // sheet so no dark rim shows through.
+                    .scaleEffect(1.3)
+                    .blur(radius: 55, opaque: true)
+                    .saturation(1.15)
+                    .opacity(0.7)
+                }
+                if let tint { tint.opacity(0.18) }
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0.25), location: 0),
+                        .init(color: .black.opacity(0.45), location: 0.4),
+                        .init(color: .black.opacity(0.75), location: 1),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Two handles over the chapter numbers, dragged as one 44-point-tall control.
+/// With the handles apart the gesture takes the nearer one. With both on the
+/// same chapter it waits for the drag direction, so pulling left grows the range
+/// backwards and pulling right grows it forwards instead of both handles
+/// fighting over the finger; dragging back to the start lets it switch sides.
 private struct ChapterRangeSlider: View {
     @Binding var lower: Int
     @Binding var upper: Int
     let count: Int
-    private let knob: CGFloat = 30
-    @State private var dragged: Handle?
+    private let knob: CGFloat = 28
+    private let hitHeight: CGFloat = 44
+    @State private var drag: DragState?
+
+    private struct DragState {
+        var handle: Handle
+        let startedCollapsed: Bool
+    }
 
     private enum Handle { case lower, upper }
 
     var body: some View {
-        VStack(spacing: 10) {
-            GeometryReader { proxy in
-                let width = proxy.size.width
-                let span = max(width - knob, 1)
-                let lowerX = knob / 2 + span * position(of: lower)
-                let upperX = knob / 2 + span * position(of: upper)
-                ZStack(alignment: .topLeading) {
-                    Capsule()
-                        .fill(.quaternary)
-                        .frame(width: span, height: 6)
-                        .position(x: width / 2, y: knob / 2)
-                    Capsule()
-                        .fill(AppTheme.primaryFill)
-                        .frame(width: max(upperX - lowerX, 0), height: 6)
-                        .position(x: (lowerX + upperX) / 2, y: knob / 2)
-                    handle.position(x: lowerX, y: knob / 2)
-                    handle.position(x: upperX, y: knob / 2)
-                }
-                .frame(width: width, height: knob)
-                .contentShape(Rectangle())
-                .gesture(drag(width: width))
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let span = max(width - knob, 1)
+            let lowerX = knob / 2 + span * position(of: lower)
+            let upperX = knob / 2 + span * position(of: upper)
+            ZStack(alignment: .topLeading) {
+                Capsule()
+                    .fill(.quaternary)
+                    .frame(width: span, height: 6)
+                    .position(x: width / 2, y: hitHeight / 2)
+                Capsule()
+                    .fill(AppTheme.primaryFill)
+                    .frame(width: max(upperX - lowerX, 0), height: 6)
+                    .position(x: (lowerX + upperX) / 2, y: hitHeight / 2)
+                knobView(active: drag?.handle == .lower)
+                    .position(x: lowerX, y: hitHeight / 2)
+                knobView(active: drag?.handle == .upper)
+                    .position(x: upperX, y: hitHeight / 2)
             }
-            .frame(height: knob)
-
-            HStack {
-                Text("1")
-                Spacer()
-                Text("\(max(count, 1))")
-            }
-            .font(Typography.small.monospacedDigit())
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, knob / 2 - 6)
+            .frame(width: width, height: hitHeight)
+            .contentShape(Rectangle())
+            .gesture(dragGesture(span: span))
         }
+        .frame(height: hitHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Chapter range")
         .accessibilityValue("Chapters \(lower) through \(upper) of \(count)")
@@ -791,36 +893,42 @@ private struct ChapterRangeSlider: View {
         }
     }
 
-    private var handle: some View {
+    private func knobView(active: Bool) -> some View {
         Circle()
             .fill(Color(.systemBackground))
             .overlay(Circle().strokeBorder(AppTheme.primaryFill, lineWidth: 3))
             .frame(width: knob, height: knob)
-            .shadow(color: .black.opacity(0.15), radius: 3, y: 1)
+            .scaleEffect(active ? 1.12 : 1)
+            .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
     }
 
-    private func drag(width: CGFloat) -> some Gesture {
+    private func dragGesture(span: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                let span = max(width - knob, 1)
-                let x = min(max(value.location.x - knob / 2, 0), span)
-                let chapter: Int
-                if count <= 1 {
-                    chapter = 1
-                } else {
-                    let raw = Int(((x / span) * CGFloat(count - 1)).rounded()) + 1
-                    chapter = min(max(raw, 1), count)
-                }
-                if dragged == nil {
-                    let lowerX = knob / 2 + span * position(of: lower)
-                    let upperX = knob / 2 + span * position(of: upper)
+                guard count > 1 else { return }
+                let chapter = chapter(at: value.location.x, span: span)
+                if drag == nil {
                     if lower == upper {
-                        dragged = value.startLocation.x < lowerX ? .lower : .upper
+                        guard abs(value.translation.width) > 2 else { return }
+                        drag = DragState(
+                            handle: value.translation.width < 0 ? .lower : .upper,
+                            startedCollapsed: true)
                     } else {
-                        dragged = abs(value.startLocation.x - lowerX) <= abs(value.startLocation.x - upperX) ? .lower : .upper
+                        let lowerX = knob / 2 + span * position(of: lower)
+                        let upperX = knob / 2 + span * position(of: upper)
+                        drag = DragState(
+                            handle: abs(value.startLocation.x - lowerX) <= abs(value.startLocation.x - upperX) ? .lower : .upper,
+                            startedCollapsed: false)
                     }
                 }
-                switch dragged {
+                // A range that started collapsed can be dragged back through the
+                // start and out the other side, so the same gesture works both ways.
+                if var state = drag, state.startedCollapsed, lower == upper,
+                   abs(value.translation.width) > 2 {
+                    state.handle = value.translation.width < 0 ? .lower : .upper
+                    drag = state
+                }
+                switch drag?.handle {
                 case .lower:
                     let next = min(chapter, upper)
                     if next != lower { lower = next; Haptics.shared.selection() }
@@ -831,7 +939,14 @@ private struct ChapterRangeSlider: View {
                     break
                 }
             }
-            .onEnded { _ in dragged = nil }
+            .onEnded { _ in drag = nil }
+    }
+
+    private func chapter(at x: CGFloat, span: CGFloat) -> Int {
+        guard count > 1 else { return 1 }
+        let clamped = min(max(x - knob / 2, 0), span)
+        let raw = Int(((clamped / span) * CGFloat(count - 1)).rounded()) + 1
+        return min(max(raw, 1), count)
     }
 
     private func position(of value: Int) -> CGFloat {
