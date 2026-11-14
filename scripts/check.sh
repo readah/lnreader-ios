@@ -109,6 +109,7 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -128,6 +129,7 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -143,6 +145,7 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -237,6 +240,7 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -254,6 +258,8 @@ run() {
     tts-contracts)
       compile_and_run_plain tts-contracts \
         Models/TTSAudio.swift \
+        Extensions/Color+Extensions.swift \
+        Features/Reader/ReaderHighlight.swift \
         Features/Reader/ReaderTTSJavaScript.swift \
         Features/Reader/ReaderContentBridge.swift \
         Services/TTSChapterSource.swift \
@@ -267,6 +273,7 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
