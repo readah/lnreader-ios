@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A0B014000000000000000001 /* LiquidGlassOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B014000000000000000011 /* LiquidGlassOnboardingView.swift */; };
+		A0B014000000000000000002 /* OnboardingGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B014000000000000000012 /* OnboardingGeometry.swift */; };
+		A0B014000000000000000003 /* OnboardingFountain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B014000000000000000013 /* OnboardingFountain.swift */; };
+		A0B014000000000000000004 /* LiquidGlassShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = A0B014000000000000000014 /* LiquidGlassShader.metal */; };
 		ABCD27010000000000000005 /* Features/Migration/BulkMigrateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD27000000000000000005 /* Features/Migration/BulkMigrateView.swift */; };
 		ABCD27010000000000000004 /* Features/Migration/MigrationPickerViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD27000000000000000004 /* Features/Migration/MigrationPickerViews.swift */; };
 		ABCD27010000000000000003 /* Features/Migration/MigrationSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD27000000000000000003 /* Features/Migration/MigrationSearch.swift */; };
@@ -203,6 +207,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A0B014000000000000000011 /* LiquidGlassOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Onboarding/LiquidGlassOnboardingView.swift; sourceTree = SOURCE_ROOT; };
+		A0B014000000000000000012 /* OnboardingGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Onboarding/OnboardingGeometry.swift; sourceTree = SOURCE_ROOT; };
+		A0B014000000000000000013 /* OnboardingFountain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Onboarding/OnboardingFountain.swift; sourceTree = SOURCE_ROOT; };
+		A0B014000000000000000014 /* LiquidGlassShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Features/Onboarding/LiquidGlassShader.metal; sourceTree = SOURCE_ROOT; };
 		ABCD27000000000000000005 /* Features/Migration/BulkMigrateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Migration/BulkMigrateView.swift; sourceTree = SOURCE_ROOT; };
 		ABCD27000000000000000004 /* Features/Migration/MigrationPickerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Migration/MigrationPickerViews.swift; sourceTree = SOURCE_ROOT; };
 		ABCD27000000000000000003 /* Features/Migration/MigrationSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Migration/MigrationSearch.swift; sourceTree = SOURCE_ROOT; };
@@ -594,6 +602,10 @@
 				ABCD32000000000000000001 /* AppIconDebug.icon */,
 				BA227D06471ABC5D87C79929 /* Assets.xcassets */,
 				3098E6B5EE638FB9BAC7732D /* ContentView.swift */,
+				A0B014000000000000000011 /* LiquidGlassOnboardingView.swift */,
+				A0B014000000000000000012 /* OnboardingGeometry.swift */,
+				A0B014000000000000000013 /* OnboardingFountain.swift */,
+				A0B014000000000000000014 /* LiquidGlassShader.metal */,
 				7C9E9CDAAAE1E4CA9DAA3212 /* LNReaderApp.swift */,
 				1070FB7AAEA8249AB2A5EA25 /* Components */,
 				EB7F563C326E5CA979BE37DF /* Design */,
@@ -953,6 +965,10 @@
 				D874365D359C3403B83EA8CA /* CommentSite.swift in Sources */,
 				FD91FA952D879AFFD81F3ED3 /* Constants.swift in Sources */,
 				CB4E20E102161D7E220CEDDD /* ContentView.swift in Sources */,
+				A0B014000000000000000001 /* LiquidGlassOnboardingView.swift in Sources */,
+				A0B014000000000000000002 /* OnboardingGeometry.swift in Sources */,
+				A0B014000000000000000003 /* OnboardingFountain.swift in Sources */,
+				A0B014000000000000000004 /* LiquidGlassShader.metal in Sources */,
 				70AF3DCF891725ECA2575D6E /* CustomAsyncImage.swift in Sources */,
 				291B1C3AB4E3A7256BB48E6F /* Date+Extensions.swift in Sources */,
 				89540930F1A34DF599CEA02B /* DeleteBadge.swift in Sources */,

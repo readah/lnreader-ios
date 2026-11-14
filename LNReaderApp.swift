@@ -39,7 +39,9 @@ struct LNReaderApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            OnboardingHost {
+                ContentView()
+            }
                 .toggleStyle(AppToggleStyle())
                 .environment(libraryManager)
                 .environment(syncManager)

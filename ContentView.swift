@@ -29,7 +29,9 @@ struct ContentView: View {
             }
         )) {
             Tab(AppTab.library.title, systemImage: AppTab.library.icon, value: .library) {
-                LibraryView(openedEntry: $openedEntry)
+                LibraryView(openedEntry: $openedEntry) {
+                    selectedTab = .browse
+                }
             }
 
             Tab(AppTab.updates.title, systemImage: AppTab.updates.icon, value: .updates) {

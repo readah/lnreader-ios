@@ -15,6 +15,7 @@ struct MoreView: View {
     @State private var showingEditProfile = false
     @State private var showingAuth = false
     @State private var showingRestore = false
+    @State private var showingRestartOnboarding = false
 
     private var userProfile: UserProfile {
         profiles.first ?? UserProfile(name: "Reader")
@@ -35,6 +36,14 @@ struct MoreView: View {
             }
             .sheet(isPresented: $showingAuth) {
                 AuthView()
+            }
+            .confirmationDialog(
+                "Show the onboarding intro again?",
+                isPresented: $showingRestartOnboarding,
+                titleVisibility: .visible
+            ) {
+                Button("Restart") { restartOnboarding() }
+                Button("Cancel", role: .cancel) {}
             }
             .onAppear {
                 ensureProfileExists()
@@ -209,33 +218,43 @@ struct MoreView: View {
     private var libraryManagementSection: some View {
         Section {
             link("Downloads", symbol: "arrow.down.circle") { OfflineLibraryView() }
-            link("Categories", subtitle: "Groups & update scope", symbol: "square.grid.2x2") { CategoriesSettingsView() }
+            link("Categories", symbol: "square.grid.2x2") { CategoriesSettingsView() }
             link("Library updates", symbol: "arrow.triangle.2.circlepath") { LibraryUpdateSettingsView() }
-            link("Connections", subtitle: "AniList, comments", symbol: "link") { ConnectionsSettingsView() }
+            link("Connections", symbol: "link") { ConnectionsSettingsView() }
             link("Backup & restore", symbol: "externaldrive") { LibraryBackupView() }
         }
     }
 
     private var settingsSection: some View {
         Section("Settings") {
-            link("General", subtitle: "Library & defaults", symbol: "gearshape") { GeneralSettingsView() }
-            link("Appearance", subtitle: "Cover tint", symbol: "paintpalette") { AppearanceSettingsView() }
-            link("Reader", subtitle: "Novel & manga", symbol: "textformat.size") { ReaderSettingsView() }
-            link("TTS", subtitle: "Voices & servers", symbol: "waveform") { TTSSettingsView() }
-            link("Advanced", subtitle: "Diagnostics & cache", symbol: "slider.horizontal.3") { AdvancedSettingsView() }
+            link("General", symbol: "gearshape") { GeneralSettingsView() }
+            link("Appearance", symbol: "paintpalette") { AppearanceSettingsView() }
+            link("Reader", symbol: "textformat.size") { ReaderSettingsView() }
+            link("TTS", symbol: "waveform") { TTSSettingsView() }
+            link("Advanced", symbol: "slider.horizontal.3") { AdvancedSettingsView() }
+
+            Button {
+                showingRestartOnboarding = true
+            } label: {
+                Label("Restart Onboarding", systemImage: "arrow.counterclockwise")
+            }
         }
     }
 
     private var infoSection: some View {
         Section {
-            link("Statistics", subtitle: "Library and reading insights", symbol: "chart.bar.fill", haptic: .medium) { StatisticsView() }
-            link("About", subtitle: "App version and source code", symbol: "info.circle", haptic: .medium) { AboutView() }
+            link("Statistics", symbol: "chart.bar.fill", haptic: .medium) { StatisticsView() }
+            link("About", symbol: "info.circle", haptic: .medium) { AboutView() }
         }
+    }
+
+    private func restartOnboarding() {
+        Haptics.shared.impact(.light)
+        UserDefaults.standard.set(false, forKey: OnboardingStorage.completionKey)
     }
 
     private func link<Destination: View>(
         _ title: String,
-        subtitle: String? = nil,
         symbol: String,
         haptic: Haptics.Weight = .light,
         @ViewBuilder destination: @escaping () -> Destination
@@ -246,20 +265,7 @@ struct MoreView: View {
             destination()
                 .onAppear { Haptics.shared.impact(haptic) }
         } label: {
-            Label {
-                if let subtitle {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    Text(title)
-                }
-            } icon: {
-                Image(systemName: symbol)
-            }
+            Label(title, systemImage: symbol)
         }
     }
 }

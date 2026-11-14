@@ -8,6 +8,9 @@ import UniformTypeIdentifiers
 struct LibraryView: View {
     /// An entry a `lnreader://entry` link asked for, pushed when it arrives.
     @Binding var openedEntry: SourceEntry?
+    /// Sends an empty library to Browse instead of leaving the reader to hunt
+    /// through the tab bar.
+    var onExploreSources: () -> Void = {}
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -77,13 +80,7 @@ struct LibraryView: View {
         NavigationStack(path: $navigationPath) {
             Group {
                 if libraryIsEmpty {
-                    EmptyStateView(
-                        icon: "books.vertical",
-                        title: "Your Library is Empty",
-                        subtitle: "Browse sources to find novels, or import an EPUB or PDF.",
-                        actionTitle: "Import book",
-                        action: { showFileImporter = true }
-                    )
+                    emptyLibraryState
                 } else {
                     if showsKindPicker {
                         libraryPager
@@ -221,6 +218,40 @@ struct LibraryView: View {
                 Button("OK", role: .cancel) {}
             } message: { error in
                 Text(error)
+            }
+        }
+    }
+
+    // MARK: - Empty library
+
+    /// A new install has two ways forward. The buttons say everything the old
+    /// paragraph did, so the paragraph is gone.
+    private var emptyLibraryState: some View {
+        ContentUnavailableView {
+            Label("Library Empty", systemImage: "books.vertical")
+        } actions: {
+            VStack(spacing: 10) {
+                Button {
+                    Haptics.shared.impact(.light)
+                    onExploreSources()
+                } label: {
+                    Label("Explore Sources", systemImage: "safari")
+                        .frame(maxWidth: 260)
+                }
+                .primaryActionStyle()
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
+
+                Button {
+                    Haptics.shared.impact(.light)
+                    showFileImporter = true
+                } label: {
+                    Label("Import EPUB", systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: 260)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
             }
         }
     }
