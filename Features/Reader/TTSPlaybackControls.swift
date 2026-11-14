@@ -193,7 +193,7 @@ struct TTSPlaybackControls: View {
             }
 
             Button(action: onVoice) {
-                TTSVoiceChip(voiceId: voiceId, name: voiceName)
+                TTSVoiceChip(voiceId: voiceId, name: voiceName, animated: false)
                     .frame(minHeight: 44)
                     .contentShape(.capsule)
             }
@@ -262,17 +262,13 @@ struct TTSPlaybackControls: View {
 }
 
 
-/// A voice keeps its color across chapters, offline playback, and app launches.
+/// A voice keeps its colour across chapters, offline playback, and app launches.
 struct TTSVoiceChip: View {
     let voiceId: String
     let name: String
-    private let colors: [Color]
-
-    init(voiceId: String, name: String) {
-        self.voiceId = voiceId
-        self.name = name
-        colors = TTSVoicePalette.colors(for: voiceId)
-    }
+    /// The reader passes false: a 30 fps shader in the playback bar would run
+    /// for the whole chapter to change nothing you look at twice.
+    var animated = true
 
     var body: some View {
         HStack(spacing: 6) {
@@ -282,7 +278,7 @@ struct TTSVoiceChip: View {
         .foregroundStyle(.white)
         .padding(.horizontal, 13)
         .padding(.vertical, 9)
-        .background(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
+        .background { VoiceGlowSurface(voiceId: voiceId, animated: animated) }
         .overlay(Capsule().strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Voice: \(name)")
@@ -300,24 +296,40 @@ enum TTSVoicePalette {
         return hue < 0.33 ? 0.13 : 0.58
     }
 
-    static func colors(for voiceId: String) -> [Color] {
+    /// The hue a voice was assigned. One assignment feeds the gradient, the
+    /// shader and the halo, so all three always agree.
+    static func baseHue(for voiceId: String) -> Double {
         let defaults = UserDefaults.standard, key = "tts.voice-palette.v2"
         var assigned = defaults.dictionary(forKey: key) as? [String: Double] ?? [:]
-        let hue: Double
         if let saved = assigned[voiceId], saved.isFinite {
-            hue = safeHue(saved)
-        } else {
-            // Curated hues: warm ambers/roses and cool azures. No greens.
-            let curated: [Double] = [0.02, 0.06, 0.10, 0.13, 0.17, 0.56, 0.60, 0.64, 0.68, 0.90, 0.94, 0.97]
-            func distance(_ candidate: Double) -> Double {
-                assigned.values.map { let d = abs(candidate - safeHue($0)); return min(d, 1 - d) }.min() ?? 1
-            }
-            hue = curated.max { distance($0) < distance($1) } ?? 0.02
-            assigned[voiceId] = hue
-            defaults.set(assigned, forKey: key)
+            return safeHue(saved)
         }
-        // Analogous partners keep each voice in one colour family, so no gradient
-        // ever pairs green with purple.
+        // Curated hues: warm ambers/roses and cool azures. No greens.
+        let curated: [Double] = [0.02, 0.06, 0.10, 0.13, 0.17, 0.56, 0.60, 0.64, 0.68, 0.90, 0.94, 0.97]
+        func distance(_ candidate: Double) -> Double {
+            assigned.values.map { let d = abs(candidate - safeHue($0)); return min(d, 1 - d) }.min() ?? 1
+        }
+        let hue = curated.max { distance($0) < distance($1) } ?? 0.02
+        assigned[voiceId] = hue
+        defaults.set(assigned, forKey: key)
+        return hue
+    }
+
+    /// Analogous partners keep each voice in one colour family, so no gradient
+    /// ever pairs green with purple.
+    static func hues(for voiceId: String) -> SIMD3<Float> {
+        let hue = baseHue(for: voiceId)
+        return SIMD3(Float(hue),
+                     Float((hue + 0.045).truncatingRemainder(dividingBy: 1)),
+                     Float((hue - 0.05 + 1).truncatingRemainder(dividingBy: 1)))
+    }
+
+    static func accent(for voiceId: String) -> Color {
+        Color(hue: baseHue(for: voiceId), saturation: 0.62, brightness: 0.58)
+    }
+
+    static func colors(for voiceId: String) -> [Color] {
+        let hue = baseHue(for: voiceId)
         return [Color(hue: hue, saturation: 0.60, brightness: 0.54),
                 Color(hue: (hue + 0.045).truncatingRemainder(dividingBy: 1), saturation: 0.54, brightness: 0.44),
                 Color(hue: (hue - 0.05 + 1).truncatingRemainder(dividingBy: 1), saturation: 0.64, brightness: 0.60)]

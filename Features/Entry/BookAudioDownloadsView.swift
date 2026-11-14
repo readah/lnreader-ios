@@ -39,7 +39,10 @@ struct NarrationVoicePicker: View {
                     HStack {
                         Image(systemName: selected.contains(voice.id) ? "checkmark.circle.fill" : "circle")
                         VStack(alignment: .leading, spacing: 3) {
-                            TTSVoiceChip(voiceId: voice.id, name: voice.name)
+                            // One motion on screen at a time: the chosen voice
+                            // moves, the rest sit still so the list stays calm.
+                            TTSVoiceChip(voiceId: voice.id, name: voice.name,
+                                         animated: selected.contains(voice.id))
                             Text(voice.description).font(.caption).foregroundStyle(.secondary)
                             Text(voice.isCustom ? "Your voice · English narration" : "LNReader voice design · English narration").font(.caption2).foregroundStyle(.secondary)
                             if let error = voice.preview?.error { Text(error).font(.caption2).foregroundStyle(AppTheme.warning) }
@@ -406,38 +409,29 @@ struct BookAudioDownloadsView: View {
         }
     }
 
-    /// The narrator in the space beside the cover, as a card the voice's own
-    /// gradient bleeds out from. A chip reads as a tag; a card belongs there.
+    /// The narrator in the space beside the cover. The card is the voice's own
+    /// glass, the same light as its chip at card size, so a voice is recognised
+    /// the same way in the picker and on the dashboard.
     private var narratorCard: some View {
-        let colors = TTSVoicePalette.colors(for: activeVoice)
         let name = library.voices.first { $0.id == activeVoice }?.name ?? "Narrator"
         return Button { showVoices = true } label: {
             VStack(spacing: 5) {
                 Image(systemName: "waveform")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                 Text(name)
                     .font(Typography.small.weight(.semibold))
-                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Text("Narrator")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .opacity(0.62)
             }
+            .foregroundStyle(.white)
             .frame(width: 86, height: 82)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background { VoiceGlowSurface(voiceId: activeVoice, cornerRadius: 14) }
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
-            }
-            .background {
-                // The voice colour spilling out from under the card.
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .blur(radius: 15)
-                    .opacity(0.75)
-                    .scaleEffect(1.04)
+                    .strokeBorder(.white.opacity(0.16), lineWidth: 0.5)
             }
         }
         .buttonStyle(.plain)
@@ -1131,6 +1125,7 @@ struct TTSChapterAudioDetailView: View {
                     .monospacedDigit()
             } label: {
                 HStack(spacing: 8) {
+                    VoiceGlowDot(voiceId: record.rendition.voiceId)
                     Text(voiceName(record))
                     if selected { Image(systemName: "checkmark.circle.fill").accessibilityLabel("Selected") }
                 }
