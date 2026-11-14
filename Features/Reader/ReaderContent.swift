@@ -71,18 +71,6 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             private var detents = ScrollDetents()
             private var edgeBump = ScrollEdgeBump()
 
-            /// A translucent thumb floats over the text instead of the stock
-            /// opaque indicator. It is a subview of the web view, not the scroll
-            /// view, so it stays put while the text scrolls and insets nothing.
-            private let scrollThumb: UIView = {
-                let view = UIView()
-                view.isUserInteractionEnabled = false
-                view.layer.cornerRadius = 1.5
-                return view
-            }()
-            private weak var thumbWebView: WKWebView?
-            private var contentSizeObservation: NSKeyValueObservation?
-
             init(onTap: (() -> Void)?, bridge: ReaderContentBridge?) {
                 self.onTap = onTap
                 self.bridge = bridge
@@ -100,7 +88,6 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             /// top or the end. Only for the reader's
             /// own drag and its momentum: restores and narration follow are silent.
             @MainActor private func scrolled(_ view: UIScrollView) {
-                layoutScrollThumb()
                 // Both trackers below run on every scroll frame. With scroll
                 // haptics off neither can produce a cue, so neither runs.
                 guard Haptics.isScrollEnabled else { return }
@@ -118,61 +105,6 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
                     userDriven: userDriven
                 )
                 if let cue = edge ?? detent { Haptics.shared.scroll(cue) }
-            }
-
-            // The stock indicator is opaque; the reader wants a barely-visible
-            // thumb. White on a dark theme, black on a light one, both translucent.
-            private func scrollThumbColor(for background: UIColor, in webView: WKWebView) -> UIColor {
-                var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-                let resolved = background.resolvedColor(with: webView.traitCollection)
-                let dark = resolved.getRed(&r, green: &g, blue: &b, alpha: &a)
-                    && (0.299 * r + 0.587 * g + 0.114 * b) < 0.5
-                return (dark ? UIColor.white : UIColor.black).withAlphaComponent(0.30)
-            }
-
-            /// Floats the thumb over the web content and keeps it sized to the
-            /// chapter as the content height settles.
-            func installScrollThumb(on webView: WKWebView, background: UIColor) {
-                thumbWebView = webView
-                scrollThumb.backgroundColor = scrollThumbColor(for: background, in: webView)
-                webView.addSubview(scrollThumb)
-                webView.bringSubviewToFront(scrollThumb)
-                contentSizeObservation = webView.scrollView.observe(\.contentSize) { [weak self] _, _ in
-                    MainActor.assumeIsolated { self?.layoutScrollThumb() }
-                }
-                layoutScrollThumb()
-            }
-
-            func updateScrollThumbColor(background: UIColor, in webView: WKWebView) {
-                scrollThumb.backgroundColor = scrollThumbColor(for: background, in: webView)
-                layoutScrollThumb()
-            }
-
-            /// A thin capsule at the trailing edge; its height is the visible
-            /// fraction of the chapter and its position the scroll progress.
-            func layoutScrollThumb() {
-                guard let webView = thumbWebView else { return }
-                let scrollView = webView.scrollView
-                let content = scrollView.contentSize.height
-                let viewport = scrollView.bounds.height
-                let width = webView.bounds.width
-                guard content > viewport + 1, viewport > 0, width > 0 else {
-                    scrollThumb.isHidden = true
-                    return
-                }
-                scrollThumb.isHidden = false
-                let inset = scrollView.adjustedContentInset
-                let maxOffset = max(1, content - viewport + inset.top + inset.bottom)
-                let progress = min(max((scrollView.contentOffset.y + inset.top) / maxOffset, 0), 1)
-                let margin: CGFloat = 8
-                let track = viewport - margin * 2
-                let thumbHeight = max(28, track * min(1, viewport / content))
-                let thumbWidth: CGFloat = 3
-                scrollThumb.frame = CGRect(
-                    x: width - thumbWidth - 5,
-                    y: margin + progress * max(0, track - thumbHeight),
-                    width: thumbWidth,
-                    height: thumbHeight)
             }
 
             func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -280,6 +212,15 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             Coordinator(onTap: onTap, bridge: bridge)
         }
 
+        // The stock indicator is black, which vanishes into the dark themes.
+        private func scrollIndicatorStyle(for background: UIColor, in webView: WKWebView) -> UIScrollView.IndicatorStyle {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            guard background.resolvedColor(with: webView.traitCollection)
+                .getRed(&r, green: &g, blue: &b, alpha: &a) else { return .default }
+            let luminance = 0.299 * r + 0.587 * g + 0.114 * b
+            return luminance < 0.5 ? .white : .black
+        }
+
         func makeUIView(context: Context) -> WKWebView {
             let config = WKWebViewConfiguration()
             let userContentController = WKUserContentController()
@@ -302,9 +243,8 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             webView.backgroundColor = uiColor
             webView.scrollView.backgroundColor = uiColor
             webView.scrollView.showsHorizontalScrollIndicator = false
-            webView.scrollView.showsVerticalScrollIndicator = false
+            webView.scrollView.indicatorStyle = scrollIndicatorStyle(for: uiColor, in: webView)
             webView.scrollView.contentInsetAdjustmentBehavior = .never
-            context.coordinator.installScrollThumb(on: webView, background: uiColor)
             webView.navigationDelegate = context.coordinator
             context.coordinator.watchScroll(webView.scrollView)
             context.coordinator.watchLifecycle(webView)
@@ -325,7 +265,7 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             webView.underPageBackgroundColor = uiColor
             webView.backgroundColor = uiColor
             webView.scrollView.backgroundColor = uiColor
-            context.coordinator.updateScrollThumbColor(background: uiColor, in: webView)
+            webView.scrollView.indicatorStyle = scrollIndicatorStyle(for: uiColor, in: webView)
             webView.scrollView.isScrollEnabled = true
             #endif
             
