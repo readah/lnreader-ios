@@ -76,7 +76,11 @@ struct ChapterRow: View {
     }
 
     private var mainButton: some View {
-        Button {
+        // One hash and one scan for the row: `audioCount` used to be a computed
+        // property read three times in this body, each a SHA256 plus a walk of
+        // every download record.
+        let audio = audioCount
+        return Button {
             if suppressTap {
                 suppressTap = false
                 return
@@ -134,9 +138,9 @@ struct ChapterRow: View {
 
                 // Status icons
                 HStack(spacing: 8) {
-                    if audioCount > 0 {
-                        Label("\(audioCount)", systemImage: "headphones").font(Typography.small).foregroundStyle(.secondary)
-                            .accessibilityLabel("\(audioCount) voices available offline")
+                    if audio > 0 {
+                        Label("\(audio)", systemImage: "headphones").font(Typography.small).foregroundStyle(.secondary)
+                            .accessibilityLabel("\(audio) voices available offline")
                     }
                     if chapter.bookmarked {
                         Image(systemName: "bookmark.fill")
@@ -428,7 +432,7 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
     private func finish() {
         try? modelContext.save()
         if let entry { tracking.readStateChanged(entry: entry) }
-        LibraryChapterCounts.shared.invalidate()
+        LibraryChapterCounts.shared.invalidate(entry.map { [$0.persistentModelID] } ?? [])
         NotificationCenter.default.post(name: .lnreaderChapterReadChanged, object: entry)
         selection.end()
     }

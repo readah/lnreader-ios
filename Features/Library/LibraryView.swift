@@ -55,8 +55,9 @@ struct LibraryView: View {
     /// Done puts it back, so a stray hold never leaves the library on Custom.
     @State private var arrangingRestore: (scope: String?, hadOverride: Bool, sort: LibrarySort)?
     @State private var didReorder = false
-    /// Last computed page per kind, reused while the reader covers the library.
-    @State private var pageCache = PageItemsCache()
+    /// Work `body` would otherwise redo on every pass: the preference stores,
+    /// the last sort, and the list held while the reader covers the screen.
+    @State private var bodyCache = LibraryBodyCache()
 
     @State private var isEditingLibrary = false
     @State private var draggedItem: Entry? = nil
@@ -433,24 +434,24 @@ struct LibraryView: View {
     /// open. Touching `novels` after a save re-fetches and re-sorts every entry,
     /// and the library sits under the reader re-running that on each progress write.
     private var libraryIsEmpty: Bool {
-        if isReaderPresented, let held = pageCache.isEmpty { return held }
+        if isReaderPresented, let held = bodyCache.isEmpty { return held }
         let empty = novels.isEmpty
-        pageCache.isEmpty = empty
+        bodyCache.isEmpty = empty
         return empty
     }
 
     private var libraryCount: Int {
-        if isReaderPresented, let held = pageCache.count { return held }
+        if isReaderPresented, let held = bodyCache.count { return held }
         let count = novels.count
-        pageCache.count = count
+        bodyCache.count = count
         return count
     }
 
     /// A novel-only library has nothing the dice button can open.
     private var hasManga: Bool {
-        if isReaderPresented, let held = pageCache.hasManga { return held }
+        if isReaderPresented, let held = bodyCache.hasManga { return held }
         let value = novels.contains { $0.kind == .manga }
-        pageCache.hasManga = value
+        bodyCache.hasManga = value
         return value
     }
 
@@ -458,43 +459,24 @@ struct LibraryView: View {
     /// whole library: the kind tab, search and view filters shape what is on
     /// screen, not which books are eligible.
     ///
-    /// The candidate pass runs on a background `ModelContext` and counts with
-    /// `fetchCount`. `Entry.unreadCount` / `hasUnread` walk the `chapters`
-    /// relationship, so asking every manga for one on the main actor would
-    /// fault every chapter row in the library — the stall `LibraryChapterCounts`
-    /// exists to avoid. Only IDs cross back, and the view resolves the winner
-    /// against its own `@Query` before pushing.
+    /// The counts come from `LibraryChapterCounts`, which already answers "how
+    /// many unread, hidden excluded" off the main actor and caches it. This used
+    /// to run its own fetch and its own `fetchCount` per manga — a second place
+    /// that had to know the same rule, and a second round of queries for numbers
+    /// the badges had just loaded.
     private func openRandomUnread() {
         guard !isPickingRandom else { return }
         isPickingRandom = true
+        let candidates = novels.filter { $0.kind == .manga }.map(\.persistentModelID)
         let container = modelContext.container
 
         Task { @MainActor in
-            let pick = Task.detached(priority: .userInitiated) { () -> [PersistentIdentifier] in
-                let context = ModelContext(container)
-                let entries = (try? context.fetch(FetchDescriptor<Entry>(
-                    predicate: #Predicate<Entry> { $0.inLibrary }
-                ))) ?? []
-
-                var ids: [PersistentIdentifier] = []
-                for entry in entries where entry.kind == .manga {
-                    let id = entry.persistentModelID
-                    // Hidden chapters do not exist; the same rule the badges,
-                    // filters and reader all use.
-                    let unread = #Predicate<Chapter> {
-                        $0.entry?.persistentModelID == id && !$0.hidden && !$0.read
-                    }
-                    let count = (try? context.fetchCount(FetchDescriptor<Chapter>(predicate: unread))) ?? 0
-                    if count > 0 { ids.append(id) }
-                }
-                return ids
-            }
-            let candidates = await pick.value
-
+            let counts = await LibraryChapterCounts.shared.counts(
+                for: candidates, container: container)
             isPickingRandom = false
-            let pool = candidates.count > 1
-                ? candidates.filter { $0 != lastRandomEntryID }
-                : candidates
+
+            let unread = candidates.filter { (counts[$0]?.unread ?? 0) > 0 }
+            let pool = unread.count > 1 ? unread.filter { $0 != lastRandomEntryID } : unread
             guard let id = pool.randomElement(),
                   let entry = novels.first(where: { $0.persistentModelID == id }) else {
                 showNoUnreadManga = true
@@ -524,10 +506,10 @@ struct LibraryView: View {
     /// every progress save; nothing it shows can be seen, so hold the last
     /// result and recompute once the reader closes.
     private func pageItems(for kind: LibraryKindFilter) -> [Entry] {
-        if isReaderPresented, let held = pageCache.items[kind] { return held }
-        if activeSort.needsChapterCounts, !hasLoadedCounts { return pageCache.items[kind] ?? [] }
+        if isReaderPresented, let held = bodyCache.items[kind] { return held }
+        if activeSort.needsChapterCounts, !hasLoadedCounts { return bodyCache.items[kind] ?? [] }
         let items = filteredNovels(for: kind)
-        pageCache.items[kind] = items
+        bodyCache.items[kind] = items
         return items
     }
 
@@ -561,7 +543,17 @@ struct LibraryView: View {
 
     // MARK: Filters
 
-    private var filterStore: LibraryFilterStore { LibraryFilterStore(json: filtersJSON) }
+    /// The three per-category stores, decoded once per distinct JSON.
+    ///
+    /// They used to be computed properties that each built a store from its
+    /// `@AppStorage` string on every read, and `body` reads them a dozen times
+    /// (the toolbar, the filter, the sort, the display mode, the empty state) —
+    /// a dozen `JSONDecoder` runs per pass over the same unchanged strings.
+    private var stores: (filters: LibraryFilterStore, sorts: LibrarySortStore, displays: LibraryDisplayStore) {
+        bodyCache.stores(filters: filtersJSON, sorts: sortsJSON, displays: displaysJSON)
+    }
+
+    private var filterStore: LibraryFilterStore { stores.filters }
 
     private var activeFilter: LibraryFilter { filterStore.filter(for: selectedCategory?.name) }
 
@@ -582,9 +574,12 @@ struct LibraryView: View {
         categories.map(\.persistentModelID)
     }
 
-    /// Re-run the count pass when the filter, the category or the library changes.
+    /// Re-run the count pass when the filter, the category or the library
+    /// changes — and when a write dropped a count, so a finished chapter shows
+    /// up in the badges and in an unread sort without a relaunch.
     private var filterCountsKey: String {
         "\(needsChapterCounts)|\(needsChapterDates)|\(libraryCount)|\(scenePhase == .active)"
+            + "|\(LibraryChapterCounts.shared.revision)"
     }
 
     /// Sorting by unread, total or a chapter date reads chapter data too, so it
@@ -594,6 +589,15 @@ struct LibraryView: View {
     }
 
     private var needsChapterDates: Bool { activeSort.needsChapterDates }
+
+    /// The optional counts this screen reads. Total and unread are always
+    /// counted; these are one extra query per entry each.
+    private var countExtras: LibraryChapterCounts.Extras {
+        var extras: LibraryChapterCounts.Extras = []
+        if activeFilter.needsDownloads { extras.insert(.downloads) }
+        if needsChapterDates { extras.insert(.dates) }
+        return extras
+    }
 
     // MARK: Categories
 
@@ -611,7 +615,7 @@ struct LibraryView: View {
 
     // MARK: Display
 
-    private var displayStore: LibraryDisplayStore { LibraryDisplayStore(json: displaysJSON) }
+    private var displayStore: LibraryDisplayStore { stores.displays }
 
     /// The display mode for the selected category, else the global default.
     private var displayMode: DisplayMode {
@@ -642,7 +646,7 @@ struct LibraryView: View {
         LibrarySort(order: defaultSortOrder, direction: defaultSortDirection)
     }
 
-    private var sortStore: LibrarySortStore { LibrarySortStore(json: sortsJSON) }
+    private var sortStore: LibrarySortStore { stores.sorts }
 
     /// The sort for the selected category, else the global default.
     private var activeSort: LibrarySort {
@@ -669,21 +673,17 @@ struct LibraryView: View {
 
     private func loadFilterCounts() async {
         guard needsChapterCounts else { return }
-        let container = modelContext.container
-        let extras: LibraryChapterCounts.Extras = needsChapterDates ? .dates : []
-        // The queries run on background contexts; asking for all of them at once
-        // lets them overlap instead of queueing one book behind another.
-        let loaded = await withTaskGroup(of: (PersistentIdentifier, LibraryChapterCounts.Counts).self) { group in
-            for novel in novels {
-                let id = novel.persistentModelID
-                group.addTask { @MainActor in
-                    (id, await LibraryChapterCounts.shared.counts(for: novel, container: container, extras: extras))
-                }
-            }
-            var out: [PersistentIdentifier: LibraryChapterCounts.Counts] = [:]
-            for await (id, counts) in group { out[id] = counts }
-            return out
+        let ids = novels.map(\.persistentModelID)
+        guard !ids.isEmpty else {
+            filterCounts = [:]
+            hasLoadedCounts = true
+            return
         }
+        // One call for the whole library. The cache answers every entry whose
+        // count is still good, so after a single chapter read this costs one
+        // entry's queries, not the library's.
+        let loaded = await LibraryChapterCounts.shared.counts(
+            for: ids, container: modelContext.container, extras: countExtras)
         if Task.isCancelled { return }
         filterCounts = loaded
         hasLoadedCounts = true
@@ -719,9 +719,9 @@ struct LibraryView: View {
         // of every entry was ~19 of 31 s of main-thread time in a profile. An
         // entry whose count has not loaded yet sorts as 0 until it arrives.
         let counts = sort.needsChapterCounts ? filterCounts : [:]
-        return LibrarySorter.sorted(novels, by: sort) { entry in
+        let keyed: [(item: Entry, facts: LibrarySortFacts)] = novels.map { entry in
             let known = counts[entry.persistentModelID]
-            return LibrarySortFacts(
+            return (item: entry, facts: LibrarySortFacts(
                 title: entry.displayTitle,
                 libraryOrder: entry.libraryOrder,
                 dateAdded: entry.dateAdded,
@@ -731,8 +731,12 @@ struct LibraryView: View {
                 unread: known?.unread ?? 0,
                 latestUpload: known?.latestUpload,
                 latestFetch: known?.latestFetch
-            )
+            ))
         }
+        // The sort itself is an ICU compare per element; the facts above are
+        // plain reads. Building them costs a fraction of sorting, so the answer
+        // is reused whenever the facts come out the same.
+        return bodyCache.sorted(keyed, by: sort)
     }
 
     /// Arranging is always an explicit choice now (the hold menu or the Sort
@@ -868,7 +872,7 @@ struct LibraryEntryQuickActions: View {
         }
         ChapterDownloadManager.shared.chaptersMarkedRead(chapters)
         try? modelContext.save()
-        LibraryChapterCounts.shared.invalidate()
+        LibraryChapterCounts.shared.invalidate([entry.persistentModelID])
         NotificationCenter.default.post(name: .lnreaderChapterReadChanged, object: entry)
         Haptics.shared.notify(.success)
     }
@@ -899,8 +903,65 @@ struct LibraryEntryPreview: View {
     }
 }
 
-/// Not observed: writing it from `body` must not invalidate the view.
-private final class PageItemsCache {
+/// Work `body` would otherwise redo on every pass.
+///
+/// Not observed: writing it from `body` must not invalidate the view. It holds
+/// three things that are pure functions of inputs `body` already has —
+///
+/// - the three per-category preference stores, decoded once per JSON string
+///   instead of once per read,
+/// - the last sort, reused while the facts and the sort order are unchanged,
+/// - the list held while the reader covers the screen, since nothing it shows
+///   can be seen and its `@Query` re-runs on every progress save.
+private final class LibraryBodyCache {
+
+    // MARK: Stores
+
+    private struct StoreKey: Equatable {
+        var filters: String
+        var sorts: String
+        var displays: String
+    }
+
+    private var storeKey = StoreKey(filters: "", sorts: "", displays: "")
+    private var filterStore = LibraryFilterStore()
+    private var sortStore = LibrarySortStore()
+    private var displayStore = LibraryDisplayStore()
+
+    func stores(
+        filters: String, sorts: String, displays: String
+    ) -> (filters: LibraryFilterStore, sorts: LibrarySortStore, displays: LibraryDisplayStore) {
+        let key = StoreKey(filters: filters, sorts: sorts, displays: displays)
+        if key != storeKey {
+            storeKey = key
+            filterStore = LibraryFilterStore(json: filters)
+            sortStore = LibrarySortStore(json: sorts)
+            displayStore = LibraryDisplayStore(json: displays)
+        }
+        return (filters: filterStore, sorts: sortStore, displays: displayStore)
+    }
+
+    // MARK: Sort
+
+    private var sortFacts: [LibrarySortFacts] = []
+    private var sortBy: LibrarySort?
+    private var sortResult: [Entry] = []
+
+    /// The sort for these facts, computed only when they differ from the last
+    /// answer's. Comparing the facts is a struct compare; sorting them is an
+    /// ICU compare per element.
+    func sorted(_ keyed: [(item: Entry, facts: LibrarySortFacts)], by sort: LibrarySort) -> [Entry] {
+        let facts = keyed.map(\.facts)
+        if sortBy == sort, facts == sortFacts { return sortResult }
+        let result = LibrarySorter.sorted(keyed, by: sort)
+        sortFacts = facts
+        sortBy = sort
+        sortResult = result
+        return result
+    }
+
+    // MARK: Held page
+
     var items: [LibraryKindFilter: [Entry]] = [:]
     var isEmpty: Bool?
     var count: Int?

@@ -117,7 +117,15 @@ enum LibrarySorter {
     /// `items` in the order `sort` asks for. Ties fall back to the title so the
     /// grid does not shuffle between refreshes.
     static func sorted<T>(_ items: [T], by sort: LibrarySort, facts: (T) -> LibrarySortFacts) -> [T] {
-        let keyed = items.map { (item: $0, facts: facts($0)) }
+        sorted(items.map { (item: $0, facts: facts($0)) }, by: sort)
+    }
+
+    /// The same order, for a caller that has already built each item's facts.
+    ///
+    /// The facts are the expensive half of a comparison (`titleOrder` is an
+    /// ICU-backed `localizedStandardCompare`), so a caller that keeps them
+    /// around can skip the sort entirely when nothing changed.
+    static func sorted<T>(_ keyed: [(item: T, facts: LibrarySortFacts)], by sort: LibrarySort) -> [T] {
         let ascending = sort.direction.isAscending
 
         let ordered = keyed.sorted { lhs, rhs in

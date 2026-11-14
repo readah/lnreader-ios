@@ -192,7 +192,9 @@ struct NovelGridCell: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .task(id: LibraryCountsTaskID(id: novel.persistentModelID, extras: badgePrefs.extras.rawValue)) {
+        .task(id: LibraryCountsTaskID(id: novel.persistentModelID,
+                                      extras: badgePrefs.extras.rawValue,
+                                      revision: LibraryChapterCounts.shared.revision)) {
             if let cached = LibraryChapterCounts.shared.cached(novel.persistentModelID) {
                 counts = cached
             }

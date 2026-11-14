@@ -35,6 +35,13 @@ final class ChapterDownloadManager {
         if let key = key(item) { states[key] = state }
     }
 
+    /// A download starting, finishing or going away changes that entry's
+    /// "downloaded" count. Nothing else about a download is counted.
+    private func countsChanged(for item: DownloadItem) {
+        guard let id = item.chapter?.entry?.persistentModelID else { return }
+        LibraryChapterCounts.shared.invalidate([id])
+    }
+
     func progress(of item: DownloadItem) -> Double {
         key(item).flatMap { liveProgress[$0] } ?? item.progress
     }
@@ -86,6 +93,7 @@ final class ChapterDownloadManager {
                     guard let item = context.model(for: id) as? DownloadItem, item.state == .completed else { continue }
                     self.set(item, .failed)
                     item.error = "Offline files are missing. Retry this download."
+                    self.countsChanged(for: item)
                 }
                 self.persist()
             }
@@ -148,6 +156,7 @@ final class ChapterDownloadManager {
                 let folder = OfflineChapters.folder(sourceKey: entry.sourceKey, entryURL: entry.url, chapterURL: chapter.url)
                 if FileManager.default.fileExists(atPath: folder.path) { try FileManager.default.removeItem(at: folder) }
                 chapter.downloadItem = nil
+                LibraryChapterCounts.shared.invalidate([entry.persistentModelID])
             }
             context.delete(item); try context.save()
         } catch { message = error.localizedDescription }
@@ -190,6 +199,7 @@ final class ChapterDownloadManager {
                         try Task.checkCancellation()
                         guard item.modelContext != nil else { continue }
                         set(item, .completed); item.progress = 1
+                        countsChanged(for: item)
                         if let key = key(item) { liveProgress[key] = nil }
                     } catch {
                         guard item.modelContext != nil else { continue }

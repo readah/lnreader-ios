@@ -27,7 +27,14 @@ struct ReaderChapterListSheet: View {
         // hands back. This sheet used to sort it oldest-first and ignore the
         // setting, which is why it disagreed with the list behind it.
         let sorted = ChapterOrder.display(entry?.visibleChapters ?? [], ascending: ascending)
-        chapters = sorted.map { ChapterDisplay(chapter: $0) }
+        // The entry is already here, so its identity is passed in rather than
+        // read back through `chapter.entry` once per chapter.
+        let sourceKey = entry?.sourceKey ?? ""
+        let entryURL = entry?.url
+        let kind = entry?.kind ?? .novel
+        chapters = sorted.map {
+            ChapterDisplay(chapter: $0, sourceKey: sourceKey, entryURL: entryURL, kind: kind)
+        }
         chapterByPath = Dictionary(sorted.map { ($0.url, $0) }, uniquingKeysWith: { first, _ in first })
     }
 }

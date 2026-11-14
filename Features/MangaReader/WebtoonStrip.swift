@@ -524,14 +524,16 @@ final class WebtoonViewController: UIViewController,
 
         var current: Int?
         var endSegment: String?
-        for path in collectionView.indexPathsForVisibleItems.sorted() {
+        // The visible rows arrive unordered, and this runs on every scroll
+        // frame: take the lowest item index instead of sorting the array.
+        for path in collectionView.indexPathsForVisibleItems {
             guard let frame = layout.layoutAttributesForItem(at: path)?.frame, frame.height > 0 else { continue }
             let visible = min(frame.maxY, bottom) - max(frame.minY, top)
             switch items[path.item] {
             case let .divider(segment, _, _):
                 if visible >= frame.height * 0.95 { endSegment = segments[segment].id }
             case let .page(segment, index, _):
-                if current == nil, visible >= frame.height * 0.05 { current = path.item }
+                if visible >= frame.height * 0.05 { current = min(current ?? Int.max, path.item) }
                 // A chapter's last page scrolled fully into view finishes it, even
                 // when the divider after it cannot reach 95% (it can sit under the
                 // bottom inset, or be a stub while the next chapter loads).
@@ -636,6 +638,10 @@ final class WebtoonViewController: UIViewController,
     /// middle of the screen, a thud on running into either end. Only for the
     /// reader's own drag and its momentum: hold, auto scroll and jumps are silent.
     private func playScrollHaptics(top: CGFloat, userDriven: Bool) {
+        // Every tracker below runs on every scroll frame, and so does a
+        // `indexPathForItem` hit test. With scroll haptics off none of it can
+        // produce a cue, and this is the hottest path in the reader.
+        guard Haptics.isScrollEnabled else { return }
         let now = CACurrentMediaTime()
         let speed = speedometer.sample(offset: Double(top), time: now)
         let line = CGPoint(x: collectionView.bounds.midX, y: top + collectionView.bounds.height / 2)

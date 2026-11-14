@@ -187,6 +187,11 @@ enum SyncApplier {
         }
 
         try context.save()
+        // A sync rewrites read state, so every badge it touched is now wrong and
+        // an open chapter list has to redraw. Announced through the one event
+        // that already means "stored chapters changed": this file compiles
+        // without `LibraryManager`, so it cannot name the count cache directly.
+        NotificationCenter.default.post(name: ChapterVisibility.didChange, object: nil)
         // Synced chapters and rules decide what exists.
         Task { await ChapterVisibility.reconcileAll(container: context.container) }
     }

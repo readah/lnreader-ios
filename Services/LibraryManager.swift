@@ -39,30 +39,41 @@ actor LibraryUpdateMerger {
     }
 
     struct Outcome: Sendable {
+        let id: PersistentIdentifier
         let title: String
         let sourceName: String
         let fresh: Int
         let error: String?
+        /// Whether the entry's chapters changed, so the caller knows which
+        /// counts to drop at the end of the run.
+        let merged: Bool
     }
 
     func merge(_ result: UpdateResult) -> Outcome {
         if let details = result.details, result.error == nil {
             guard let entry = context.model(for: result.job.id) as? Entry else {
-                return Outcome(title: result.job.title, sourceName: result.job.sourceName,
-                               fresh: 0, error: "Entry no longer in database")
+                return Outcome(id: result.job.id, title: result.job.title,
+                               sourceName: result.job.sourceName, fresh: 0,
+                               error: "Entry no longer in database", merged: false)
             }
-            let merged = LibraryManager.applyUpdate(entry, details: details, chapters: result.chapters,
-                                                    context: context, saveImmediately: false)
+            // Counts are dropped once, by the caller, when the whole run ends.
+            // Invalidating per merged entry cleared the library's entire count
+            // cache 300 times during a 300-title update.
+            let sync = LibraryManager.applyUpdate(entry, details: details, chapters: result.chapters,
+                                                  context: context, saveImmediately: false,
+                                                  invalidatesCounts: false)
             unsaved += 1
             if unsaved >= 10 {
                 try? context.save()
                 unsaved = 0
             }
-            return Outcome(title: result.job.title, sourceName: result.job.sourceName,
-                           fresh: merged.fresh, error: nil)
+            return Outcome(id: result.job.id, title: result.job.title,
+                           sourceName: result.job.sourceName, fresh: sync.fresh,
+                           error: nil, merged: true)
         } else {
-            return Outcome(title: result.job.title, sourceName: result.job.sourceName,
-                           fresh: 0, error: result.error ?? "unknown error")
+            return Outcome(id: result.job.id, title: result.job.title,
+                           sourceName: result.job.sourceName, fresh: 0,
+                           error: result.error ?? "unknown error", merged: false)
         }
     }
 
@@ -302,7 +313,7 @@ final class LibraryManager {
 
         // A chapter flipping to read is the one change the library cares about.
         if chapter.read != wasRead {
-            LibraryChapterCounts.shared.invalidate()
+            if let entry = chapter.entry { LibraryChapterCounts.shared.invalidate([entry.persistentModelID]) }
             if chapter.read {
                 ChapterTwins.fanOut(from: chapter, read: true)
                 ChapterDownloadManager.shared.chapterFinished(chapter)
@@ -401,7 +412,7 @@ final class LibraryManager {
         }
 
         if chapter.read != wasRead {
-            LibraryChapterCounts.shared.invalidate()
+            if let entry = chapter.entry { LibraryChapterCounts.shared.invalidate([entry.persistentModelID]) }
             if chapter.read {
                 ChapterTwins.fanOut(from: chapter, read: true)
                 ChapterDownloadManager.shared.chapterFinished(chapter)
@@ -515,6 +526,7 @@ final class LibraryManager {
         guard !pending.isEmpty else { return }
 
         let merger = LibraryUpdateMerger(container: context.container)
+        var changed: [PersistentIdentifier] = []
 
         await withTaskGroup(of: UpdateResult.self) { group in
             let maxConcurrent = 4
@@ -547,6 +559,7 @@ final class LibraryManager {
             }
             while let result = await group.next() {
                 let outcome = await merger.merge(result)
+                if outcome.merged { changed.append(outcome.id) }
                 updateProgress?.inFlight.removeAll { $0 == outcome.title }
                 updateProgress?.completed += 1
                 if let error = outcome.error {
@@ -567,7 +580,7 @@ final class LibraryManager {
         }
 
         await merger.flush()
-        LibraryChapterCounts.shared.invalidate()
+        LibraryChapterCounts.shared.invalidate(changed)
         if updateCancelRequested { updateProgress?.wasCancelled = true }
     }
 
@@ -576,13 +589,17 @@ final class LibraryManager {
     /// Metadata is overwritten from the source; the chapter list goes through
     /// `ChapterSourceSync`, which matches by URL, keeps read state, stamps new
     /// chapters for Updates and prunes chapters the source dropped.
+    ///
+    /// - Parameter invalidatesCounts: drop this entry's cached chapter counts.
+    ///   Off for a bulk run, which drops them once at the end instead.
     @discardableResult
     nonisolated static func applyUpdate(
         _ entry: Entry,
         details: SourceEntry,
         chapters: [SourceChapter],
         context: ModelContext,
-        saveImmediately: Bool = true
+        saveImmediately: Bool = true,
+        invalidatesCounts: Bool = true
     ) -> ChapterSyncResult {
         if !details.title.isEmpty { entry.title = details.title }
         if let thumbnail = details.thumbnailURL { entry.thumbnailURL = thumbnail }
@@ -594,8 +611,8 @@ final class LibraryManager {
         entry.lastUpdate = .now
 
         let result = ChapterSourceSync.merge(chapters, into: entry, context: context)
-        Task { @MainActor in
-            LibraryChapterCounts.shared.invalidate()
+        if invalidatesCounts, !result.isNoOp {
+            LibraryChapterCounts.notify([entry.persistentModelID])
         }
 
         if saveImmediately {
@@ -610,9 +627,11 @@ final class LibraryManager {
         details: SourceEntry,
         chapters: [SourceChapter],
         context: ModelContext,
-        saveImmediately: Bool = true
+        saveImmediately: Bool = true,
+        invalidatesCounts: Bool = true
     ) -> ChapterSyncResult {
-        Self.applyUpdate(entry, details: details, chapters: chapters, context: context, saveImmediately: saveImmediately)
+        Self.applyUpdate(entry, details: details, chapters: chapters, context: context,
+                         saveImmediately: saveImmediately, invalidatesCounts: invalidatesCounts)
     }
 
     /// Mark every "new chapter" badge as seen.
@@ -670,15 +689,25 @@ struct LibraryUpdateProgress: Equatable {
 ///
 /// `Entry.unreadCount` and `Entry.totalChapterCount` resolve the `chapters`
 /// relationship, which faults every chapter row for that entry. A grid cell
-/// asks for both, three times over (`totalChapterCount`, `unreadCount > 0`,
-/// `unreadCount`), and sorting by unread asks for them for every entry. With a
-/// few hundred books that is tens of thousands of row faults per body pass —
-/// the single largest cost in library scrolling and sorting.
+/// asks for both, three times over, and sorting by unread asks for them for
+/// every entry. With a few hundred books that is tens of thousands of row
+/// faults per body pass — the single largest cost in library scrolling and
+/// sorting.
 ///
-/// This counts with `fetchCount` (a SQL `COUNT`, not a materialised array) on a
-/// background context, caches the answer per entry, and lets cells read it
-/// synchronously. Nothing is stored on the model, so the count cannot drift
-/// from the chapters themselves — it is only ever a cached read of them.
+/// This counts with `fetchCount` (a SQL `COUNT`, not a materialised array),
+/// caches the answer per entry, and lets cells read it synchronously. Nothing
+/// is stored on the model, so the count cannot drift from the chapters
+/// themselves — it is only ever a cached read of them.
+///
+/// Requests are **coalesced into one pass**: a grid asking for thirty cells in
+/// one frame becomes one `ModelContext` and one round of queries, not thirty
+/// contexts and 120 queries. A pass runs off the main actor, so the caller
+/// only ever pays for the await.
+///
+/// Invalidation is per entry. A chapter read, a download finishing or a sync
+/// dropping chapters marks the entries it touched; only a global change
+/// (scanlator visibility, migration, a restore) drops everything.
+@Observable
 @MainActor
 final class LibraryChapterCounts {
 
@@ -687,7 +716,8 @@ final class LibraryChapterCounts {
     struct Counts: Equatable, Sendable {
         var total = 0
         var unread = 0
-        /// Chapters whose download finished and is on disk.
+        /// Chapters whose download finished and is on disk. Filled only when
+        /// `loaded` has `.downloads`.
         var downloaded = 0
         /// Unread chapters the last refresh added and Updates has not been
         /// cleared of. Filled only when `loaded` has `.newCount`.
@@ -696,29 +726,44 @@ final class LibraryChapterCounts {
         /// has `.dates`.
         var latestUpload: Date?
         var latestFetch: Date?
-        /// Which optional fields were computed. Each is extra queries per
+        /// Which optional fields were computed. Each is another query per
         /// entry, so a caller asks only for what it shows or sorts by.
         var loaded: Extras = []
     }
 
     struct Extras: OptionSet, Sendable {
         let rawValue: Int
-        static let dates = Extras(rawValue: 1)
+        /// Chapters with a finished download. A badge or filter asks for it.
+        static let downloads = Extras(rawValue: 1)
         static let newCount = Extras(rawValue: 2)
+        static let dates = Extras(rawValue: 4)
     }
 
-    /// How long a count is trusted. Short enough that finishing a chapter shows
-    /// up once the reader closes, long enough that scrolling never re-queries.
-    private let ttl: TimeInterval = 5
+    /// How long a count is trusted without being invalidated. Invalidation is
+    /// explicit now, so this is only a backstop for a write nobody reported;
+    /// long enough that scrolling back over a cell never re-queries.
+    private let ttl: TimeInterval = 30
 
-    private var cache: [PersistentIdentifier: (counts: Counts, at: Date)] = [:]
-    private var inFlight: [PersistentIdentifier: Task<Counts, Never>] = [:]
-    /// Bumped by `invalidate()` so a count that started before a change cannot
-    /// write a stale answer back into the cache.
+    private struct Cached {
+        var counts: Counts
+        var at: Date
+    }
+
+    private var cache: [PersistentIdentifier: Cached] = [:]
+    /// Every extra each entry has been asked for, so a cell asking for nothing
+    /// extra reuses the answer a sort already computed, and one asking for more
+    /// does not throw away what is there.
+    private var wanted: [PersistentIdentifier: Extras] = [:]
+    /// Entries the running (or next) pass has to count.
+    private var pending: Set<PersistentIdentifier> = []
+    private var pass: Task<Void, Never>?
+    /// Bumped by every invalidation, so a pass that started before a write
+    /// cannot store a stale answer.
     private var generation = 0
-    /// Every extra any caller has asked for. Folded into each computation so
-    /// two views asking for different extras do not keep evicting each other.
-    private var wanted: Extras = []
+
+    /// Bumped by every invalidation. Views that hold a count (a cell's badge,
+    /// the library's sort) watch it and ask again.
+    private(set) var revision = 0
 
     private init() {
         // Hiding or showing a scanlator changes every count at once.
@@ -735,54 +780,199 @@ final class LibraryChapterCounts {
         return entry.counts
     }
 
+    /// Drop every count. For a change that is not about one entry: scanlator
+    /// visibility, a migration, a backup restore.
     func invalidate() {
         generation &+= 1
         cache.removeAll()
+        wanted.removeAll()
+        revision &+= 1
     }
+
+    /// Drop the counts of the entries a write touched.
+    func invalidate(_ ids: [PersistentIdentifier]) {
+        guard !ids.isEmpty else { return }
+        generation &+= 1
+        for id in ids { cache[id] = nil }
+        revision &+= 1
+    }
+
+    /// Drop the counts of the entries a write touched, from any actor.
+    ///
+    /// Saves happen on background contexts; the cache lives on the main actor,
+    /// so this is the one hop those paths need. A write that replaced the whole
+    /// library posts `ChapterVisibility.didChange` instead.
+    nonisolated static func notify(_ ids: [PersistentIdentifier]) {
+        guard !ids.isEmpty else { return }
+        Task { @MainActor in shared.invalidate(ids) }
+    }
+
+    // MARK: - Reading
 
     func counts(for entry: Entry, container: ModelContainer, extras: Extras = []) async -> Counts {
         let id = entry.persistentModelID
-        wanted.formUnion(extras)
-        if let cached = cached(id), cached.loaded.isSuperset(of: extras) { return cached }
-        if let running = inFlight[id] {
-            let counts = await running.value
-            if counts.loaded.isSuperset(of: extras) { return counts }
+        let all = await counts(for: [id], container: container, extras: extras)
+        return all[id] ?? Counts()
+    }
+
+    /// Counts for a set of entries, in one pass.
+    ///
+    /// Entries already known are answered from the cache without waiting.
+    /// Everything else joins the same pass, so a caller asking for the whole
+    /// library and thirty cells asking for themselves cost one round of
+    /// queries between them.
+    func counts(
+        for ids: [PersistentIdentifier],
+        container: ModelContainer,
+        extras: Extras = []
+    ) async -> [PersistentIdentifier: Counts] {
+        var out: [PersistentIdentifier: Counts] = [:]
+        out.reserveCapacity(ids.count)
+        var needed: [PersistentIdentifier] = []
+
+        for id in ids {
+            wanted[id, default: []].formUnion(extras)
+            if let counts = cached(id), counts.loaded.isSuperset(of: extras) {
+                out[id] = counts
+            } else {
+                needed.append(id)
+            }
         }
-        let computing = wanted
 
-        // Match on the entry's identity: comparing url + sourceKey joined Entry per
-        // chapter and was ~4x slower (300 books: 10.8 s vs 2.5 s).
-        let entryID = id
-        let startGeneration = generation
+        // A pass that is already running picks up `pending` when it loops, so
+        // the first await normally answers everything. A second one is only
+        // needed when a write landed mid-pass and the result was dropped.
+        var attempt = 0
+        while !needed.isEmpty, attempt < 4 {
+            attempt += 1
+            pending.formUnion(needed)
+            startPassIfNeeded(container)
+            await pass?.value
+            for id in needed {
+                if let counts = cached(id), counts.loaded.isSuperset(of: extras) { out[id] = counts }
+            }
+            needed = needed.filter { out[$0] == nil }
+        }
+        return out
+    }
+
+    // MARK: - The pass
+
+    private func startPassIfNeeded(_ container: ModelContainer) {
+        guard pass == nil, !pending.isEmpty else { return }
+        pass = Task { @MainActor in
+            // One run-loop turn, so every request made while a frame builds
+            // joins the same pass instead of starting its own.
+            await Task.yield()
+            while !pending.isEmpty {
+                let ids = pending
+                pending = []
+                let start = generation
+                let results = await ChapterCountEngine.count(
+                    ids: Array(ids), extras: wanted, container: container)
+                // A write landed while this ran: what it computed may already
+                // be wrong, and storing it would pin the stale answer for the
+                // whole TTL. Drop it; the caller re-asks against a new pass.
+                guard start == generation else { continue }
+                for (id, counts) in results {
+                    cache[id] = Cached(counts: counts, at: .now)
+                }
+            }
+            pass = nil
+        }
+    }
+}
+
+/// The counting itself, off the main actor.
+///
+/// A context per entry was the old shape: a 300-book library meant 300 of them,
+/// each re-opening the store for four `COUNT`s. This uses at most
+/// `maxWorkers` contexts for the whole pass — enough to overlap the queries, few
+/// enough that the store is not fighting itself — and one context for the
+/// usual case of a handful of entries.
+///
+/// Hidden chapters do not exist (AGENTS.md), so every predicate below skips them.
+private enum ChapterCountEngine {
+
+    /// Contexts a pass may use. The same ceiling the library update uses for
+    /// its fetches, for the same reason: the device has cores to spare but not
+    /// hundreds.
+    private static let maxWorkers = 4
+
+    @concurrent
+    static func count(
+        ids: [PersistentIdentifier],
+        extras: [PersistentIdentifier: LibraryChapterCounts.Extras],
+        container: ModelContainer
+    ) async -> [PersistentIdentifier: LibraryChapterCounts.Counts] {
+        let workers = min(maxWorkers, ids.count)
+        guard !ids.isEmpty else { return [:] }
+        guard workers > 1 else {
+            return countChunk(ids, extras: extras, container: container)
+        }
+
+        // Round-robin, so one chunk is not all of the slow half.
+        var chunks = [[PersistentIdentifier]](repeating: [], count: workers)
+        for (index, id) in ids.enumerated() {
+            chunks[index % workers].append(id)
+        }
+
+        return await withTaskGroup(of: [PersistentIdentifier: LibraryChapterCounts.Counts].self) { group in
+            for chunk in chunks {
+                group.addTask { countChunk(chunk, extras: extras, container: container) }
+            }
+            var out: [PersistentIdentifier: LibraryChapterCounts.Counts] = [:]
+            out.reserveCapacity(ids.count)
+            for await part in group { out.merge(part) { _, new in new } }
+            return out
+        }
+    }
+
+    /// Counts for a slice of the pass, on its own context.
+    ///
+    /// Not `@concurrent` on purpose: its only callers are already off the main
+    /// actor (the pass, and the group's child tasks), so a plain function keeps
+    /// running where it was called instead of hopping again.
+    private static func countChunk(
+        _ ids: [PersistentIdentifier],
+        extras: [PersistentIdentifier: LibraryChapterCounts.Extras],
+        container: ModelContainer
+    ) -> [PersistentIdentifier: LibraryChapterCounts.Counts] {
+        let context = ModelContext(container)
         let completedState = DownloadState.completed
+        var out: [PersistentIdentifier: LibraryChapterCounts.Counts] = [:]
+        out.reserveCapacity(ids.count)
 
-        let task = Task.detached(priority: .userInitiated) { () -> Counts in
-            let context = ModelContext(container)
+        for id in ids {
+            // Match on the entry's identity: comparing url + sourceKey joined
+            // Entry per chapter and was ~4x slower (300 books: 10.8 s vs 2.5 s).
+            let entryID = id
+            let want = extras[id] ?? []
+            var counts = LibraryChapterCounts.Counts()
+
             do {
-                // Hidden chapters do not exist: every count below skips them.
-                let inEntry = #Predicate<Chapter> {
+                counts.total = try context.fetchCount(FetchDescriptor<Chapter>(predicate: #Predicate<Chapter> {
                     $0.entry?.persistentModelID == entryID && !$0.hidden
-                }
-                let unreadInEntry = #Predicate<Chapter> {
+                }))
+                counts.unread = try context.fetchCount(FetchDescriptor<Chapter>(predicate: #Predicate<Chapter> {
                     $0.entry?.persistentModelID == entryID && !$0.hidden && !$0.read
+                }))
+
+                if want.contains(.downloads) {
+                    counts.downloaded = try context.fetchCount(FetchDescriptor<Chapter>(predicate: #Predicate<Chapter> {
+                        $0.entry?.persistentModelID == entryID && !$0.hidden
+                            && $0.downloadItem?.state == completedState
+                    }))
+                    counts.loaded.insert(.downloads)
                 }
-                let downloadedInEntry = #Predicate<Chapter> {
-                    $0.entry?.persistentModelID == entryID && !$0.hidden
-                        && $0.downloadItem?.state == completedState
-                }
-                let total = try context.fetchCount(FetchDescriptor<Chapter>(predicate: inEntry))
-                let unread = try context.fetchCount(FetchDescriptor<Chapter>(predicate: unreadInEntry))
-                let downloaded = try context.fetchCount(FetchDescriptor<Chapter>(predicate: downloadedInEntry))
-                var counts = Counts(total: total, unread: unread, downloaded: downloaded)
-                if computing.contains(.newCount) {
-                    let newInEntry = #Predicate<Chapter> {
+                if want.contains(.newCount) {
+                    counts.new = try context.fetchCount(FetchDescriptor<Chapter>(predicate: #Predicate<Chapter> {
                         $0.entry?.persistentModelID == entryID
                             && !$0.hidden && !$0.read && $0.dateFetch != nil
-                    }
-                    counts.new = try context.fetchCount(FetchDescriptor<Chapter>(predicate: newInEntry))
+                    }))
                     counts.loaded.insert(.newCount)
                 }
-                if computing.contains(.dates) {
+                if want.contains(.dates) {
                     var upload = FetchDescriptor<Chapter>(
                         predicate: #Predicate<Chapter> {
                             $0.entry?.persistentModelID == entryID && !$0.hidden && $0.dateUpload != nil
@@ -801,19 +991,12 @@ final class LibraryChapterCounts {
                     counts.latestFetch = try context.fetch(fetch).first?.dateFetch
                     counts.loaded.insert(.dates)
                 }
-                return counts
             } catch {
-                return Counts()
+                counts = LibraryChapterCounts.Counts()
             }
+            out[id] = counts
         }
-
-        inFlight[id] = task
-        let counts = await task.value
-        inFlight[id] = nil
-        if startGeneration == generation {
-            cache[id] = (counts, .now)
-        }
-        return counts
+        return out
     }
 }
 

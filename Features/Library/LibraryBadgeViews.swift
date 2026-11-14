@@ -15,14 +15,26 @@ struct LibraryBadgePrefs: DynamicProperty {
         LibraryBadgeSettings(unread: unread, downloaded: downloaded, language: language, new: new)
     }
 
-    /// What a cell loads for its counts, so the extra queries only run when shown.
-    var extras: LibraryChapterCounts.Extras { new ? .newCount : [] }
+    /// What a cell loads for its counts, so the extra queries only run when
+    /// something on screen reads them.
+    var extras: LibraryChapterCounts.Extras {
+        var extras: LibraryChapterCounts.Extras = []
+        if downloaded { extras.insert(.downloads) }
+        if new { extras.insert(.newCount) }
+        return extras
+    }
 }
 
-/// What a cell loads its counts for: the entry, and whether `new` is shown.
+/// What a cell loads its counts for: the entry, what it shows, and how many
+/// times the counts have been invalidated since.
+///
+/// The revision is what makes a badge follow a chapter read. Without it the
+/// task id never changed, so a cell that stayed on screen kept the count it
+/// loaded when it appeared.
 struct LibraryCountsTaskID: Hashable {
     let id: PersistentIdentifier
     let extras: Int
+    let revision: Int
 }
 
 /// A compact capsule: an optional symbol, then text.

@@ -51,10 +51,18 @@ Accessing them faults every `Chapter` row for that entry. `NovelGridCell` read
 sorting by unread did it for every entry.
 
 Fixed with `LibraryChapterCounts` (`Services/LibraryManager.swift`): a SQL
-`COUNT` per entry on a background `ModelContext`, cached by
-`PersistentIdentifier` with a 5 s TTL and a generation counter so a count that
-started before an invalidation cannot write a stale answer back. Cells read the
-cached value synchronously and fill it in a `.task`.
+`COUNT` per entry off the main actor, cached by `PersistentIdentifier`. Cells
+read the cached value synchronously and fill it in a `.task`.
+
+The first shape gave every entry its own `ModelContext` and its own detached
+task, and dropped the whole cache on any change: 300 books meant 300 contexts
+and ~1,200 queries, thrown away again by a single chapter read, and again once
+per merged entry during a library update. It now coalesces every request made in
+one frame into a single pass (at most four contexts, one per worker), counts only
+the extras a caller asked for (`downloads`, `newCount`, `dates`; total and unread
+are always counted), and invalidates **per entry** — a chapter read, a download
+finishing or a sync dropping chapters marks just that entry, and `revision`
+tells the cells holding a count to ask again.
 
 Nothing is denormalised onto the model, so the count cannot drift from the
 chapters — it is only ever a cached read of them. That was the reason for not

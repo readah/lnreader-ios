@@ -72,6 +72,10 @@ struct LibraryFilter: Codable, Equatable, Sendable {
         downloaded != .off || unread != .off || started != .off
     }
 
+    /// Whether the download rule needs the extra "downloaded" count, which is
+    /// a query of its own. Total and unread are always counted.
+    var needsDownloads: Bool { downloaded != .off }
+
     func matches(_ facts: LibraryFilterFacts) -> Bool {
         downloaded.allows(facts.hasDownloads)
             && unread.allows(facts.hasUnread)

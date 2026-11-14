@@ -293,6 +293,10 @@ enum LibraryBackup {
             }
         }
         // Restored chapters and restored scanlator rules decide what exists.
+        // Announced unconditionally: a restore replaces the chapter set even
+        // when no `hidden` flag changed, and the count cache and any open
+        // chapter list have to re-read it.
+        NotificationCenter.default.post(name: ChapterVisibility.didChange, object: nil)
         Task { await ChapterVisibility.reconcileAll(container: container) }
         return summary
     }

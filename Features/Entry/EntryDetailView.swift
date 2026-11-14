@@ -405,6 +405,8 @@ struct EntryDetailView: View {
         if let localEntry {
             let entryURL = localEntry.url
             let entrySourceKey = localEntry.sourceKey
+            let entryKind = localEntry.kind
+            let entryIsLocal = localEntry.isLocal
             let container = modelContext.container
 
             Task.detached(priority: .userInitiated) {
@@ -428,7 +430,28 @@ struct EntryDetailView: View {
 
                 do {
                     let fetched = try context.fetch(descriptor)
-                    let mapped = fetched.map { ChapterDisplay(chapter: $0) }
+                    // Which chapters have a finished download, in one query. The
+                    // chapters are already materialised above, so reading a
+                    // download's chapter here is a row-cache hit, not a fetch —
+                    // asking each chapter for its `downloadItem` instead was a
+                    // query per chapter.
+                    let completedState = DownloadState.completed
+                    let downloads = (try? context.fetch(FetchDescriptor<DownloadItem>(
+                        predicate: #Predicate<DownloadItem> {
+                            $0.state == completedState
+                                && $0.chapter?.entry?.url == entryURL
+                                && $0.chapter?.entry?.sourceKey == entrySourceKey
+                        }
+                    ))) ?? []
+                    let downloaded = Set(downloads.compactMap { $0.chapter?.url })
+                    let isLocal = entryIsLocal
+                    // The entry's identity is known here, so the mapping does
+                    // not have to walk `chapter.entry` per chapter either.
+                    let mapped = fetched.map {
+                        ChapterDisplay(chapter: $0, sourceKey: entrySourceKey,
+                                       entryURL: entryURL, kind: entryKind,
+                                       isLocal: isLocal, downloaded: downloaded.contains($0.url))
+                    }
                     let lastOpenedPath = (try? context.fetch(lastOpened))?.first?.chapterURL
                     await MainActor.run {
                         self.allChapters = mapped
@@ -438,7 +461,11 @@ struct EntryDetailView: View {
                 } catch {
                     print("⚠️ Failed to fetch chapters on background context: \(error)")
                     await MainActor.run {
-                        let mapped = localEntry.chapters.map { ChapterDisplay(chapter: $0) }
+                        let mapped = localEntry.chapters.map {
+                            ChapterDisplay(chapter: $0, sourceKey: entrySourceKey,
+                                           entryURL: entryURL, kind: entryKind,
+                                           isLocal: entryIsLocal)
+                        }
                         self.allChapters = ChapterOrder.oldestFirst(mapped)
                         self.rebuildOrderedChapters()
                     }
@@ -474,6 +501,9 @@ struct EntryDetailView: View {
         let base = localEntry != nil
             ? allChapters.filter { !$0.hidden }
             : ScanlatorRules.apply(scanlatorSettings.value, to: allChapters)
+        // Both ends of the same order, each from `ChapterOrder`: the two sorts
+        // differ on a tie (`orderIdentity` ascending in both), so reversing one
+        // would not be the other.
         let oldestFirst = ChapterOrder.oldestFirst(base)
         orderedChapters = ChapterOrder.newestFirst(base)
         resumeChapter = Self.resumeChapter(

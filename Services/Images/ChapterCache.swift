@@ -28,6 +28,12 @@ actor ChapterCache {
 
     private var cachedSize: Int?
 
+    /// When each file's modification date was last bumped, so a read that just
+    /// touched it does not touch it again. Cleared wholesale past a cap.
+    private var touched: [String: Date] = [:]
+    private static let touchInterval: TimeInterval = 60
+    private static let touchedLimit = 1024
+
     init(
         directory: URL = ChapterCache.defaultDirectory,
         limitBytes: Int = 512 * 1024 * 1024,
@@ -63,8 +69,17 @@ actor ChapterCache {
     func data(for url: String) -> Data? {
         let file = fileURL(for: url)
         guard let data = try? Data(contentsOf: file, options: .mappedIfSafe) else { return nil }
-        // Touching the modification date is the whole LRU mechanism.
-        try? fileManager.setAttributes([.modificationDate: Date.now], ofItemAtPath: file.path)
+        // Touching the modification date is the whole LRU mechanism, but it is a
+        // syscall on every read, and the reader asks for the same page several
+        // times (the cell, the prefetch, then the cell again). A minute of
+        // granularity is far finer than a 512 MB LRU needs.
+        let now = Date.now
+        if let last = touched[url], now.timeIntervalSince(last) < Self.touchInterval {
+            return data
+        }
+        try? fileManager.setAttributes([.modificationDate: now], ofItemAtPath: file.path)
+        if touched.count >= Self.touchedLimit { touched.removeAll(keepingCapacity: true) }
+        touched[url] = now
         return data
     }
 
@@ -107,11 +122,13 @@ actor ChapterCache {
         let file = fileURL(for: url)
         let size = fileSize(file)
         try? fileManager.removeItem(at: file)
+        touched[url] = nil
         if let cachedSize { self.cachedSize = max(0, cachedSize - size) }
     }
 
     func removeAll() {
         try? fileManager.removeItem(at: directory)
+        touched.removeAll()
         cachedSize = 0
     }
 

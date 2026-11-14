@@ -225,14 +225,21 @@ struct ChapterDisplay: Identifiable, Hashable {
         releaseDate.map { $0.formatted(Self.releaseStyle) }
     }
 
-    init(chapter: Chapter, position: Int? = nil) {
+    init(
+        chapter: Chapter,
+        position: Int? = nil,
+        sourceKey: String? = nil,
+        entryURL: String? = nil,
+        kind: ContentKind? = nil,
+        isLocal: Bool? = nil,
+        downloaded: Bool? = nil
+    ) {
         self.id = chapter.url
         self.name = chapter.name
         self.path = chapter.url
         self.releaseDate = chapter.dateUpload
         self.unread = !chapter.read
         self.bookmarked = chapter.bookmark
-        self.downloaded = chapter.isDownloaded
         self.progress = chapter.progress > 0 ? Int(chapter.progress) : nil
         self.isInProgress = chapter.isInProgress
         self.position = position ?? chapter.sourceOrder
@@ -241,9 +248,28 @@ struct ChapterDisplay: Identifiable, Hashable {
         self.sortNumber = chapter.chapterNumber >= 0
             ? chapter.chapterNumber
             : Double((position ?? chapter.sourceOrder) + 1)
-        self.sourceKey = chapter.entry?.sourceKey ?? ""
-        self.entryURL = chapter.entry?.url
-        self.kind = chapter.entry?.kind ?? .novel
+        // The values below live on the entry or on the download row, so reading
+        // them through `chapter` faults a row per chapter — 1,200 of them for a
+        // long manga, on the main actor, every time the list is rebuilt. A
+        // caller that already has them passes them in.
+        if let sourceKey, let entryURL, let kind {
+            self.sourceKey = sourceKey
+            self.entryURL = entryURL
+            self.kind = kind
+        } else {
+            self.sourceKey = chapter.entry?.sourceKey ?? ""
+            self.entryURL = chapter.entry?.url
+            self.kind = chapter.entry?.kind ?? .novel
+        }
+        if let downloaded {
+            self.downloaded = downloaded
+        } else if let isLocal {
+            // A local book is on disk by definition; anything else needs a
+            // finished download.
+            self.downloaded = isLocal || chapter.downloadItem?.state == .completed
+        } else {
+            self.downloaded = chapter.isDownloaded
+        }
         self.hidden = chapter.hidden
     }
 
@@ -328,41 +354,56 @@ struct ChapterDirectoryView: View {
             return included && (search.isEmpty || chapter.name.localizedCaseInsensitiveContains(search) || String(chapter.position + 1) == search.trimmingCharacters(in: .whitespaces))
         }
     }
-    private var pageCount: Int { ChapterPages.count(total: filtered.count, size: pageSize) }
-    private var currentPage: Int { min(max(0, page), pageCount - 1) }
-    private var visible: [ChapterDisplay] {
-        let items = filtered
+
+    /// The rows this page shows, from a filter pass the caller already made.
+    ///
+    /// `filtered` is O(chapters) with a case-insensitive compare each, and the
+    /// screen used to ask for it five times per body pass (the count, the page,
+    /// the label, the pager, the visible slice). One pass, passed down.
+    private func visible(in items: [ChapterDisplay], page: Int) -> [ChapterDisplay] {
         if !search.isEmpty { return items }
-        return Array(items[ChapterPages.bounds(total: items.count, page: currentPage, size: pageSize)])
+        return Array(items[ChapterPages.bounds(total: items.count, page: page, size: pageSize)])
     }
-    private var pageLabel: String { label(for: currentPage) }
-    private func label(for page: Int) -> String {
-        let items = filtered
+
+    private func label(for page: Int, in items: [ChapterDisplay]) -> String {
         guard !items.isEmpty else { return "No chapters" }
         let range = ChapterPages.bounds(total: items.count, page: page, size: pageSize)
         let ends = [items[range.lowerBound].position, items[range.upperBound - 1].position]
         return "\(ends.min()! + 1)–\(ends.max()! + 1)"
     }
-    private var showsPager: Bool { !selection.isActive && search.isEmpty && pageCount > 1 }
 
-    @ToolbarContentBuilder private var pagerItems: some ToolbarContent {
+    private func pagerItems(_ items: [ChapterDisplay], pageCount: Int, page: Int) -> some ToolbarContent {
         ToolbarItemGroup(placement: .bottomBar) {
-            Button { page = max(0, currentPage - 1) } label: { Label("Previous 50 chapters", systemImage: "chevron.left").labelStyle(.iconOnly) }
-                .disabled(currentPage == 0)
+            Button { self.page = max(0, page - 1) } label: { Label("Previous 50 chapters", systemImage: "chevron.left").labelStyle(.iconOnly) }
+                .disabled(page == 0)
             Spacer()
             Menu {
                 ForEach(0..<pageCount, id: \.self) { index in
-                    Button(label(for: index)) { page = index }
+                    Button(label(for: index, in: items)) { self.page = index }
                 }
-            } label: { Label("\(pageLabel) · \(currentPage + 1)/\(pageCount)", systemImage: "rectangle.split.3x1").font(.subheadline.monospacedDigit()) }
+            } label: { Label("\(label(for: page, in: items)) · \(page + 1)/\(pageCount)", systemImage: "rectangle.split.3x1").font(.subheadline.monospacedDigit()) }
             Spacer()
-            Button { page = min(pageCount - 1, currentPage + 1) } label: { Label("Next 50 chapters", systemImage: "chevron.right").labelStyle(.iconOnly) }
-                .disabled(currentPage + 1 >= pageCount)
+            Button { self.page = min(pageCount - 1, page + 1) } label: { Label("Next 50 chapters", systemImage: "chevron.right").labelStyle(.iconOnly) }
+                .disabled(page + 1 >= pageCount)
         }
     }
 
-    var body: some View {
-        NavigationStack {
+    var body: some View { screen() }
+
+    /// The screen, with the filter pass made once.
+    ///
+    /// Not a `@ViewBuilder`: the locals below are what stop the list from
+    /// filtering every chapter five times over (for the count, the page, the
+    /// label, the pager and the rows) on each pass.
+    private func screen() -> some View {
+        let items = filtered
+        let pageCount = ChapterPages.count(total: items.count, size: pageSize)
+        let page = min(max(0, self.page), pageCount - 1)
+        let rows = visible(in: items, page: page)
+        let paths = items.map(\.path)
+        let showsPager = !selection.isActive && search.isEmpty && pageCount > 1
+
+        return NavigationStack {
             ScrollViewReader { proxy in
             List {
                 Section {
@@ -385,8 +426,8 @@ struct ChapterDirectoryView: View {
                     if let jumpError { Text(jumpError).font(.caption).foregroundStyle(AppTheme.destructive) }
                 }
                 Section {
-                    ForEach(Array(visible.enumerated()), id: \.element.id) { index, chapter in
-                        let joins = selection.neighbours(at: index, in: visible)
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, chapter in
+                        let joins = selection.neighbours(at: index, in: rows)
                         let picked = selection.paths.contains(chapter.path)
                         HStack(spacing: 8) {
                             Text(String(chapter.position + 1)).font(.caption.monospacedDigit()).foregroundStyle(chapter.path == currentChapterPath ? .primary : .secondary).fontWeight(chapter.path == currentChapterPath ? .semibold : .regular).frame(minWidth: 32)
@@ -401,7 +442,7 @@ struct ChapterDirectoryView: View {
                                 }.buttonStyle(.plain)
                             } else {
                                 ChapterRow(chapter: chapter, entry: entry, sourceKey: sourceKey,
-                                           selection: entry == nil ? nil : selection, orderedPaths: { filtered.map(\.path) },
+                                           selection: entry == nil ? nil : selection, orderedPaths: { paths },
                                            joinsAbove: joins.above, joinsBelow: joins.below)
                                     .listRowInsets(EdgeInsets())
                             }
@@ -409,8 +450,8 @@ struct ChapterDirectoryView: View {
                         .listRowSeparator(picked || joins.below ? .hidden : .automatic)
                         .id(chapter.path)
                     }
-                    if visible.isEmpty { ContentUnavailableView("No chapters", systemImage: "text.magnifyingglass", description: Text("Try another number, title, or filter.")) }
-                } header: { Text(search.isEmpty ? "Chapters \(pageLabel)" : "\(filtered.count) results") }
+                    if rows.isEmpty { ContentUnavailableView("No chapters", systemImage: "text.magnifyingglass", description: Text("Try another number, title, or filter.")) }
+                } header: { Text(search.isEmpty ? "Chapters \(label(for: page, in: items))" : "\(items.count) results") }
             }
             .listStyle(.insetGrouped)
             .background {
@@ -418,13 +459,13 @@ struct ChapterDirectoryView: View {
                     coverTint.opacity(0.10).ignoresSafeArea()
                 }
             }
-            .id("\(search.isEmpty ? currentPage : -1)-\(selectedFilter.rawValue)")
+            .id("\(search.isEmpty ? page : -1)-\(selectedFilter.rawValue)")
             .searchable(text: $search, prompt: "Search every chapter")
             .navigationTitle("Chapters").navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        Picker("Filter", selection: Binding(get: { selectedFilter }, set: { selectedFilter = $0; page = 0 })) {
+                        Picker("Filter", selection: Binding(get: { selectedFilter }, set: { selectedFilter = $0; self.page = 0 })) {
                             ForEach(ChapterFilter.allCases) { Text($0.rawValue).tag($0) }
                         }
                     } label: {
@@ -434,10 +475,10 @@ struct ChapterDirectoryView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { if let onClose { onClose() } else { dismiss() } } }
             }
-            .toolbar { if showsPager { pagerItems } }
+            .toolbar { if showsPager { pagerItems(items, pageCount: pageCount, page: page) } }
             .toolbar(showsPager || selection.isActive ? .visible : .hidden, for: .bottomBar)
             .chapterSelectionToolbar(
-                selection: selection, entry: entry, ordered: filtered,
+                selection: selection, entry: entry, ordered: items,
                 allChapters: chapters, sourceKey: sourceKey)
             .onChange(of: chapters) { _, _ in if !initialized && !chapters.isEmpty { if initialSearch.isEmpty && initialFilter == .all { goToCurrent() }; initialized = true } }
             .onAppear { if !initialized && !chapters.isEmpty { if initialSearch.isEmpty && initialFilter == .all { goToCurrent() }; initialized = true } }

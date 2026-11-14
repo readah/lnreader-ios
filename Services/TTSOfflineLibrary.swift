@@ -22,6 +22,27 @@ enum TTSStorage {
         let id = SHA256.hash(data: Data((bookId + "\u{0}" + chapterId).utf8)).map { String(format: "%02x", $0) }.joined()
         return root.appendingPathComponent("chapters", isDirectory: true).appendingPathComponent(id + ".json")
     }
+
+    /// A finished download's manifest, if its files are still on disk.
+    ///
+    /// Read-only and free of the main actor: the reader calls this to open a
+    /// chapter, and reading it there used to be a JSON decode plus two
+    /// `stat`s on the main thread before the first line could paint.
+    static func readManifest(_ id: String) -> TTSManifest? {
+        guard validID(id), FileManager.default.fileExists(atPath: audio(id).path),
+              let data = try? Data(contentsOf: directory(id).appendingPathComponent("manifest.json")),
+              let value = try? JSONDecoder().decode(TTSManifest.self, from: data),
+              (try? value.validate()) != nil
+        else { return nil }
+        return value
+    }
+
+    /// The chapter text a TTS download saved, so a chapter read as audio opens
+    /// as text without fetching it again.
+    static func readChapterText(bookId: String, chapterId: String) -> TTSChapterText? {
+        guard let data = try? Data(contentsOf: chapterText(bookId: bookId, chapterId: chapterId)) else { return nil }
+        return try? JSONDecoder().decode(TTSChapterText.self, from: data)
+    }
     static func verify(staged: URL, manifest: TTSManifest) async throws {
         try manifest.validate()
         let valid = try await Task.detached(priority: .utility) {

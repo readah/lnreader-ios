@@ -564,59 +564,42 @@ struct ReaderView: View {
             baseURL = nil; isLoading = false
             return
         }
-        let selected = audioLibrary.selectedVoice(bookId: audioBookId, chapterId: currentChapterPath)
-        if let local = audioLibrary.downloaded(bookId: audioBookId, chapterId: currentChapterPath, voiceId: selected) ?? audioLibrary.downloaded(bookId: audioBookId, chapterId: currentChapterPath),
-           let manifest = try? audioLibrary.localManifest(local.id) {
-            htmlContent = TTSBookIdentity.html(blocks: manifest.blocks)
-            displayedAudioRevision = manifest.contentRevision
-            baseURL = nil; isLoading = false
-            return
-        }
-        if let local = audioLibrary.localText(bookId: audioBookId, chapterId: currentChapterPath) {
-            htmlContent = TTSBookIdentity.html(blocks: local.blocks)
-            displayedAudioRevision = local.contentRevision
-            baseURL = nil; isLoading = false
-            return
-        }
 
-        if let entryURL, let downloaded = OfflineChapters.novel(sourceKey: sourceKey, entryURL: entryURL, chapterURL: requestedPath) {
-            errorMessage = nil
-            ttsBridge.contentDidChange()
-            htmlContent = downloaded; baseURL = nil; isLoading = false
-            if let entry = fetchEntry(), let chapter = entry.chapters.first(where: { $0.url == requestedPath }) {
+        // Everything else the reader can show without the network — a
+        // downloaded chapter, an imported book's file, a chapter saved by a TTS
+        // download — is disk and JSON work, so it happens off the main actor.
+        // Opening a chapter used to read the file, `stat` every page of the
+        // manifest and build the HTML on the main thread, before the first line
+        // could paint.
+        let selected = audioLibrary.selectedVoice(bookId: audioBookId, chapterId: currentChapterPath)
+        let recordID = audioLibrary.downloaded(bookId: audioBookId, chapterId: currentChapterPath, voiceId: selected)?.id
+            ?? audioLibrary.downloaded(bookId: audioBookId, chapterId: currentChapterPath)?.id
+        let offline = await Self.loadOfflineChapter(
+            sourceKey: sourceKey,
+            entryURL: entryURL,
+            chapterURL: requestedPath,
+            audioBookId: audioBookId,
+            audioRecordID: recordID
+        )
+        guard chapterLoadID == loadID, currentChapterPath == requestedPath else { return }
+
+        switch offline {
+        case .html(let html, let base, let revision, let recordsHistory):
+            htmlContent = html
+            baseURL = base
+            displayedAudioRevision = revision
+            isLoading = false
+            if recordsHistory, let entry = fetchEntry(),
+               let chapter = entry.chapters.first(where: { $0.url == requestedPath }) {
                 libraryManager.recordHistory(entry: entry, chapter: chapter, context: modelContext)
             }
             return
-        }
-        if sourceKey == SourceKey.local, let entryURL {
-            do {
-                let fileManager = FileManager.default
-                let docDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                let novelId = entryURL.replacingOccurrences(of: "local://", with: "")
-                let bookDir = docDir.appendingPathComponent("LocalNovels").appendingPathComponent(novelId)
-                let chapterURL = bookDir.appendingPathComponent(currentChapterPath)
-
-                guard fileManager.fileExists(atPath: chapterURL.path) else {
-                    errorMessage = "Chapter file not found: \(currentChapterPath)"
-                    isLoading = false
-                    return
-                }
-
-                let rawHtml = try String(contentsOf: chapterURL, encoding: .utf8)
-                htmlContent = rawHtml
-                baseURL = chapterURL.deletingLastPathComponent()
-                isLoading = false
-
-                // Record reading history
-                if let chapter = cachedChapters.first(where: { $0.url == currentChapterPath }),
-                   let entry = fetchEntry() {
-                    libraryManager.recordHistory(entry: entry, chapter: chapter, context: modelContext)
-                }
-            } catch {
-                errorMessage = "Failed to load local chapter: \(error.localizedDescription)"
-                isLoading = false
-            }
+        case .problem(let message):
+            errorMessage = message
+            isLoading = false
             return
+        case .none:
+            break
         }
 
         guard let source = sourceManager.novelSource(forKey: sourceKey) else {
@@ -650,7 +633,62 @@ struct ReaderView: View {
             isLoading = false
         }
     }
-    
+
+    // MARK: - Offline copies
+
+    /// Read whatever copy of a chapter is already on disk.
+    ///
+    /// Off the main actor on purpose: a TTS manifest is a JSON decode plus a
+    /// `stat` per page, a local chapter is a whole file read, and the HTML that
+    /// goes to the web view is built from it. None of that belongs between a
+    /// tap and the first painted line.
+    ///
+    /// The order is the reader's preference: a downloaded audio rendition (its
+    /// blocks are the chapter's text), then a chapter text saved by a TTS
+    /// download, then a chapter downloaded for offline reading, then an
+    /// imported book's own file.
+    @concurrent
+    private nonisolated static func loadOfflineChapter(
+        sourceKey: String,
+        entryURL: String?,
+        chapterURL: String,
+        audioBookId: String,
+        audioRecordID: String?
+    ) async -> OfflineChapterLoad {
+        if let audioRecordID, let manifest = TTSStorage.readManifest(audioRecordID) {
+            return .html(TTSBookIdentity.html(blocks: manifest.blocks), baseURL: nil,
+                         audioRevision: manifest.contentRevision, recordsHistory: false)
+        }
+        if let text = TTSStorage.readChapterText(bookId: audioBookId, chapterId: chapterURL) {
+            return .html(TTSBookIdentity.html(blocks: text.blocks), baseURL: nil,
+                         audioRevision: text.contentRevision, recordsHistory: false)
+        }
+        guard let entryURL else { return .none }
+
+        if let html = OfflineChapters.novel(sourceKey: sourceKey, entryURL: entryURL, chapterURL: chapterURL) {
+            return .html(html, baseURL: nil, audioRevision: nil, recordsHistory: true)
+        }
+
+        // An imported book keeps one file per chapter in the book's folder.
+        guard sourceKey == SourceKey.local else { return .none }
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let novelId = entryURL.replacingOccurrences(of: "local://", with: "")
+        let file = documents
+            .appendingPathComponent("LocalNovels")
+            .appendingPathComponent(novelId)
+            .appendingPathComponent(chapterURL)
+        guard FileManager.default.fileExists(atPath: file.path) else {
+            return .problem("Chapter file not found: \(chapterURL)")
+        }
+        do {
+            return .html(try String(contentsOf: file, encoding: .utf8),
+                         baseURL: file.deletingLastPathComponent(),
+                         audioRevision: nil, recordsHistory: true)
+        } catch {
+            return .problem("Failed to load local chapter: \(error.localizedDescription)")
+        }
+    }
+
     private func loadNovelFireComments() {
         guard let site = commentSite else { return }
         // Cancel any in-flight fetch from a previous chapter so a slow
@@ -943,6 +981,21 @@ struct ReaderFocusIndicator: View {    @ObservedObject var focusManager = FocusM
             }
         }
     }
+}
+
+// MARK: - Offline copies
+
+/// What the reader found on disk for a chapter, as a plain value so it can come
+/// back from the loading task.
+enum OfflineChapterLoad: Sendable {
+    /// The chapter's HTML, the base URL its relative links resolve against,
+    /// the audio revision it belongs to (nil for text), and whether opening it
+    /// should be recorded in history — a TTS chapter is already in it.
+    case html(String, baseURL: URL?, audioRevision: String?, recordsHistory: Bool)
+    /// A local book's file is gone or unreadable, with the message to show.
+    case problem(String)
+    /// Nothing on disk; the reader fetches from the source.
+    case none
 }
 
 // MARK: - Incognito Indicator

@@ -459,7 +459,10 @@ struct MangaReaderView: View {
         errorMessage = nil
         loadStoredChapters()
 
-        if let entryURL, let downloaded = OfflineChapters.manga(sourceKey: sourceKey, entryURL: entryURL, chapterURL: requestedURL) {
+        if let downloaded = await Self.offlinePages(
+            sourceKey: sourceKey, entryURL: entryURL, chapterURL: requestedURL
+        ) {
+            guard !Task.isCancelled, chapterURL == requestedURL else { return }
             pages = downloaded
             segments = [ReaderSegment(id: requestedURL, name: chapterName, pages: downloaded)]
             currentIndex = resumeIndex(pageCount: downloaded.count)
@@ -663,11 +666,28 @@ struct MangaReaderView: View {
     }
 
     private func fetchPages(of chapter: SourceChapter) async throws -> [SourcePage] {
-        if let entryURL, let downloaded = OfflineChapters.manga(sourceKey: sourceKey, entryURL: entryURL, chapterURL: chapter.url) {
+        if let downloaded = await Self.offlinePages(
+            sourceKey: sourceKey, entryURL: entryURL, chapterURL: chapter.url
+        ) {
             return downloaded
         }
         guard let source = sourceManager.mangaSource(forKey: sourceKey) else { return [] }
         return try await source.pages(SourceChapter(url: chapter.url, name: chapter.name))
+    }
+
+    /// A chapter's pages, if they are already on disk.
+    ///
+    /// Off the main actor: `OfflineChapters.manga` decodes the manifest and
+    /// `stat`s every page file to prove it is still there — forty syscalls for a
+    /// forty-page chapter — and this runs at every chapter change.
+    @concurrent
+    private nonisolated static func offlinePages(
+        sourceKey: String,
+        entryURL: String?,
+        chapterURL: String
+    ) async -> [SourcePage]? {
+        guard let entryURL else { return nil }
+        return OfflineChapters.manga(sourceKey: sourceKey, entryURL: entryURL, chapterURL: chapterURL)
     }
 
     private func recordProgress(_ index: Int) {
@@ -931,9 +951,11 @@ struct MangaReaderView: View {
 
     private var directoryChapters: [ChapterDisplay] {
         let stored = Dictionary(storedChapters.map { ($0.url, $0) }, uniquingKeysWith: { first, _ in first })
+        let key = sourceKey, bookURL = entryURL
         return navigableChapters.enumerated().map { index, chapter in
             if let saved = stored[chapter.url] {
-                return ChapterDisplay(chapter: saved, position: index)
+                return ChapterDisplay(chapter: saved, position: index,
+                                      sourceKey: key, entryURL: bookURL, kind: .manga)
             }
             return ChapterDisplay(sourceChapter: chapter, position: index, sourceKey: sourceKey,
                                   entryURL: entryURL, kind: .manga)

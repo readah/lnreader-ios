@@ -166,7 +166,9 @@ struct LibraryListRow: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .frame(minHeight: LayoutConstants.listRowHeight)
-        .task(id: LibraryCountsTaskID(id: novel.persistentModelID, extras: badgePrefs.extras.rawValue)) {
+        .task(id: LibraryCountsTaskID(id: novel.persistentModelID,
+                                      extras: badgePrefs.extras.rawValue,
+                                      revision: LibraryChapterCounts.shared.revision)) {
             if let cached = LibraryChapterCounts.shared.cached(novel.persistentModelID) {
                 counts = cached
             }

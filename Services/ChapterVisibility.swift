@@ -18,9 +18,12 @@ import SwiftData
 
 enum ChapterVisibility {
 
-    /// Posted on the main thread after the stored `hidden` flags changed, so an
+    /// Posted on the main thread after the stored chapter set changed, so an
     /// open chapter list or reader can reload what it shows, and the library
     /// counts (`LibraryChapterCounts`) drop what they cached.
+    ///
+    /// "Changed" includes a restore, which replaces every chapter without
+    /// necessarily flipping a `hidden` flag.
     static let didChange = Notification.Name("LNReaderChapterVisibilityChanged")
 
     /// The entry's saved scanlator rules. They live in UserDefaults, keyed

@@ -88,6 +88,9 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             /// top or the end. Only for the reader's
             /// own drag and its momentum: restores and narration follow are silent.
             @MainActor private func scrolled(_ view: UIScrollView) {
+                // Both trackers below run on every scroll frame. With scroll
+                // haptics off neither can produce a cue, so neither runs.
+                guard Haptics.isScrollEnabled else { return }
                 let userDriven = view.isDragging || view.isDecelerating
                 let now = CACurrentMediaTime()
                 let top = Double(view.contentOffset.y)
