@@ -1,50 +1,119 @@
 // ReaderEditMenu.swift
 // Adds the highlight palette to WebKit's own text-selection menu.
 //
-// UIKit has no public hook for the edit menu's contents: `WKUIDelegate` only
-// exposes the present/dismiss animators. The menu belongs to a private
-// `WKContentView`'s `UIEditMenuInteraction`, so this adopts that interaction's
-// delegate and forwards every call it does not handle back to WebKit.
+// UIKit builds that menu from `UITextInput.editMenuForTextRange:suggestedActions:`
+// and falls back to copying when nobody implements it. `WKContentView` is the
+// text input but does not implement the method, so this adds it to WebKit's
+// class at runtime and returns the system's suggestions with a colour menu
+// appended. An implementation WebKit adds in future is called first.
 
 import ObjectiveC
 import UIKit
 import WebKit
+import os
 
 @MainActor
 enum ReaderEditMenu {
 
-    /// Called after a load and whenever the page selection changes. A no-op
-    /// once the menu has been adopted; safe to call repeatedly.
+    private static var readerKey: UInt8 = 0
+    private static var injectedClasses = Set<ObjectIdentifier>()
+
+    private static let selector = NSSelectorFromString("editMenuForTextRange:suggestedActions:")
+
+    private static let log = Logger(subsystem: "com.lnreader", category: "reader")
+
+    /// Marks this web view as a reader (so only its menu gains colours) and
+    /// makes sure the editing class answers the menu method. Safe to repeat.
     static func installIfNeeded(in webView: WKWebView) {
-        guard let contentView = findContentView(webView),
-              let interaction = findEditMenuInteraction(contentView) else { return }
+        objc_setAssociatedObject(webView, &readerKey, NSNumber(value: true), .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
 
-        if let existing = objc_getAssociatedObject(interaction, &delegateKey) as? EditMenuDelegate {
-            if interaction.delegate === existing { return }
-            // Keep WebKit's original delegate; only replace it again.
-            if let current = interaction.delegate { existing.forwarding = current }
-            adopt(existing, in: interaction)
-            return
-        }
-
-        let delegate = EditMenuDelegate(webView: webView)
-        delegate.forwarding = interaction.delegate
-        objc_setAssociatedObject(interaction, &delegateKey, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        adopt(delegate, in: interaction)
+        guard let type = contentViewClass(in: webView) else { return }
+        let identity = ObjectIdentifier(type)
+        guard !injectedClasses.contains(identity) else { return }
+        injectedClasses.insert(identity)
+        injectMenuMethod(into: type)
     }
 
-    private static var delegateKey: UInt8 = 0
+    private static func contentViewClass(in webView: WKWebView) -> AnyClass? {
+        // The class is private but stable; finding an instance is the fallback.
+        if let type = NSClassFromString("WKContentView") { return type }
+        guard let contentView = findContentView(webView) else { return nil }
+        return object_getClass(contentView)
+    }
 
-    /// `delegate` is read-only in the public header; the interaction still
-    /// stores it in an ivar, so KVC can replace it.
-    private static func adopt(_ delegate: EditMenuDelegate, in interaction: UIEditMenuInteraction) {
-        let type: AnyClass = type(of: interaction)
-        let hasBackingStore = class_getInstanceVariable(type, "_delegate") != nil
-            || class_getInstanceVariable(type, "delegate") != nil
-        // Without direct ivar access KVC would throw; leave WebKit alone then.
-        let allowsIvarAccess = (type as? NSObject.Type)?.accessInstanceVariablesDirectly ?? true
-        guard hasBackingStore, allowsIvarAccess else { return }
-        interaction.setValue(delegate, forKey: "delegate")
+    private static func injectMenuMethod(into type: AnyClass) {
+        let original = class_getInstanceMethod(type, selector).map(method_getImplementation)
+
+        let block: @convention(block) (UIView, UITextRange, [UIMenuElement]) -> UIMenu? = { view, range, suggested in
+            MainActor.assumeIsolated {
+                guard let webView = enclosingWebView(of: view),
+                      objc_getAssociatedObject(webView, &readerKey) != nil else {
+                    return call(original, on: view, range: range, suggested: suggested)
+                }
+                let base = call(original, on: view, range: range, suggested: suggested)
+                var children = base?.children ?? suggested
+                children.append(highlightMenu(for: view))
+                return UIMenu(title: base?.title ?? "", options: base?.options ?? [], children: children)
+            }
+        }
+
+        let implementation = imp_implementationWithBlock(block)
+        let types = "@@:@@"
+        if class_getInstanceMethod(type, selector) == nil {
+            class_addMethod(type, selector, implementation, types)
+        } else {
+            class_replaceMethod(type, selector, implementation, types)
+        }
+
+        #if DEBUG
+            log.debug("Edit menu added to \(NSStringFromClass(type), privacy: .public)")
+        #endif
+    }
+
+    private typealias EditMenuImplementation =
+        @convention(c) (AnyObject, Selector, UITextRange, [UIMenuElement]) -> UIMenu?
+
+    private static func call(
+        _ implementation: IMP?,
+        on view: UIView,
+        range: UITextRange,
+        suggested: [UIMenuElement]
+    ) -> UIMenu? {
+        guard let implementation else { return nil }
+        return unsafeBitCast(implementation, to: EditMenuImplementation.self)(
+            view, selector, range, suggested
+        )
+    }
+
+    private static func highlightMenu(for view: UIView) -> UIMenu {
+        let actions = ReaderHighlightColor.allCases.map { color in
+            UIAction(title: color.displayName, image: swatchImage(for: color)) { [weak view] _ in
+                guard let view else { return }
+                MainActor.assumeIsolated { apply(color, in: view) }
+            }
+        }
+        return UIMenu(
+            title: "Highlight",
+            image: UIImage(systemName: "highlighter"),
+            children: actions
+        )
+    }
+
+    private static func apply(_ color: ReaderHighlightColor, in view: UIView) {
+        Haptics.shared.impact(.light)
+        guard let webView = enclosingWebView(of: view) else { return }
+        webView.evaluateJavaScript(
+            "window.lnrRequestHighlight && window.lnrRequestHighlight('\(color.rawValue)')"
+        )
+    }
+
+    private static func enclosingWebView(of view: UIView) -> WKWebView? {
+        var current: UIView? = view
+        while let candidate = current {
+            if let webView = candidate as? WKWebView { return webView }
+            current = candidate.superview
+        }
+        return nil
     }
 
     private static func findContentView(_ view: UIView) -> UIView? {
@@ -53,72 +122,6 @@ enum ReaderEditMenu {
             if let found = findContentView(subview) { return found }
         }
         return nil
-    }
-
-    private static func findEditMenuInteraction(_ view: UIView) -> UIEditMenuInteraction? {
-        for interaction in view.interactions {
-            if let edit = interaction as? UIEditMenuInteraction { return edit }
-        }
-        for subview in view.subviews {
-            if let found = findEditMenuInteraction(subview) { return found }
-        }
-        return nil
-    }
-}
-
-/// Forwards WebKit's own edit-menu answers, adding one submenu of colors.
-@MainActor
-private final class EditMenuDelegate: NSObject, @preconcurrency UIEditMenuInteractionDelegate {
-
-    weak var webView: WKWebView?
-    weak var forwarding: UIEditMenuInteractionDelegate?
-
-    init(webView: WKWebView) {
-        self.webView = webView
-    }
-
-    private lazy var highlightMenu: UIMenu = {
-        let actions = ReaderHighlightColor.allCases.map { color in
-            UIAction(title: color.displayName, image: Self.swatchImage(for: color)) { [weak self] _ in
-                self?.apply(color)
-            }
-        }
-        return UIMenu(
-            title: "Highlight",
-            image: UIImage(systemName: "highlighter"),
-            children: actions
-        )
-    }()
-
-    func editMenuInteraction(
-        _ interaction: UIEditMenuInteraction,
-        menuFor configuration: UIEditMenuConfiguration,
-        suggestedActions: [UIMenuElement]
-    ) -> UIMenu? {
-        let base = forwarding?.editMenuInteraction?(
-            interaction,
-            menuFor: configuration,
-            suggestedActions: suggestedActions
-        )
-        var children = base?.children ?? suggestedActions
-        children.append(highlightMenu)
-        return UIMenu(title: base?.title ?? "", options: base?.options ?? [], children: children)
-    }
-
-    override func responds(to aSelector: Selector!) -> Bool {
-        super.responds(to: aSelector) || (forwarding?.responds(to: aSelector) ?? false)
-    }
-
-    override func forwardingTarget(for aSelector: Selector!) -> Any? {
-        if let forwarding, forwarding.responds(to: aSelector) { return forwarding }
-        return super.forwardingTarget(for: aSelector)
-    }
-
-    private func apply(_ color: ReaderHighlightColor) {
-        Haptics.shared.impact(.light)
-        webView?.evaluateJavaScript(
-            "window.lnrRequestHighlight && window.lnrRequestHighlight('\(color.rawValue)')"
-        )
     }
 
     /// A filled circle for the menu row. Menu images are tinted by default;

@@ -38,7 +38,7 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
         var onLikeComment: ((String) -> Void)? = nil
         var onDislikeComment: ((String) -> Void)? = nil
 
-        class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, WKUIDelegate {
             var parent: ReaderContent?
             var onTap: (() -> Void)?
             var onParagraphTap: ((Int) -> Void)?
@@ -261,13 +261,12 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             webView.scrollView.indicatorStyle = scrollIndicatorStyle(for: uiColor, in: webView)
             webView.scrollView.contentInsetAdjustmentBehavior = .never
             webView.navigationDelegate = context.coordinator
+            webView.uiDelegate = context.coordinator
             context.coordinator.watchScroll(webView.scrollView)
             context.coordinator.watchLifecycle(webView)
             Haptics.shared.prepare()
             bridge.setWebView(webView)
-            DispatchQueue.main.async {
-                ReaderEditMenu.installIfNeeded(in: webView)
-            }
+            ReaderEditMenu.installIfNeeded(in: webView)
 
             return webView
         }
@@ -1366,6 +1365,7 @@ extension ReaderContent {
             // inside it, so hold bionic work while text is selected.
             var pending = [];
             var flush = function() {
+                if (window.__lnrShimmerActive) return;
                 var selection = window.getSelection();
                 if (selection && !selection.isCollapsed) return;
                 var nodes = pending;
