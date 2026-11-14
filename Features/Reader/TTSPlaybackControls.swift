@@ -276,9 +276,12 @@ struct TTSVoiceChip: View {
             Text(name).font(.subheadline.weight(.semibold)).lineLimit(1)
         }
         .foregroundStyle(.white)
+        // The light can reach white behind the label; a soft shadow keeps the
+        // name and the waveform readable over it.
+        .shadow(color: .black.opacity(0.45), radius: 2, y: 0.5)
         .padding(.horizontal, 13)
         .padding(.vertical, 9)
-        .background { VoiceGlowSurface(voiceId: voiceId, animated: animated, halo: 16) }
+        .background { VoiceGlowSurface(voiceId: voiceId, animated: animated, halo: 9) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Voice: \(name)")
     }

@@ -466,9 +466,10 @@ struct BookAudioDownloadsView: View {
                     .opacity(0.6)
             }
             .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.45), radius: 2, y: 0.5)
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
-            .background { VoiceGlowSurface(voiceId: activeVoice, halo: 15) }
+            .background { VoiceGlowSurface(voiceId: activeVoice, halo: 9) }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

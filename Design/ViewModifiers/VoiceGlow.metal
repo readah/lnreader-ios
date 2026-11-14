@@ -39,9 +39,11 @@ constant float GG_MINIMUM_WIDTH = 0.07f;
 constant float GG_STRETCH_ASPECT = 0.9f;
 
 // Bloom: the halo around the shape. Gain and Gaussian sigma of each level, the
-// sigma a fraction of the shape's height (LightModel.bloom).
-constant float GG_BLOOM_GAIN[3] = { 0.467339f, 0.533453f, 0.441265f };
-constant float GG_BLOOM_SIGMA[3] = { 0.0664998f, 0.167844f, 0.0169478f };
+// sigma a fraction of the shape's height (LightModel.bloom). The source's gains
+// assume a large canvas; a chip in a list only needs enough to lift the edge,
+// so they are scaled down and the halo is kept close.
+constant float GG_BLOOM_GAIN[3] = { 0.2570f, 0.2934f, 0.2427f };
+constant float GG_BLOOM_SIGMA[3] = { 0.0499f, 0.1259f, 0.0127f };
 
 // Per light: x, y, z, log radius, intensity (softplus), log aspect, angle; each
 // a Fourier series [constant, cos 1..4, sin 1..4] over the six-second loop.
@@ -285,7 +287,11 @@ static float ggNormalCDF(float x) {
         glass.b = ggLightField(p - n * (GG_BEVEL_REFRACTION * m[2] * bev), depth, stretch, 0.0f, lights).b;
         glass *= inside;
         // A hairline band just inside the edge, lit from deeper in the shape.
-        rimRGB += inside * exp(-depth / GG_BAND_WIDTH) * GG_BAND_LIGHT
+        // The fitted width is a fraction of the box (0.0017), which is thinner
+        // than a pixel on a chip and never draws; keep at least a pixel, so the
+        // outline of the shape stays visible at every phase.
+        float bandWidth = max(GG_BAND_WIDTH, 1.0f / height);
+        rimRGB += inside * exp(-depth / bandWidth) * GG_BAND_LIGHT
                   * ggLightField(p - nc * GG_BAND_INSET, 0.0f, stretch, blur2, lights);
     }
 

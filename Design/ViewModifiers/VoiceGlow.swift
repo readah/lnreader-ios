@@ -16,8 +16,8 @@ import SwiftUI
 /// use.
 ///
 /// `halo` is the room the glow spills into, on every side. The surface reports
-/// the frame it backs and draws `halo` points beyond it, so give it a quarter
-/// of the shape's height and nothing clips the glow.
+/// the frame it backs and draws `halo` points beyond it; keep it close to the
+/// edge, or the glow turns the shape into a cloud.
 struct VoiceGlowSurface: View {
     let voiceId: String
     /// Nil makes a capsule, which is a circle on a square frame.
@@ -131,7 +131,7 @@ struct VoiceGlowDot: View {
     let voiceId: String
 
     var body: some View {
-        VoiceGlowSurface(voiceId: voiceId, halo: 5)
+        VoiceGlowSurface(voiceId: voiceId, halo: 3)
             .frame(width: 12, height: 12)
     }
 }
