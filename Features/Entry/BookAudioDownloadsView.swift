@@ -239,7 +239,7 @@ struct BookAudioDownloadsView: View {
             List {
                 Section {
                     dashboard
-                        .padding(.vertical, 6)
+                        .listRowInsets(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 }
@@ -477,9 +477,8 @@ struct BookAudioDownloadsView: View {
         .accessibilityHint("Choose a narrator voice")
     }
 
-    /// Three direct actions, at the same size as the app's other sheet
-    /// buttons. The set is short and fixed, so hiding it behind a dropdown
-    /// only cost a tap.
+    /// Three direct actions. The set is short and fixed, so hiding it behind a
+    /// dropdown only cost a tap.
     private var downloadControls: some View {
         VStack(spacing: 10) {
             Button(action: downloadCurrent) {
@@ -488,6 +487,8 @@ struct BookAudioDownloadsView: View {
                     .frame(maxWidth: .infinity)
             }
             .primaryActionStyle()
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
             .disabled(downloadBlocked)
 
             HStack(spacing: 10) {
@@ -497,6 +498,8 @@ struct BookAudioDownloadsView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
                 .disabled(downloadBlocked)
 
                 Button { showRange = true } label: {
@@ -505,6 +508,8 @@ struct BookAudioDownloadsView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
                 .disabled(chapters.isEmpty)
             }
         }
@@ -537,6 +542,8 @@ struct BookAudioDownloadsView: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.glass)
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
         .disabled(preparing)
         .accessibilityHint("Queues every failed narration for this book again")
     }
