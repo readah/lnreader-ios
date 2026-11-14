@@ -141,12 +141,11 @@ enum ReaderHighlightJavaScript {
             lastSelection = null;
         };
 
-        window.lnrApplyHighlights = function(json) {
+        var lastHighlights = null;
+
+        function paintHighlights(items) {
             if (!(window.CSS && CSS.highlights && window.Highlight)) return;
             for (var i = 0; i < NAMES.length; i++) CSS.highlights.delete('lnr-hl-' + NAMES[i]);
-            var items;
-            try { items = JSON.parse(json); } catch (e) { return; }
-            if (!Array.isArray(items)) return;
             var groups = {};
             items.forEach(function(item) {
                 if (NAMES.indexOf(item.color) < 0) return;
@@ -160,6 +159,31 @@ enum ReaderHighlightJavaScript {
                 if (groups[color].length) {
                     CSS.highlights.set('lnr-hl-' + color, new Highlight(...groups[color]));
                 }
+            });
+        }
+
+        window.lnrApplyHighlights = function(json) {
+            var items;
+            try { items = JSON.parse(json); } catch (e) { return; }
+            if (!Array.isArray(items)) return;
+            lastHighlights = items;
+            paintHighlights(items);
+        };
+
+        // Bionic reading rewrites a paragraph's text nodes when it scrolls into
+        // view, which invalidates the ranges painted earlier. Rebuild them from
+        // the saved offsets once the rewrite is done.
+        window.lnrRefreshHighlights = function() {
+            if (lastHighlights) paintHighlights(lastHighlights);
+        };
+
+        window.__lnrHighlightRefreshPending = false;
+        window.lnrScheduleHighlightRefresh = function() {
+            if (window.__lnrHighlightRefreshPending) return;
+            window.__lnrHighlightRefreshPending = true;
+            requestAnimationFrame(function() {
+                window.__lnrHighlightRefreshPending = false;
+                window.lnrRefreshHighlights();
             });
         };
 
@@ -185,6 +209,17 @@ enum ReaderHighlightJavaScript {
         document.addEventListener('selectionchange', function() {
             captureSelection();
             post('readerSelectionChanged', '');
+        });
+
+        // Bionic reading splits words into inline elements. WebKit's rich copy
+        // serializer drops spaces at those boundaries and carries the <strong>
+        // formatting, so copy the selection as plain text instead.
+        document.addEventListener('copy', function(event) {
+            var selection = window.getSelection();
+            if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+            if (!event.clipboardData) return;
+            event.clipboardData.setData('text/plain', selection.toString());
+            event.preventDefault();
         });
     })();
     """#

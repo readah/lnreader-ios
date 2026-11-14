@@ -1349,6 +1349,7 @@ extension ReaderContent {
                 }
             };
             processNode(startNode);
+            if (window.lnrScheduleHighlightRefresh) window.lnrScheduleHighlightRefresh();
         }
 
         window.applyBionicReading = function() {
@@ -1361,19 +1362,32 @@ extension ReaderContent {
                 return;
             }
             var paragraphs = window.getParagraphs();
+            // Rewriting a paragraph's text nodes collapses any native selection
+            // inside it, so hold bionic work while text is selected.
+            var pending = [];
+            var flush = function() {
+                var selection = window.getSelection();
+                if (selection && !selection.isCollapsed) return;
+                var nodes = pending;
+                pending = [];
+                for (var i = 0; i < nodes.length; i++) {
+                    window.applyBionicToNode(nodes[i]);
+                }
+            };
             var observer = new IntersectionObserver(function(entries) {
                 entries.forEach(function(entry) {
                     if (entry.isIntersecting) {
-                        var node = entry.target;
-                        window.applyBionicToNode(node);
-                        observer.unobserve(node);
+                        pending.push(entry.target);
+                        observer.unobserve(entry.target);
                     }
                 });
+                flush();
             }, { rootMargin: "250px" });
             
             paragraphs.forEach(function(p) {
                 observer.observe(p);
             });
+            document.addEventListener('selectionchange', flush);
         }
 
         window.ensureDot = function() {

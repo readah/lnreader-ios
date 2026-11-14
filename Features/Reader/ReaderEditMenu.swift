@@ -68,7 +68,7 @@ enum ReaderEditMenu {
 
 /// Forwards WebKit's own edit-menu answers, adding one submenu of colors.
 @MainActor
-private final class EditMenuDelegate: NSObject, UIEditMenuInteractionDelegate {
+private final class EditMenuDelegate: NSObject, @preconcurrency UIEditMenuInteractionDelegate {
 
     weak var webView: WKWebView?
     weak var forwarding: UIEditMenuInteractionDelegate?
