@@ -32,9 +32,9 @@ static float3 voiceStreak(float2 q, float2 centre, float2 dir, float2 radii, flo
 
 /// The light field in shape-centred units: x spans the shape's aspect, y spans
 /// one height, origin at the centre. Three streaks carry the voice's analogous
-/// hues and a fourth is a cool highlight, the same family GlassGlow's ten
-/// lights cycle through. Streaks, not blobs: a voice reading as a shape needs
-/// direction, and ribbons catch the bevel along their length.
+/// hues and a fourth is the same family's opposite, the warm/cool pairing
+/// GlassGlow's lights actually have. Without it a green voice reads as olive
+/// mud: one hue alone on black is a flat wash, two opposed hues are light.
 static float3 voiceField(float2 q, float aspect, float t, float3 hues, float intensity) {
     q.x /= max(aspect, 1.0);
     float3 e = float3(0.0);
@@ -49,7 +49,7 @@ static float3 voiceField(float2 q, float aspect, float t, float3 hues, float int
                      0.80 * intensity, voiceHSV(hues.z, 0.65, 1.0));
     e += voiceStreak(q, float2(0.24 * cos(2.0 * t + 5.2), 0.24 * sin(3.0 * t + 1.9)),
                      normalize(float2(cos(t + 4.0), sin(t + 4.0))), float2(0.20, 0.07),
-                     0.70 * intensity, voiceHSV(hues.x, 0.30, 1.0));
+                     0.55 * intensity, voiceHSV(hues.x + 0.5, 0.55, 1.0));
     return e;
 }
 
@@ -87,9 +87,9 @@ static float voiceSD(float2 p, float2 halfSize, float radius) {
 
     // Bevel: light is pulled inward at the edge, and split per channel like a
     // prism, which is where the colour fringe along the rim comes from.
-    float bevel = pow(clamp(1.0 - depth / 0.22, 0.0, 1.0), 2.0);
-    float bend = 0.10 * bevel;
-    float split = 0.05 * bevel;
+    float bevel = pow(clamp(1.0 - depth / 0.18, 0.0, 1.0), 3.5);
+    float bend = 0.08 * bevel;
+    float split = 0.045 * bevel;
     float3 e = float3(
         voiceField(p - normal * (bend - split), aspect, t, hues, intensity).r,
         voiceField(p - normal * bend, aspect, t, hues, intensity).g,
@@ -101,7 +101,7 @@ static float voiceSD(float2 p, float2 halfSize, float radius) {
     light = pow(clamp(light, 1e-4, 1.0), float3(0.9));
 
     // Deep voice-tinted glass under the lights, dark enough for white labels.
-    float3 glass = voiceHSV(hues.x, 0.85, 0.13) + float3(0.012, 0.010, 0.018);
+    float3 glass = voiceHSV(hues.x, 0.7, 0.045) + float3(0.012, 0.012, 0.016);
     glass += light * 0.62;
 
     // A slow specular sweep, the "light moving through the glass" of the film.

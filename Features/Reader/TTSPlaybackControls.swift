@@ -287,13 +287,13 @@ struct TTSVoiceChip: View {
 
 /// Base hue plus its two split-complementary accents; stable after random assignment.
 enum TTSVoicePalette {
-    /// Hues between yellow-green and teal read as "green", which looks muddy next
-    /// to the rest of the palette. A stored hue outside that band is left alone, so
-    /// a voice that already looked right keeps its colour.
+    /// Hues between yellow and teal read as olive mud on dark glass. That band
+    /// moves to emerald or mint; every other stored hue is left alone, so a
+    /// voice that already looked right keeps its colour.
     private static func safeHue(_ value: Double) -> Double {
         let hue = value - floor(value)
-        guard (0.19...0.47).contains(hue) else { return hue }
-        return hue < 0.33 ? 0.13 : 0.58
+        guard (0.12...0.50).contains(hue), hue != 0.40, hue != 0.46 else { return hue }
+        return hue < 0.33 ? 0.40 : 0.46
     }
 
     /// The hue a voice was assigned. One assignment feeds the gradient, the
@@ -304,8 +304,9 @@ enum TTSVoicePalette {
         if let saved = assigned[voiceId], saved.isFinite {
             return safeHue(saved)
         }
-        // Curated hues: warm ambers/roses and cool azures. No greens.
-        let curated: [Double] = [0.02, 0.06, 0.10, 0.13, 0.17, 0.56, 0.60, 0.64, 0.68, 0.90, 0.94, 0.97]
+        // Curated hues: warm ambers and roses, emerald and mint, cool azures,
+        // violet. Nothing in the yellow-green band, which reads as olive.
+        let curated: [Double] = [0.02, 0.06, 0.10, 0.40, 0.46, 0.56, 0.60, 0.64, 0.68, 0.90, 0.94, 0.97]
         func distance(_ candidate: Double) -> Double {
             assigned.values.map { let d = abs(candidate - safeHue($0)); return min(d, 1 - d) }.min() ?? 1
         }

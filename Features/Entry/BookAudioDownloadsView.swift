@@ -239,7 +239,7 @@ struct BookAudioDownloadsView: View {
             List {
                 Section {
                     dashboard
-                        .listRowInsets(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: 18, leading: 20, bottom: 18, trailing: 20))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 }
@@ -445,31 +445,31 @@ struct BookAudioDownloadsView: View {
         }
     }
 
-    /// The narrator as a compact control under the chapter: the voice's own
-    /// colour marks the icon, its name is the value, and the chevron opens the
-    /// picker. A card here used to compete with the cover for the first glance.
+    /// The narrator as a compact control under the chapter, in the same glass
+    /// as the voice chips: the voice's own light marks it, its name is the
+    /// value, and the chevron opens the picker. A card here used to compete
+    /// with the cover for the first glance.
     private var narratorButton: some View {
         let name = library.voices.first { $0.id == activeVoice }?.name ?? "Narrator"
-        let colors = TTSVoicePalette.colors(for: activeVoice)
         return Button { showVoices = true } label: {
             HStack(spacing: 7) {
                 AppIcon(systemName: "waveform", size: 12, relativeTo: .body)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                 Text(name)
                     .font(Typography.body.weight(.semibold))
                     .lineLimit(1)
                 Text("Narrator")
                     .font(Typography.caption)
-                    .foregroundStyle(.secondary)
+                    .opacity(0.7)
                 AppIcon(systemName: "chevron.right", size: 10, relativeTo: .body)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.tertiary)
+                    .opacity(0.6)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(.white.opacity(0.10), lineWidth: 0.5))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background { VoiceGlowSurface(voiceId: activeVoice) }
+            .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -477,8 +477,9 @@ struct BookAudioDownloadsView: View {
         .accessibilityHint("Choose a narrator voice")
     }
 
-    /// Three direct actions. The set is short and fixed, so hiding it behind a
-    /// dropdown only cost a tap.
+    /// Three direct actions, at the same size as the app's other sheet
+    /// buttons. The set is short and fixed, so hiding it behind a dropdown
+    /// only cost a tap.
     private var downloadControls: some View {
         VStack(spacing: 10) {
             Button(action: downloadCurrent) {
@@ -487,8 +488,6 @@ struct BookAudioDownloadsView: View {
                     .frame(maxWidth: .infinity)
             }
             .primaryActionStyle()
-            .buttonBorderShape(.capsule)
-            .controlSize(.large)
             .disabled(downloadBlocked)
 
             HStack(spacing: 10) {
@@ -498,8 +497,6 @@ struct BookAudioDownloadsView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
                 .disabled(downloadBlocked)
 
                 Button { showRange = true } label: {
@@ -508,8 +505,6 @@ struct BookAudioDownloadsView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
                 .disabled(chapters.isEmpty)
             }
         }
@@ -542,8 +537,6 @@ struct BookAudioDownloadsView: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.glass)
-        .buttonBorderShape(.capsule)
-        .controlSize(.large)
         .disabled(preparing)
         .accessibilityHint("Queues every failed narration for this book again")
     }
