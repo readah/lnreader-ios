@@ -10,7 +10,8 @@ import Foundation
 
 enum ReaderHighlightJavaScript {
 
-    /// Styles that must exist before the first paint: the six stored colors.
+    /// Nothing but the fill: the text keeps the reader's colour, so the end of
+    /// the shimmer is the same pixels as the highlight it settles into.
     static var css: String {
         let colors = ReaderHighlightColor.allCases
             .filter { !$0.isClearSwatch }
@@ -18,10 +19,6 @@ enum ReaderHighlightJavaScript {
                 """
                 ::highlight(lnr-hl-\(color.rawValue)) {
                     background-color: \(color.settledFillCSS);
-                    color: \(color.hex);
-                    text-decoration: underline;
-                    text-decoration-color: \(color.hex);
-                    text-decoration-thickness: 1.5px;
                 }
                 """
             }
@@ -303,7 +300,6 @@ enum ReaderHighlightJavaScript {
             var ease = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
             var crestWidth = 52;
             var erase = isClearColor(toName);
-            var hadColor = !isClearColor(fromName);
 
             lines.forEach(function(line, index) {
                 var width = widths[index];
@@ -343,36 +339,12 @@ enum ReaderHighlightJavaScript {
                         ],
                         { duration: duration, delay: delay, easing: ease, fill: 'both' }
                     ));
-                } else if (hadColor) {
+                } else if (erase) {
                     shimmer.animations.push(oldFill.animate(
                         [
                             { clipPath: 'inset(0 0 0 0)' },
                             { clipPath: 'inset(0 0 0 100%)' }
                         ],
-                        { duration: duration, delay: delay, easing: ease, fill: 'both' }
-                    ));
-                }
-
-                if (hadColor) {
-                    var oldUnderline = document.createElement('div');
-                    oldUnderline.style.cssText = 'position:absolute;left:0;right:0;bottom:0.5px;height:1.5px;'
-                        + 'background:' + from.hex + ';transform-origin:left center;';
-                    cell.appendChild(oldUnderline);
-                    if (erase) {
-                        shimmer.animations.push(oldUnderline.animate(
-                            [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
-                            { duration: duration, delay: delay, easing: ease, fill: 'both' }
-                        ));
-                    }
-                }
-
-                if (!erase) {
-                    var newUnderline = document.createElement('div');
-                    newUnderline.style.cssText = 'position:absolute;left:0;right:0;bottom:0.5px;height:1.5px;'
-                        + 'background:' + to.hex + ';transform-origin:left center;transform:scaleX(0);';
-                    cell.appendChild(newUnderline);
-                    shimmer.animations.push(newUnderline.animate(
-                        [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }],
                         { duration: duration, delay: delay, easing: ease, fill: 'both' }
                     ));
                 }
