@@ -10,10 +10,10 @@ import SwiftUI
 
 /// A narrator's voice drawn as light moving through tinted glass.
 ///
-/// The light moves once, for a second, easing to a stop, then rests: a voice
-/// remembered as a still image with motion in it, not a perpetual animation
-/// competing with the text beside it. `animated: false` starts it already at
-/// rest, which is what the reader and every unselected voice use.
+/// The light moves once, for about a second and a half, easing to a stop, and
+/// it stops exactly on the frame a still surface draws. `animated: false`
+/// starts already there, which is what the reader and every unselected voice
+/// use.
 struct VoiceGlowSurface: View {
     let voiceId: String
     /// Nil makes a capsule, which is a circle on a square frame.
@@ -27,13 +27,15 @@ struct VoiceGlowSurface: View {
     @State private var settled = false
 
     /// One eased drift. `phase(at:)` stops changing after this, so the paused
-    /// timeline and the frame it left on agree exactly.
+    /// timeline and the resting frame agree exactly.
     ///
-    /// The distance is set so the opening speed is a little under the old
-    /// six-second loop (0.167 loop/s): the lights move as they always did,
-    /// only gently slowing until they stop about a second in.
-    static let settleDuration: TimeInterval = 1.8
-    private static let drift: Double = 0.08
+    /// The distance and duration are set so the lights open at a little under
+    /// the old six-second loop's speed (0.167 loop/s), then decelerate into
+    /// the resting frame rather than stopping dead.
+    static let settleDuration: TimeInterval = 1.5
+    private static let drift: Double = 0.135
+    /// The frame every surface rests on, and the one the drift arrives at.
+    static let restPhase: Float = 0
 
     var body: some View {
         let hues = TTSVoicePalette.hues(for: voiceId)
@@ -45,13 +47,14 @@ struct VoiceGlowSurface: View {
                                              startPoint: .topLeading, endPoint: .bottomTrailing))
                 }
             } else if animated && !reduceMotion, let start {
-                // Starts on the rest frame, drifts forward and settles there, so
-                // nothing snaps when the surface appears or is reused by a list.
                 TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: settled)) { timeline in
-                    glass(hues: hues, phase: Self.phase(at: timeline.date, since: start, voiceId: voiceId))
+                    glass(hues: hues, phase: Self.phase(at: timeline.date, since: start))
                 }
             } else {
-                glass(hues: hues, phase: Self.restPhase(for: voiceId))
+                // Before the drift starts, show its first frame, so a reused
+                // cell never flashes the resting image and then rewinds.
+                let phase = animated && !reduceMotion ? Self.startPhase : Self.restPhase
+                glass(hues: hues, phase: phase)
             }
         }
         .onAppear {
@@ -69,10 +72,6 @@ struct VoiceGlowSurface: View {
             try? await Task.sleep(for: .seconds(Self.settleDuration))
             settled = true
         }
-        // The gradient used to sit under the text; here the voice's colour
-        // leaks out from behind the glass instead, which reads at 12pt too.
-        .shadow(color: TTSVoicePalette.accent(for: voiceId).opacity(0.35),
-                radius: cornerRadius == nil ? 6 : 14, y: 1)
         .accessibilityHidden(true)
     }
 
@@ -106,24 +105,15 @@ struct VoiceGlowSurface: View {
         }
     }
 
-    /// Ease-out cubic over a fixed distance: fast at first, then visibly
-    /// slowing into the last frame instead of stopping dead.
-    static func phase(at date: Date, since start: Date, voiceId: String) -> Float {
+    /// Ease-out sine over a fixed distance: the lights start at the old loop's
+    /// pace, slow smoothly, and land on the resting frame with no final step.
+    static func phase(at date: Date, since start: Date) -> Float {
         let progress = min(max(date.timeIntervalSince(start) / settleDuration, 0), 1)
-        let eased = 1 - pow(1 - progress, 3)
-        return shift(for: voiceId) + Float(eased * drift)
+        let eased = sin(progress * .pi / 2)
+        return startPhase + Float(eased) * Float(drift)
     }
 
-    /// Where every surface starts and where a still one rests. Seeded by the
-    /// voice, so two chips with different hues also rest on different frames.
-    static func restPhase(for voiceId: String) -> Float {
-        shift(for: voiceId)
-    }
-
-    private static func shift(for voiceId: String) -> Float {
-        let hash = voiceId.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFFFF }
-        return Float(hash % 1000) / 1000
-    }
+    private static var startPhase: Float { restPhase - Float(drift) }
 }
 
 /// A 12pt voice marker for a row that is about the recording, not the narrator.
