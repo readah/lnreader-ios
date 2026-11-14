@@ -28,8 +28,12 @@ struct VoiceGlowSurface: View {
 
     /// One eased drift. `phase(at:)` stops changing after this, so the paused
     /// timeline and the frame it left on agree exactly.
-    static let settleDuration: TimeInterval = 1.15
-    private static let drift: Double = 0.55
+    ///
+    /// The distance is set so the opening speed is a little under the old
+    /// six-second loop (0.167 loop/s): the lights move as they always did,
+    /// only gently slowing until they stop about a second in.
+    static let settleDuration: TimeInterval = 1.8
+    private static let drift: Double = 0.08
 
     var body: some View {
         let hues = TTSVoicePalette.hues(for: voiceId)
