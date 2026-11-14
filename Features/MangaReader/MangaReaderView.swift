@@ -58,6 +58,10 @@ struct MangaReaderView: View {
     /// scanlator pass — over the whole list, for every tap and page turn.
     @State private var navigable: [SourceChapter] = []
     @State private var readerSize: CGSize = .zero
+    /// The area the pages are laid out in, measured on the content itself so the
+    /// zoom transform and the pinch share one coordinate space.
+    @State private var viewportSize: CGSize = .zero
+    @State private var zoom = MangaZoomState()
     @State private var scroller = WebtoonScrollController()
     @State private var showReaderSettings = false
     /// Volume keys, auto scroll and hold-to-scroll: one stored value for the user.
@@ -153,6 +157,8 @@ struct MangaReaderView: View {
             Color.black.ignoresSafeArea()
 
             content
+                .onGeometryChange(for: CGSize.self) { $0.size } action: { viewportSize = $0 }
+                .mangaZoom($zoom, in: viewportSize, horizontalPan: mode == .webtoon)
                 .contentShape(Rectangle())
                 // A simultaneous gesture, not an overlay: an overlay of
                 // `Color.clear` sits above the scroll view and eats the drag, so
@@ -168,6 +174,17 @@ struct MangaReaderView: View {
             }
 
             scrollOverlays
+
+            if zoom.isZoomed {
+                VStack {
+                    Spacer()
+                    zoomControls
+                        // Clear of the bottom bar, and of the auto-scroll
+                        // button when that is the pill below it.
+                        .padding(.bottom, (chrome.isControl ? 96 : 28) + (scroller.isAutoScrolling ? 56 : 0))
+                }
+                .transition(.opacity)
+            }
         }
         .background { volumeKeys }
         .background(EdgeSwipeDismiss {
@@ -219,6 +236,7 @@ struct MangaReaderView: View {
             libraryManager.flushProgress(context: modelContext)
         }
         .onChange(of: currentIndex) { old, index in
+            if mode == .pager { zoom.reset() }
             pageTurnHaptic(from: old, to: index)
             handlePageChange(index)
         }
@@ -233,6 +251,7 @@ struct MangaReaderView: View {
             // Re-run the layout without refetching the page list. The strip
             // starts again from the chapter that is open.
             chrome = .control
+            zoom.reset()
             appendTask?.cancel()
             appendTask = nil
             segments = pages.isEmpty ? [] : [ReaderSegment(id: chapterURL, name: chapterName, pages: pages)]
@@ -276,6 +295,8 @@ struct MangaReaderView: View {
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
+        // A zoomed page is panned, not swiped.
+        .scrollDisabled(zoom.isZoomed)
         .id(chapterURL)
         .environment(\.layoutDirection, direction.layoutDirection)
         .ignoresSafeArea()
@@ -466,6 +487,7 @@ struct MangaReaderView: View {
         // natural place to land them.
         libraryManager.flushProgress(context: modelContext)
         scroller.stopAuto()
+        zoom.reset()
         appendTask?.cancel()
         appendTask = nil
         isLoading = true
@@ -934,6 +956,59 @@ struct MangaReaderView: View {
         .allowsHitTesting(scroller.isAutoScrolling)
     }
 
+    // MARK: - Zoom
+
+    /// Shown only while zoomed: a way back out without pinching, and a step
+    /// either way for anything a pinch cannot reach.
+    private var zoomControls: some View {
+        HStack(spacing: 0) {
+            zoomButton("minus.magnifyingglass", label: "Zoom out", enabled: zoom.canZoomOut) {
+                zoomBy(1 / MangaZoomState.step)
+            }
+            Button {
+                animateZoom { zoom.reset() }
+            } label: {
+                Text("\(Int((zoom.scale * 100).rounded()))%")
+                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                    .frame(minWidth: 58)
+                    .frame(height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Reset zoom")
+            zoomButton("plus.magnifyingglass", label: "Zoom in", enabled: zoom.canZoomIn) {
+                zoomBy(MangaZoomState.step)
+            }
+        }
+        .foregroundStyle(.white)
+        .glassEffect(.regular.interactive(), in: .capsule)
+    }
+
+    private func zoomButton(
+        _ symbol: String,
+        label: String,
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            AppIcon(systemName: symbol, size: 17, relativeTo: .body)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.35)
+        .accessibilityLabel(label)
+    }
+
+    /// Eased, never a spring: an overshoot below 1x would show black bars around the page.
+    private func animateZoom(_ change: () -> Void) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22), change)
+    }
+
+    private func zoomBy(_ factor: CGFloat) {
+        animateZoom { zoom.zoom(by: factor, in: viewportSize) }
+    }
+
     // MARK: - Chapter navigation
 
     private func hasChapter(offset: Int) -> Bool {
@@ -966,6 +1041,8 @@ struct MangaReaderView: View {
     private func handleTap(at point: CGPoint) {
         // The finger lifting after a hold-to-scroll is not a tap.
         guard !scroller.justHeld else { return }
+        // Zoomed in, the tap zones would turn the page under a magnified view.
+        if zoom.isZoomed { toggleControls(); return }
 
         let preferences = seriesSettings.resolved
         let isPager = mode == .pager
