@@ -123,7 +123,8 @@ struct EntryActionTile: View {
             Text(title)
                 .font(Typography.small.weight(.medium))
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(0.75)
+                .allowsTightening(true)
                 .contentTransition(.interpolate)
         }
         .frame(maxWidth: .infinity)
@@ -133,10 +134,13 @@ struct EntryActionTile: View {
 
 private extension View {
     /// The hero's secondary glass, matching the primary capsule above it.
+    ///
+    /// `.regular`, not `.large`: four tiles share one row, and the large
+    /// control's side padding left "Download" too narrow to fit its label.
     func entryActionStyle() -> some View {
         buttonStyle(.glass)
             .buttonBorderShape(.roundedRectangle(radius: 18))
-            .controlSize(.large)
+            .controlSize(.regular)
             .foregroundStyle(.white)
     }
 }

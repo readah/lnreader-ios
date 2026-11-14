@@ -210,6 +210,11 @@ struct BookAudioDownloadsView: View {
     }
     private var pageCount: Int { max(1, (visibleAll.count + 99) / 100) }
     private var currentPage: Int { min(chapterPage, pageCount - 1) }
+    private var pageLabel: String {
+        let first = currentPage * 100 + 1
+        let last = min((currentPage + 1) * 100, visibleAll.count)
+        return "\(first)–\(last) of \(visibleAll.count)"
+    }
     private var currentChoice: TTSChapterChoice? { chapters.first { $0.path == initialChapter } ?? chapters.first }
     private var bookRecords: [TTSDownloadRecord] { library.downloads(bookId: bookId) }
     private var byteCount: Int64 { bookRecords.filter(\.isAvailable).reduce(0) { $0 + $1.bytesExpected } }
@@ -230,8 +235,9 @@ struct BookAudioDownloadsView: View {
         NavigationStack {
             List {
                 Section {
-                    dashboard.listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 2, trailing: 0))
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    dashboard
+                        .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+                        .listRowBackground(Rectangle().fill(.regularMaterial))
                 }
                 if preparing || error != nil || library.errorMessage != nil || library.engineState?.needsAttention == true {
                     Section {
@@ -258,6 +264,7 @@ struct BookAudioDownloadsView: View {
                                 ? "Use the buttons above to download this chapter, the next ten, or a range."
                                 : "Try another search or filter.")
                         )
+                        .listRowBackground(Rectangle().fill(.regularMaterial))
                     }
                 } header: {
                     HStack {
@@ -273,8 +280,11 @@ struct BookAudioDownloadsView: View {
                             }
                         } label: { Label(stateFilter, systemImage: "line.3.horizontal.decrease") }
                     }
+                } footer: {
+                    Text(offlineSummary).font(Typography.small)
                 }
             }
+            .listSectionSpacing(12)
             .scrollContentBackground(.hidden)
             .background {
                 if let coverTint { coverTint.opacity(0.16).ignoresSafeArea() }
@@ -303,13 +313,21 @@ struct BookAudioDownloadsView: View {
                     Button { chapterPage = max(0, currentPage - 1) } label: { Label("Previous chapters", systemImage: "chevron.left").labelStyle(.iconOnly) }
                         .disabled(currentPage == 0)
                     Spacer()
-                    Text("\(currentPage * 100 + 1)–\(min((currentPage + 1) * 100, visibleAll.count)) of \(visibleAll.count)").font(.caption.monospacedDigit())
+                    Text(pageLabel).font(.caption.monospacedDigit())
                     Spacer()
                     Button { chapterPage = min(pageCount - 1, currentPage + 1) } label: { Label("Next chapters", systemImage: "chevron.right").labelStyle(.iconOnly) }
                         .disabled(currentPage + 1 >= pageCount)
                 }
             }
-            .searchable(text: $search, prompt: "Chapter number or title")
+            // Pinned exactly like Browse: the drawer sits under the title and
+            // stays while the list scrolls.
+            .searchable(
+                text: $search,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Chapter number or title"
+            )
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             .sheet(isPresented: $showVoices) {
                 NavigationStack {
                     List { Section { NarrationComputePicker() }; Section("Narrator") { NarrationVoicePicker(selected: $selectedVoices) } }
@@ -353,31 +371,31 @@ struct BookAudioDownloadsView: View {
         let preferred = library.selectedVoice(bookId: bookId, chapterId: initialChapter ?? "")
         return selectedVoices.contains(preferred) ? preferred : selectedVoices.sorted().first ?? preferred
     }
-    /// Cover, narrator and the three download actions, in one block above the
-    /// list. The wash behind it is the book's own colour, so the sheet reads as
-    /// part of this book rather than a generic settings screen.
+    private var offlineChapterCount: Int {
+        Set(bookRecords.filter(\.isAvailable).map { $0.rendition.chapterId }).count
+    }
+    /// The download total, moved out of the header and onto the bottom of the
+    /// downloaded card, where it describes the list above it.
+    private var offlineSummary: String {
+        let chapters = offlineChapterCount == 1 ? "1 chapter" : "\(offlineChapterCount) chapters"
+        return "\(chapters) offline · \(ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file))"
+    }
+
+    /// Cover, current chapter and narrator, then the download actions. One row
+    /// in the list, so its text lines up with every other row on this screen.
     private var dashboard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 14) {
                 EntryCoverView(url: coverURL, cornerRadius: 8).frame(width: 58, height: 82)
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(bookTitle).font(.headline).lineLimit(2)
-                    Text("\(Set(bookRecords.filter(\.isAvailable).map { $0.rendition.chapterId }).count) chapters offline · \(ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file))")
-                        .font(.caption).foregroundStyle(.secondary)
+                    if let currentChoice {
+                        Text(currentChoice.title)
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    }
                 }
-                Spacer(minLength: 0)
-            }
-            HStack(spacing: 12) {
-                Button { showVoices = true } label: {
-                    TTSVoiceChip(voiceId: activeVoice, name: library.voices.first { $0.id == activeVoice }?.name ?? "Narrator")
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Choose narrator voice")
-                Spacer(minLength: 0)
-                if let currentChoice {
-                    Text("Chapter \(currentChoice.position + 1)")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                narratorCard
             }
 
             downloadControls
@@ -386,16 +404,46 @@ struct BookAudioDownloadsView: View {
                 retryAllButton
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background {
-            // Same cover wash the entry screen uses, so the sheet belongs to the
-            // book instead of looking like a generic settings list.
-            if let coverTint {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(coverTint.opacity(0.12))
+    }
+
+    /// The narrator in the space beside the cover, as a card the voice's own
+    /// gradient bleeds out from. A chip reads as a tag; a card belongs there.
+    private var narratorCard: some View {
+        let colors = TTSVoicePalette.colors(for: activeVoice)
+        let name = library.voices.first { $0.id == activeVoice }?.name ?? "Narrator"
+        return Button { showVoices = true } label: {
+            VStack(spacing: 5) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                Text(name)
+                    .font(Typography.small.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text("Narrator")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 86, height: 82)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(.white.opacity(0.14), lineWidth: 0.5)
+            }
+            .background {
+                // The voice colour spilling out from under the card.
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .blur(radius: 15)
+                    .opacity(0.75)
+                    .scaleEffect(1.04)
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Narrator")
+        .accessibilityValue(name)
+        .accessibilityHint("Choose a narrator voice")
     }
 
     /// Three direct actions. The set is short and fixed, so hiding it behind a
@@ -403,7 +451,7 @@ struct BookAudioDownloadsView: View {
     private var downloadControls: some View {
         VStack(spacing: 10) {
             Button(action: downloadCurrent) {
-                Label("Download this chapter", systemImage: "arrow.down.circle.fill")
+                Label(downloadCurrentTitle, systemImage: "arrow.down.circle.fill")
                     .lineLimit(1)
                     .frame(maxWidth: .infinity)
             }
@@ -424,7 +472,7 @@ struct BookAudioDownloadsView: View {
                 .disabled(downloadBlocked)
 
                 Button { showRange = true } label: {
-                    Label("Range…", systemImage: "slider.horizontal.3")
+                    Label("Range", systemImage: "slider.horizontal.3")
                         .lineLimit(1)
                         .frame(maxWidth: .infinity)
                 }
@@ -434,6 +482,13 @@ struct BookAudioDownloadsView: View {
                 .disabled(chapters.isEmpty)
             }
         }
+    }
+
+    /// The chapter number in the button says which chapter it will download,
+    /// so the header no longer repeats it.
+    private var downloadCurrentTitle: String {
+        guard let currentChoice else { return "Download chapter" }
+        return "Download \(currentChoice.position + 1)"
     }
 
     /// Only failed renditions for this book. Paused ones are excluded: the user
@@ -493,41 +548,84 @@ struct BookAudioDownloadsView: View {
         throughChapter = min(chapters.count, fromChapter + count - 1)
         prepareSelected()
     }
-    /// The third of the three direct actions. Its own confirm button starts the
-    /// download, so the range is the last thing the user picks — dismissing with
-    /// "Done" and then hunting for another button made the old flow a two-step.
+    /// The third of the three direct actions. A two-handle slider with a
+    /// stepper on each side: dragging picks a span quickly, the buttons land on
+    /// an exact chapter, which a slider alone cannot do on a phone.
     private var rangePicker: some View {
         NavigationStack {
-            Form {
-                Section("Chapter numbers · 1–\(chapters.count)") {
-                    LabeledContent("From") { TextField("From", value: $fromChapter, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing) }
-                    LabeledContent("Through") { TextField("Through", value: $throughChapter, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing) }
-                    Button("All remaining chapters") { throughChapter = chapters.count }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    HStack(spacing: 12) {
+                        rangeValuePanel(
+                            "From", value: $fromChapter,
+                            lowerBound: 1, upperBound: max(1, throughChapter))
+                        rangeValuePanel(
+                            "Through", value: $throughChapter,
+                            lowerBound: max(1, fromChapter), upperBound: max(1, chapters.count))
+                    }
+
+                    ChapterRangeSlider(lower: $fromChapter, upper: $throughChapter, count: chapters.count)
+
+                    Text(rangeSummary)
+                        .font(Typography.small)
+                        .foregroundStyle(.secondary)
                 }
-                Section {
-                    LabeledContent("Chapters", value: "\(selectedChapters.count)")
-                } footer: {
-                    Text("Selected voices: \(selectedVoices.count). Each chapter is prepared in every selected voice and kept on this phone.")
-                }
+                .padding(20)
             }
-            .scrollContentBackground(.hidden)
-            .background { if let coverTint { coverTint.opacity(0.16).ignoresSafeArea() } }
-            .navigationTitle("Choose range")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("Range")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showRange = false } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Download") {
-                        fromChapter = min(max(1, fromChapter), max(1, chapters.count))
-                        throughChapter = min(max(fromChapter, throughChapter), chapters.count)
-                        showRange = false
-                        prepareSelected()
-                    }
-                    .disabled(selectedChapters.isEmpty || selectedVoices.isEmpty || preparing)
+                    Button("Download") { commitRange() }
+                        .disabled(selectedChapters.isEmpty || selectedVoices.isEmpty || preparing)
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+    }
+
+    private func rangeValuePanel(
+        _ title: String, value: Binding<Int>, lowerBound: Int, upperBound: Int
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(Typography.small).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Button { value.wrappedValue = Swift.max(lowerBound, value.wrappedValue - 1) } label: {
+                    Image(systemName: "minus")
+                }
+                .disabled(value.wrappedValue <= lowerBound)
+
+                Text("\(value.wrappedValue)")
+                    .font(.title2.monospacedDigit().weight(.semibold))
+                    .contentTransition(.numericText())
+                    .frame(maxWidth: .infinity)
+
+                Button { value.wrappedValue = Swift.min(upperBound, value.wrappedValue + 1) } label: {
+                    Image(systemName: "plus")
+                }
+                .disabled(value.wrappedValue >= upperBound)
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.circle)
+            .controlSize(.small)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var rangeSummary: String {
+        let count = selectedChapters.count
+        let voices = selectedVoices.count
+        return "\(count) chapter\(count == 1 ? "" : "s") in \(voices) voice\(voices == 1 ? "" : "s"), prepared in the background and kept on this phone."
+    }
+
+    private func commitRange() {
+        fromChapter = min(max(1, fromChapter), max(1, chapters.count))
+        throughChapter = min(max(fromChapter, throughChapter), chapters.count)
+        showRange = false
+        prepareSelected()
     }
     private func chapterSummary(_ records: [TTSDownloadRecord]) -> String {
         if records.isEmpty { return "No audio downloaded" }
@@ -585,6 +683,7 @@ struct BookAudioDownloadsView: View {
                 }
             }
         }.padding(.vertical, 4)
+        .listRowBackground(Rectangle().fill(.regularMaterial))
         .swipeActions {
             if let primary {
                 Button("Delete", systemImage: "trash", role: .destructive) { deleteTarget = primary }
@@ -636,6 +735,114 @@ struct BookAudioDownloadsView: View {
             } catch is CancellationError { }
             catch { self.error = "\(preparationProgress) \(error.localizedDescription) Chapters already added remain queued." }
         }
+    }
+}
+
+/// Two handles over the chapter numbers. One gesture picks whichever handle is
+/// nearer the touch and drags it; when both sit on the same chapter, a drag to
+/// the left grows the range backwards and a drag to the right grows it forwards,
+/// so a single tap never leaves both handles fighting over the finger.
+private struct ChapterRangeSlider: View {
+    @Binding var lower: Int
+    @Binding var upper: Int
+    let count: Int
+    private let knob: CGFloat = 30
+    @State private var dragged: Handle?
+
+    private enum Handle { case lower, upper }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                let span = max(width - knob, 1)
+                let lowerX = knob / 2 + span * position(of: lower)
+                let upperX = knob / 2 + span * position(of: upper)
+                ZStack(alignment: .topLeading) {
+                    Capsule()
+                        .fill(.quaternary)
+                        .frame(width: span, height: 6)
+                        .position(x: width / 2, y: knob / 2)
+                    Capsule()
+                        .fill(AppTheme.primaryFill)
+                        .frame(width: max(upperX - lowerX, 0), height: 6)
+                        .position(x: (lowerX + upperX) / 2, y: knob / 2)
+                    handle.position(x: lowerX, y: knob / 2)
+                    handle.position(x: upperX, y: knob / 2)
+                }
+                .frame(width: width, height: knob)
+                .contentShape(Rectangle())
+                .gesture(drag(width: width))
+            }
+            .frame(height: knob)
+
+            HStack {
+                Text("1")
+                Spacer()
+                Text("\(max(count, 1))")
+            }
+            .font(Typography.small.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, knob / 2 - 6)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Chapter range")
+        .accessibilityValue("Chapters \(lower) through \(upper) of \(count)")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: upper = min(max(upper, lower) + 1, count)
+            case .decrement: upper = max(lower, upper - 1)
+            @unknown default: break
+            }
+        }
+    }
+
+    private var handle: some View {
+        Circle()
+            .fill(Color(.systemBackground))
+            .overlay(Circle().strokeBorder(AppTheme.primaryFill, lineWidth: 3))
+            .frame(width: knob, height: knob)
+            .shadow(color: .black.opacity(0.15), radius: 3, y: 1)
+    }
+
+    private func drag(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                let span = max(width - knob, 1)
+                let x = min(max(value.location.x - knob / 2, 0), span)
+                let chapter: Int
+                if count <= 1 {
+                    chapter = 1
+                } else {
+                    let raw = Int(((x / span) * CGFloat(count - 1)).rounded()) + 1
+                    chapter = min(max(raw, 1), count)
+                }
+                if dragged == nil {
+                    let lowerX = knob / 2 + span * position(of: lower)
+                    let upperX = knob / 2 + span * position(of: upper)
+                    if lower == upper {
+                        dragged = value.startLocation.x < lowerX ? .lower : .upper
+                    } else {
+                        dragged = abs(value.startLocation.x - lowerX) <= abs(value.startLocation.x - upperX) ? .lower : .upper
+                    }
+                }
+                switch dragged {
+                case .lower:
+                    let next = min(chapter, upper)
+                    if next != lower { lower = next; Haptics.shared.selection() }
+                case .upper:
+                    let next = max(chapter, lower)
+                    if next != upper { upper = next; Haptics.shared.selection() }
+                case nil:
+                    break
+                }
+            }
+            .onEnded { _ in dragged = nil }
+    }
+
+    private func position(of value: Int) -> CGFloat {
+        guard count > 1 else { return 0.5 }
+        return CGFloat(min(max(value, 1), count) - 1) / CGFloat(count - 1)
     }
 }
 
