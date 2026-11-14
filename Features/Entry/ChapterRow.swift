@@ -395,20 +395,19 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
     func body(content: Content) -> some View {
         content
             .overlay(alignment: .bottom) {
-                Group {
-                    if selection.isActive {
-                        ChapterSelectionBar(
-                            selection: selection,
-                            canDownload: canDownload,
-                            onMarkRead: { setRead(true) },
-                            onMarkUnread: { setRead(false) },
-                            onDownload: download,
-                            moreMenu: { moreMenuItems }
-                        )
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
-                    }
-                }
+                // Kept mounted and faded like the reader toolbar, so the glass
+                // container persists and its controls morph with the system
+                // glass animation instead of being rebuilt on every selection.
+                ChapterSelectionBar(
+                    selection: selection,
+                    onMarkRead: { setRead(true) },
+                    onMarkUnread: { setRead(false) },
+                    moreMenu: { moreMenuItems }
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .opacity(selection.isActive ? 1 : 0)
+                .allowsHitTesting(selection.isActive)
                 .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: selection.isActive)
             }
             .toolbarVisibility(selection.isActive ? .hidden : .automatic, for: .tabBar)
@@ -419,6 +418,10 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
         Button("Select all below", systemImage: "arrow.down.to.line") { selection.selectBelow(in: orderedPaths) }
         Button("Select all", systemImage: "checklist") { selection.selectAll(in: orderedPaths) }
         Button("Invert selection", systemImage: "arrow.left.arrow.right") { selection.invert(in: orderedPaths) }
+        if canDownload {
+            Divider()
+            Button("Download", systemImage: "arrow.down.circle") { download() }
+        }
         Divider()
         Button("Mark previous as read", systemImage: "eye") { markPreviousRead() }
         Button(allBookmarked ? "Remove bookmark" : "Bookmark", systemImage: "bookmark") { toggleBookmark() }
@@ -498,74 +501,52 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
     }
 }
 
-/// The floating selection bar. One glass container so the controls morph in and
-/// out together with the system glass animation; cancel is prominent red and
-/// download prominent yellow, the rest plain glass.
+/// The floating selection bar. One glass container of the same interactive
+/// glass the reader toolbar uses, so the controls morph in and out together
+/// with the system glass animation: a red cancel capsule, the read/unread pair
+/// merged into one capsule beside it, and a same-sized menu pushed to the right.
 private struct ChapterSelectionBar<MenuItems: View>: View {
     let selection: ChapterSelection
-    let canDownload: Bool
     let onMarkRead: () -> Void
     let onMarkUnread: () -> Void
-    let onDownload: () -> Void
     @ViewBuilder let moreMenu: () -> MenuItems
     @Namespace private var glass
 
     var body: some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
-                Button { selection.end() } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "xmark")
-                        Text("\(selection.paths.count)").monospacedDigit()
-                    }
-                    .font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.glassProminent)
-                .tint(.red)
-                .foregroundStyle(.white)
-                .controlSize(.large)
-                .buttonBorderShape(.capsule)
-                .glassEffectID("cancel", in: glass)
-                .accessibilityLabel("Cancel selection")
-                .accessibilityValue("\(selection.paths.count) selected")
-
-                Button(action: onMarkRead) { Image(systemName: "eye") }
-                    .buttonStyle(.glass)
-                    .controlSize(.large)
-                    .buttonBorderShape(.circle)
-                    .glassEffectID("read", in: glass)
-                    .accessibilityLabel("Mark as read")
-
-                Button(action: onMarkUnread) { Image(systemName: "eye.slash") }
-                    .buttonStyle(.glass)
-                    .controlSize(.large)
-                    .buttonBorderShape(.circle)
-                    .glassEffectID("unread", in: glass)
-                    .accessibilityLabel("Mark as unread")
-
-                if canDownload {
-                    Button(action: onDownload) { Image(systemName: "arrow.down.circle") }
-                        .buttonStyle(.glassProminent)
-                        .tint(.yellow)
-                        .foregroundStyle(.black)
-                        .controlSize(.large)
-                        .buttonBorderShape(.capsule)
-                        .glassEffectID("download", in: glass)
-                        .accessibilityLabel("Download")
-                }
-
-                Menu {
-                    moreMenu()
-                } label: {
-                    Image(systemName: "ellipsis")
-                }
-                .buttonStyle(.glass)
-                .controlSize(.large)
-                .buttonBorderShape(.circle)
-                .glassEffectID("more", in: glass)
-                .accessibilityLabel("More")
+                cancelButton
+                    .glassEffectID("cancel", in: glass)
+                GlassIconGroup(
+                    first: .init(symbol: "eye", label: "Mark as read", action: onMarkRead),
+                    second: .init(symbol: "eye.slash", label: "Mark as unread", action: onMarkUnread)
+                )
+                .glassEffectID("read", in: glass)
+                Spacer()
+                GlassMenuButton(symbol: "ellipsis", label: "More") { moreMenu() }
+                    .glassEffectID("more", in: glass)
             }
         }
+    }
+
+    /// Cancel: a red glass capsule the same height as the pair and the menu, so
+    /// the three controls line up. The count rides along with the cross.
+    private var cancelButton: some View {
+        Button { selection.end() } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "xmark")
+                Text("\(selection.paths.count)").monospacedDigit()
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(height: GlassMetrics.side)
+            .padding(.horizontal, 16)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.tint(.red).interactive(), in: .capsule)
+        .accessibilityLabel("Cancel selection")
+        .accessibilityValue("\(selection.paths.count) selected")
     }
 }
 
