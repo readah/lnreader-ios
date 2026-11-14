@@ -225,15 +225,6 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             Coordinator(onTap: onTap, bridge: bridge)
         }
 
-        // The stock indicator is black, which vanishes into the dark themes.
-        private func scrollIndicatorStyle(for background: UIColor, in webView: WKWebView) -> UIScrollView.IndicatorStyle {
-            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-            guard background.resolvedColor(with: webView.traitCollection)
-                .getRed(&r, green: &g, blue: &b, alpha: &a) else { return .default }
-            let luminance = 0.299 * r + 0.587 * g + 0.114 * b
-            return luminance < 0.5 ? .white : .black
-        }
-
         func makeUIView(context: Context) -> WKWebView {
             let config = WKWebViewConfiguration()
             let userContentController = WKUserContentController()
@@ -258,7 +249,7 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             webView.backgroundColor = uiColor
             webView.scrollView.backgroundColor = uiColor
             webView.scrollView.showsHorizontalScrollIndicator = false
-            webView.scrollView.indicatorStyle = scrollIndicatorStyle(for: uiColor, in: webView)
+            webView.scrollView.showsVerticalScrollIndicator = false
             webView.scrollView.contentInsetAdjustmentBehavior = .never
             webView.navigationDelegate = context.coordinator
             webView.uiDelegate = context.coordinator
@@ -282,7 +273,6 @@ private let readerLog = Logger(subsystem: "com.lnreader", category: "reader")
             webView.underPageBackgroundColor = uiColor
             webView.backgroundColor = uiColor
             webView.scrollView.backgroundColor = uiColor
-            webView.scrollView.indicatorStyle = scrollIndicatorStyle(for: uiColor, in: webView)
             webView.scrollView.isScrollEnabled = true
             #endif
             
