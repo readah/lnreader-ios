@@ -35,23 +35,27 @@ struct InteractiveListRow: View {
     var onRemove: () -> Void
 
     var body: some View {
-        Button(action: { onSelect(novel) }) {
-            LibraryListRow(
-                transitionNamespace: transitionNamespace,
-                novel: novel
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
+        // A `Menu` with a primary action, not `.contextMenu`: tap opens, hold
+        // shows the actions, and sliding onto one and lifting picks it — the
+        // system's press-drag-release, which a context menu does not offer.
+        Menu {
             LibraryEntryQuickActions(
                 entry: novel,
                 onOpen: { onSelect(novel) },
                 onRemove: onRemove
             )
-        } preview: {
-            LibraryEntryPreview(entry: novel)
+        } label: {
+            LibraryListRow(
+                transitionNamespace: transitionNamespace,
+                novel: novel
+            )
+            .contentShape(Rectangle())
+        } primaryAction: {
+            onSelect(novel)
         }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuOrder(.fixed)
     }
 }
 

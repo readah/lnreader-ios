@@ -57,24 +57,28 @@ struct InteractiveGridCell: View {
     var onRemove: () -> Void
 
     var body: some View {
-        Button(action: { onSelect(novel) }) {
+        // A `Menu` with a primary action, not `.contextMenu`: tap opens, hold
+        // shows the actions, and sliding onto one and lifting picks it — the
+        // system's press-drag-release, which a context menu does not offer.
+        Menu {
+            LibraryEntryQuickActions(
+                entry: novel,
+                onOpen: { onSelect(novel) },
+                onRemove: onRemove
+            )
+        } label: {
             NovelGridCell(
                 transitionNamespace: transitionNamespace,
                 novel: novel,
                 displayMode: displayMode
             )
             .contentShape(Rectangle())
+        } primaryAction: {
+            onSelect(novel)
         }
+        .menuStyle(.button)
         .buttonStyle(.plain)
-        .contextMenu {
-            LibraryEntryQuickActions(
-                entry: novel,
-                onOpen: { onSelect(novel) },
-                onRemove: onRemove
-            )
-        } preview: {
-            LibraryEntryPreview(entry: novel)
-        }
+        .menuOrder(.fixed)
     }
 }
 

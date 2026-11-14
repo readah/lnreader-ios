@@ -839,31 +839,6 @@ struct LibraryEntryQuickActions: View {
     }
 }
 
-/// The menu's preview is our own compact card, not a lift of the whole cell:
-/// the cell's cover carries the zoom-transition source, and lifting that into
-/// the menu overlay fights the transition when the detail screen opens.
-struct LibraryEntryPreview: View {
-    let entry: Entry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            EntryCoverView(url: entry.displayThumbnailURL)
-                .frame(width: 120)
-            Text(entry.displayTitle)
-                .font(Typography.headline)
-                .lineLimit(2)
-            if let author = entry.displayAuthor, !author.isEmpty {
-                Text(author)
-                    .font(Typography.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: 260, alignment: .leading)
-    }
-}
-
 /// Work `body` would otherwise redo on every pass.
 ///
 /// Not observed: writing it from `body` must not invalidate the view. It holds
