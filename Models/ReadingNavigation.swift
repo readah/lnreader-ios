@@ -1,15 +1,5 @@
 import Foundation
 
-enum LibraryReordering {
-    static func move<ID: Hashable>(_ item: ID, to target: ID, in order: [ID]) -> [ID] {
-        guard let from = order.firstIndex(of: item), let to = order.firstIndex(of: target), from != to else { return order }
-        var result = order
-        result.remove(at: from)
-        result.insert(item, at: to)
-        return result
-    }
-}
-
 enum ChapterPages {
     static func count(total: Int, size: Int = 50) -> Int { max(1, (max(0, total) + max(1, size) - 1) / max(1, size)) }
     static func bounds(total: Int, page: Int, size: Int = 50) -> Range<Int> {

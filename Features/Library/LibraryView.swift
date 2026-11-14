@@ -27,8 +27,6 @@ struct LibraryView: View {
     @Query(sort: \Category.order) private var categories: [Category]
 
     @Namespace private var bookTransitions
-    @State private var lastReorderTarget: PersistentIdentifier?
-    @State private var editingOrder: [PersistentIdentifier] = []
     @State private var searchText = ""
     @State private var selectedCategory: Category?
     @AppStorage("general.defaultSortOrder") private var defaultSortOrder: SortOrder = .lastRead
@@ -51,19 +49,10 @@ struct LibraryView: View {
     @State private var hasLoadedCounts = false
     @State private var showOptionsSheet = false
     @State private var optionsTab: LibraryOptionsSheet.Tab = .sort
-    /// "Arrange books" from the options sheet has to wait until the sheet is
-    /// gone; starting edit mode underneath it put the drag handles behind glass.
-    @State private var arrangeAfterSheet = false
-    /// The sort that was active before Arrange. If nothing was actually moved,
-    /// Done puts it back, so a stray hold never leaves the library on Custom.
-    @State private var arrangingRestore: (scope: String?, hadOverride: Bool, sort: LibrarySort)?
-    @State private var didReorder = false
     /// Work `body` would otherwise redo on every pass: the preference stores,
     /// the last sort, and the list held while the reader covers the screen.
     @State private var bodyCache = LibraryBodyCache()
 
-    @State private var isEditingLibrary = false
-    @State private var draggedItem: Entry? = nil
     @State private var novelToDelete: Entry? = nil
     @State private var showDeleteConfirmation = false
     @State private var navigationPath = NavigationPath()
@@ -92,11 +81,7 @@ struct LibraryView: View {
             .navigationTitle("Library")
             .searchable(text: $searchText, prompt: "Search library")
             .toolbar { libraryToolbar }
-            .sheet(isPresented: $showOptionsSheet, onDismiss: {
-                guard arrangeAfterSheet else { return }
-                arrangeAfterSheet = false
-                startArranging()
-            }) {
+            .sheet(isPresented: $showOptionsSheet) {
                 LibraryOptionsSheet(
                     tab: $optionsTab,
                     filter: activeFilterBinding,
@@ -105,11 +90,7 @@ struct LibraryView: View {
                     hasSortOverride: sortStore.hasOverride(for: selectedCategory?.name),
                     hasDisplayOverride: displayStore.hasOverride(for: selectedCategory?.name),
                     onResetSort: resetActiveSort,
-                    onResetDisplay: resetDisplayMode,
-                    onArrange: {
-                        arrangeAfterSheet = true
-                        showOptionsSheet = false
-                    }
+                    onResetDisplay: resetDisplayMode
                 )
                 .presentationDetents([.medium, .large])
             }
@@ -120,32 +101,6 @@ struct LibraryView: View {
                 // reads its name, rather than faulting a dead object.
                 if let selected = selectedCategory, !categories.contains(where: { $0 === selected }) {
                     selectedCategory = nil
-                }
-            }
-            .onChange(of: scenePhase) { _, phase in
-                if phase != .active && isEditingLibrary {
-                    if didReorder { commitLibraryPositions(clearOrder: false) }
-                    draggedItem = nil
-                }
-            }
-            .onChange(of: draggedItem) { _, item in
-                lastReorderTarget = nil
-                if item == nil && isEditingLibrary && didReorder {
-                    commitLibraryPositions(clearOrder: false)
-                }
-            }
-            .onChange(of: isEditingLibrary) { _, editing in
-                if !editing {
-                    // Clean up drag state when leaving edit mode to prevent
-                    // ghost state from affecting the next edit session.
-                    draggedItem = nil
-                    // Only a move is worth a save: rewriting every libraryOrder
-                    // (and every @Query it wakes) for an Arrange nobody used was
-                    // the other half of the stray-hold problem.
-                    if didReorder { commitLibraryPositions() }
-                    else { editingOrder = [] }
-                    // An Arrange with no moves must not leave Custom behind.
-                    restoreSortAfterArranging()
                 }
             }
             .alert("Remove from Library?", isPresented: $showDeleteConfirmation, presenting: novelToDelete) { novel in
@@ -259,27 +214,16 @@ struct LibraryView: View {
 
     @ToolbarContentBuilder
     private var libraryToolbar: some ToolbarContent {
-        if isEditingLibrary {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") {
-                    withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
-                        isEditingLibrary = false
-                    }
-                }
-                .bold()
-            }
-        } else {
-            LibraryToolbar(
-                isCustomised: activeFilter.isActive
-                    || sortStore.hasOverride(for: selectedCategory?.name)
-                    || displayStore.hasOverride(for: selectedCategory?.name),
-                hasManga: hasManga,
-                isPickingRandom: isPickingRandom,
-                onShowOptions: { showOptionsSheet = true },
-                onImport: { showFileImporter = true },
-                onOpenRandom: openRandomUnread
-            )
-        }
+        LibraryToolbar(
+            isCustomised: activeFilter.isActive
+                || sortStore.hasOverride(for: selectedCategory?.name)
+                || displayStore.hasOverride(for: selectedCategory?.name),
+            hasManga: hasManga,
+            isPickingRandom: isPickingRandom,
+            onShowOptions: { showOptionsSheet = true },
+            onImport: { showFileImporter = true },
+            onOpenRandom: openRandomUnread
+        )
     }
 
     // MARK: - Content
@@ -299,8 +243,7 @@ struct LibraryView: View {
         DragGesture(minimumDistance: 30)
             .onEnded { value in
                 let dx = value.translation.width
-                guard !isEditingLibrary,
-                      abs(dx) > 80, abs(dx) > abs(value.translation.height) * 2 else { return }
+                guard abs(dx) > 80, abs(dx) > abs(value.translation.height) * 2 else { return }
                 let options = LibraryKindFilter.allCases.map(\.rawValue)
                 guard let current = options.firstIndex(of: kindFilterRaw) else { return }
                 let next = current + (dx < 0 ? 1 : -1)
@@ -326,10 +269,6 @@ struct LibraryView: View {
         let items = pageItems(for: kind)
 
         return ScrollView {
-            // Arrange is a mode now, not something a stray hold falls into.
-            // Say what it does and how to leave it.
-            if isEditingLibrary { arrangeHint }
-
             // First thing in the scroll view, so it scrolls away with the content
             // instead of pinning over the search field.
             if showsKindPicker { kindPicker }
@@ -355,11 +294,6 @@ struct LibraryView: View {
             }
         }
         .immediateScrollTouches()
-        .onDrop(of: [UTType.text], isTargeted: nil) { _ in
-            guard draggedItem != nil else { return false }
-            draggedItem = nil
-            return true
-        }
         .refreshable {
             // Pulling down inside a category refreshes just that category. The
             // update has its own progress banner pinned at the bottom of the
@@ -373,21 +307,6 @@ struct LibraryView: View {
                 await libraryManager.updateLibrary(context: context, sourceManager: sources, category: category)
             }
         }
-    }
-
-    private var arrangeHint: some View {
-        HStack(spacing: 10) {
-            AppIcon(systemName: "arrow.up.arrow.down", size: 13, relativeTo: .footnote)
-                .font(.body.weight(.semibold))
-            Text("Drag a book to change its order. Tap Done when you're happy with it.")
-                .font(Typography.caption)
-            Spacer(minLength: 0)
-        }
-        .foregroundStyle(.primary)
-        .padding(12)
-        .background(AppTheme.surface, in: .rect(cornerRadius: 12))
-        .padding(.horizontal)
-        .padding(.top, 8)
     }
 
     /// An empty page is normal when only one kind is in the library, so say
@@ -412,11 +331,7 @@ struct LibraryView: View {
             LibraryListView(
                 transitionNamespace: bookTransitions,
                 novels: items,
-                isEditing: isEditingLibrary,
-                draggedItem: $draggedItem,
-                onReorder: handleReorder,
                 onDelete: handleDelete,
-                onArrange: startArranging,
                 onSelect: handleSelect
             )
         } else {
@@ -424,18 +339,10 @@ struct LibraryView: View {
                 transitionNamespace: bookTransitions,
                 novels: items,
                 displayMode: displayMode,
-                isEditing: isEditingLibrary,
-                draggedItem: $draggedItem,
-                onReorder: handleReorder,
                 onDelete: handleDelete,
-                onArrange: startArranging,
                 onSelect: handleSelect
             )
         }
-    }
-
-    private func handleReorder(_ dragged: Entry, _ target: Entry) {
-        reorderNovels(dragged: dragged, target: target)
     }
 
     private func handleDelete(_ novel: Entry) {
@@ -740,10 +647,6 @@ struct LibraryView: View {
 
     private func sortedNovels(_ novels: [Entry]) -> [Entry] {
         let sort = activeSort
-        if sort.order == .custom, isEditingLibrary {
-            let ranks = Dictionary(uniqueKeysWithValues: editingOrder.enumerated().map { ($1, $0) })
-            return novels.sorted { (ranks[$0.persistentModelID] ?? Int.max) < (ranks[$1.persistentModelID] ?? Int.max) }
-        }
         // Counts come from the background pass (`loadFilterCounts`). Never walk
         // `novel.chapters` here: this runs in `body`, and faulting every chapter
         // of every entry was ~19 of 31 s of main-thread time in a profile. An
@@ -753,7 +656,6 @@ struct LibraryView: View {
             let known = counts[entry.persistentModelID]
             return (item: entry, facts: LibrarySortFacts(
                 title: entry.displayTitle,
-                libraryOrder: entry.libraryOrder,
                 dateAdded: entry.dateAdded,
                 lastReadAt: entry.lastReadAt,
                 lastChecked: entry.lastUpdate,
@@ -769,53 +671,6 @@ struct LibraryView: View {
         return bodyCache.sorted(keyed, by: sort)
     }
 
-    /// Arranging is always an explicit choice now (the hold menu or the Sort
-    /// tab). Remember the sort we replaced so an Arrange with no moves can put
-    /// it back — a hold used to silently switch the library to Custom forever.
-    private func startArranging() {
-        guard !isEditingLibrary else { return }
-        let scope = selectedCategory?.name
-        arrangingRestore = (scope, sortStore.hasOverride(for: scope), activeSort)
-        didReorder = false
-        let order = sortedNovels(novels).map(\.persistentModelID)
-        withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
-            editingOrder = order
-            lastReorderTarget = nil
-            activeSortBinding.wrappedValue = LibrarySort(order: .custom, direction: .ascending)
-            isEditingLibrary = true
-        }
-    }
-
-    /// Books were moved: Custom is the point of Arrange, so it stays. Nothing
-    /// moved: restore the override that was there, or remove the one we added.
-    private func restoreSortAfterArranging() {
-        guard let saved = arrangingRestore else { return }
-        arrangingRestore = nil
-        guard !didReorder, saved.scope == selectedCategory?.name else { return }
-        var store = sortStore
-        if saved.hadOverride { store.set(saved.sort, for: saved.scope) }
-        else { store.reset(saved.scope) }
-        sortsJSON = store.json
-    }
-
-    private func reorderNovels(dragged: Entry, target: Entry) {
-        guard lastReorderTarget != target.persistentModelID,
-              dragged.persistentModelID != target.persistentModelID else { return }
-        lastReorderTarget = target.persistentModelID
-        didReorder = true
-        withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
-            editingOrder = LibraryReordering.move(dragged.persistentModelID, to: target.persistentModelID, in: editingOrder)
-        }
-    }
-
-    private func commitLibraryPositions(clearOrder: Bool = true) {
-        let byID = Dictionary(uniqueKeysWithValues: novels.map { ($0.persistentModelID, $0) })
-        let current = Set(editingOrder)
-        let order = editingOrder + novels.filter { !current.contains($0.persistentModelID) }.map(\.persistentModelID)
-        for (index, id) in order.enumerated() { byID[id]?.libraryOrder = index }
-        try? modelContext.save()
-        if clearOrder { editingOrder = [] }
-    }
 }
 
 /// Library split between light novels and manga.
@@ -838,14 +693,10 @@ enum LibraryKindFilter: String, CaseIterable, Identifiable {
 // MARK: - Hold menu
 
 /// Quick actions on a library book. Grid and list cells share it, so an action
-/// cannot exist in one layout and not the other. A hold used to mean "enter
-/// manual reorder", which silently switched the library to Custom sort even
-/// when nothing was moved; now the hold is a menu and Arrange is one choice in
-/// it.
+/// cannot exist in one layout and not the other.
 struct LibraryEntryQuickActions: View {
     let entry: Entry
     var onOpen: (() -> Void)? = nil
-    var onArrange: () -> Void
     var onRemove: () -> Void
 
     @Environment(\.modelContext) private var modelContext
@@ -881,7 +732,6 @@ struct LibraryEntryQuickActions: View {
 
         Divider()
 
-        Button("Arrange books", systemImage: "arrow.up.arrow.down", action: onArrange)
         Button("Remove from library", systemImage: "trash", role: .destructive, action: onRemove)
     }
 

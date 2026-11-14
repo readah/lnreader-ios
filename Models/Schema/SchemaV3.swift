@@ -1,10 +1,9 @@
-// SchemaV3.swift - The app's current SwiftData schema.
+// SchemaV3.swift - Frozen SwiftData schema.
 //
 // V2 plus `Highlight`, the reader's saved highlights. The V2 models are reused
 // unchanged, not copied: `SchemaV2.swift` stays frozen as the shape shipped
 // before highlights existed, so a store opened by that build migrates straight
-// through the lightweight stage below. Further changes to those models start a
-// SchemaV4 instead of editing V2.
+// through the lightweight stage. Current models live in `SchemaV4.swift`.
 
 import Foundation
 import SwiftData

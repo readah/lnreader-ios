@@ -20,8 +20,6 @@ struct LibraryOptionsSheet: View {
     var hasDisplayOverride = false
     var onResetSort: () -> Void = {}
     var onResetDisplay: () -> Void = {}
-    /// Dismisses the sheet and starts arranging; the host does it on dismiss.
-    var onArrange: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -122,25 +120,19 @@ struct LibraryOptionsSheet: View {
                 Text("Sort by")
             }
 
-            if sort.order != .custom {
-                Section {
-                    Picker("Direction", selection: $sort.direction) {
-                        Text(sort.order.directionLabels.ascending).tag(SortDirection.ascending)
-                        Text(sort.order.directionLabels.descending).tag(SortDirection.descending)
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            Section {
+                Picker("Direction", selection: $sort.direction) {
+                    Text(sort.order.directionLabels.ascending).tag(SortDirection.ascending)
+                    Text(sort.order.directionLabels.descending).tag(SortDirection.descending)
                 }
+                .pickerStyle(.segmented)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
 
             if sort.order.supportsEmptyLast {
                 Section {
                     Toggle("Empty ones last", isOn: $sort.emptyLast)
                 }
-            }
-
-            Section {
-                Button("Arrange books", systemImage: "arrow.up.arrow.down", action: onArrange)
             }
         }
     }
@@ -158,18 +150,14 @@ struct LibraryOptionsSheet: View {
                     .foregroundStyle(.primary)
                 Spacer()
                 if selected {
-                    if order != .custom {
-                        Image(systemName: sort.direction.isAscending ? "arrow.up" : "arrow.down")
-                            .foregroundStyle(.tint)
-                            .contentTransition(.symbolEffect(.replace))
-                    } else {
-                        AppIcon(systemName: "checkmark", size: 17, relativeTo: .body).foregroundStyle(.tint)
-                    }
+                    Image(systemName: sort.direction.isAscending ? "arrow.up" : "arrow.down")
+                        .foregroundStyle(.tint)
+                        .contentTransition(.symbolEffect(.replace))
                 }
             }
         }
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityValue(selected && order != .custom
+        .accessibilityValue(selected
             ? (sort.direction.isAscending
                 ? order.directionLabels.ascending : order.directionLabels.descending)
             : "")

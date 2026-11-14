@@ -4,7 +4,7 @@ import SwiftData
 
 @main @MainActor struct OfflineLibraryChecks {
     static func main() throws {
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         let container = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
         let context = ModelContext(container)
         let entry = Entry(kind: .novel, sourceKey: "ln:test-backup", url: "/test", title: "Original title")

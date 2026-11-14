@@ -43,7 +43,6 @@ struct SyncNovelPayload: Codable {
     var genres: String?
     var inLibrary: Bool
     var totalPages: Int
-    var libraryPosition: Int
     var chapters: [SyncChapterPayload]
 }
 
@@ -162,7 +161,6 @@ enum SyncApplier {
             novel.status = EntryStatus.parse(remoteNovel.status)
             novel.genres = splitGenres(remoteNovel.genres)
             novel.inLibrary = remoteNovel.inLibrary
-            novel.libraryOrder = remoteNovel.libraryPosition
 
             var existingChapters: [String: Chapter] = [:]
             for chapter in novel.chapters {

@@ -29,7 +29,6 @@ extension EntryMigrator {
         }
 
         new.dateAdded = old.dateAdded
-        new.libraryOrder = old.libraryOrder
         new.lastReadAt = old.lastReadAt ?? new.lastReadAt
         new.viewerFlags = old.viewerFlags
         new.updateStrategy = old.updateStrategy

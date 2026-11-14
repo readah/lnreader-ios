@@ -96,7 +96,7 @@ struct MihonBackupChecks {
     }
 
     private static func makeContainer() throws -> ModelContainer {
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         return try ModelContainer(
             for: schema, migrationPlan: LNReaderSchemaMigrationPlan.self,
             configurations: ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true))
@@ -178,8 +178,8 @@ struct MihonBackupChecks {
         // Importing again changes nothing.
         let again = try MihonBackup.restore(backup, into: container)
         expect(again.added == 0 && again.merged == 2 && again.chapters == 0, "second restore is a no-op")
-        try expect(try context.fetch(FetchDescriptor<SchemaV2.Chapter>()).count == 4, "no duplicate chapters")
-        try expect(try context.fetch(FetchDescriptor<SchemaV2.Category>()).count == 2, "no duplicate categories")
+        try expect(try context.fetch(FetchDescriptor<SchemaV4.Chapter>()).count == 4, "no duplicate chapters")
+        try expect(try context.fetch(FetchDescriptor<SchemaV4.Category>()).count == 2, "no duplicate categories")
 
         try checkMergeKeepsLocalState()
     }
@@ -190,7 +190,7 @@ struct MihonBackupChecks {
         let entry = Entry(kind: .manga, sourceKey: "builtin:mangafire", url: "/manga/overgeared.728q1", title: "My Title")
         entry.summary = "mine"
         context.insert(entry)
-        let local = SchemaV2.Chapter(url: "/manga/overgeared.728q1/1002-chapter-2-en", name: "Chapter 2", chapterNumber: 2)
+        let local = SchemaV4.Chapter(url: "/manga/overgeared.728q1/1002-chapter-2-en", name: "Chapter 2", chapterNumber: 2)
         context.insert(local); local.entry = entry
         local.read = true; local.lastPageRead = 12
         try context.save()
@@ -249,7 +249,7 @@ struct MihonBackupChecks {
         let context = ModelContext(container)
 
         // Insert category
-        let cat = SchemaV2.Category(name: "Reading", order: 0)
+        let cat = SchemaV4.Category(name: "Reading", order: 0)
         context.insert(cat)
 
         // Insert manga entry
@@ -265,26 +265,26 @@ struct MihonBackupChecks {
         context.insert(entry)
 
         // Insert chapters
-        let c1 = SchemaV2.Chapter(url: "/manga/solo-leveling/c1", name: "Chapter 1", chapterNumber: 1, sourceOrder: 0)
+        let c1 = SchemaV4.Chapter(url: "/manga/solo-leveling/c1", name: "Chapter 1", chapterNumber: 1, sourceOrder: 0)
         c1.read = true
         c1.progress = 100
         context.insert(c1)
         c1.entry = entry
 
-        let h1 = SchemaV2.History(chapterURL: c1.url, lastRead: Date(timeIntervalSince1970: 1_700_000_000))
+        let h1 = SchemaV4.History(chapterURL: c1.url, lastRead: Date(timeIntervalSince1970: 1_700_000_000))
         h1.timeRead = 300
         context.insert(h1)
         h1.chapter = c1
         c1.history = h1
 
-        let c2 = SchemaV2.Chapter(url: "/manga/solo-leveling/c2", name: "Chapter 2", chapterNumber: 2, sourceOrder: 1)
+        let c2 = SchemaV4.Chapter(url: "/manga/solo-leveling/c2", name: "Chapter 2", chapterNumber: 2, sourceOrder: 1)
         c2.bookmark = true
         c2.lastPageRead = 15
         context.insert(c2)
         c2.entry = entry
 
         // Insert tracking
-        let track = SchemaV2.Track(syncId: 2, remoteId: 105398, title: "Solo Leveling")
+        let track = SchemaV4.Track(syncId: 2, remoteId: 105398, title: "Solo Leveling")
         track.score = 9.0
         track.lastChapterRead = 1
         track.remoteURL = "https://anilist.co/manga/105398"
@@ -393,7 +393,7 @@ struct MihonBackupChecks {
 
         let context = ModelContext(container)
         try expect(try context.fetch(FetchDescriptor<Entry>()).count == backup.manga.count, "every title stored")
-        try expect(try context.fetch(FetchDescriptor<SchemaV2.Chapter>()).count == chapters, "every chapter stored")
+        try expect(try context.fetch(FetchDescriptor<SchemaV4.Chapter>()).count == chapters, "every chapter stored")
         let fire = try context.fetch(FetchDescriptor<Entry>()).filter { $0.sourceKey == "builtin:mangafire" }
         let all = try context.fetch(FetchDescriptor<Entry>()).filter { $0.sourceKey == "builtin:allmanga" }
         print("sample sources: mangafire=\(fire.count) allmanga=\(all.count)")

@@ -3,78 +3,26 @@
 
 import SwiftData
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct LibraryListView: View {
     var transitionNamespace: Namespace.ID? = nil
     let novels: [Entry]
-    let isEditing: Bool
-    @Binding var draggedItem: Entry?
-    var onReorder: (Entry, Entry) -> Void
     var onDelete: (Entry) -> Void
-    var onArrange: () -> Void
     var onSelect: (Entry) -> Void
 
     var body: some View {
         LazyVStack(spacing: 0) {
             ForEach(novels) { novel in
-                Group {
-                    if isEditing {
-                        EditableListRow(
-                            novel: novel,
-                            isDragging: draggedItem == novel,
-                            onDelete: { onDelete(novel) }
-                        )
-                        .onDrag {
-                            self.draggedItem = novel
-                            return NSItemProvider(
-                                object: (novel.url + "|" + novel.sourceKey) as NSString)
-                        }
-                        .onDrop(
-                            of: [UTType.text],
-                            delegate: NovelDropDelegate(
-                                item: novel,
-                                novels: novels,
-                                draggedItem: $draggedItem,
-                                onReorder: onReorder
-                            ))
-                    } else {
-                        InteractiveListRow(
-                            transitionNamespace: transitionNamespace,
-                            novel: novel,
-                            onSelect: onSelect,
-                            onArrange: onArrange,
-                            onRemove: { onDelete(novel) }
-                        )
-                    }
-                }
+                InteractiveListRow(
+                    transitionNamespace: transitionNamespace,
+                    novel: novel,
+                    onSelect: onSelect,
+                    onRemove: { onDelete(novel) }
+                )
                 Divider()
-                    .padding(.leading, isEditing ? 120 : 88)
+                    .padding(.leading, 88)
             }
         }
-    }
-}
-
-// MARK: - Editable List Row (edit mode wrapper)
-
-/// Separates the delete button from the drag surface so taps on the button
-/// aren't swallowed by the drag gesture.
-struct EditableListRow: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let novel: Entry
-    let isDragging: Bool
-    var onDelete: () -> Void
-
-    var body: some View {
-        LibraryListRow(
-            novel: novel,
-            isEditing: true,
-            onDelete: onDelete
-        )
-        .contentShape(Rectangle())
-        .wiggle(when: true)
-        .opacity(isDragging ? 0.4 : 1.0)
-        .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: isDragging)
     }
 }
 
@@ -84,16 +32,13 @@ struct InteractiveListRow: View {
     var transitionNamespace: Namespace.ID? = nil
     let novel: Entry
     var onSelect: (Entry) -> Void
-    var onArrange: () -> Void
     var onRemove: () -> Void
 
     var body: some View {
         Button(action: { onSelect(novel) }) {
             LibraryListRow(
                 transitionNamespace: transitionNamespace,
-                novel: novel,
-                isEditing: false,
-                onDelete: {}
+                novel: novel
             )
             .contentShape(Rectangle())
         }
@@ -102,7 +47,6 @@ struct InteractiveListRow: View {
             LibraryEntryQuickActions(
                 entry: novel,
                 onOpen: { onSelect(novel) },
-                onArrange: onArrange,
                 onRemove: onRemove
             )
         } preview: {
@@ -119,8 +63,6 @@ struct LibraryListRow: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(SourceManager.self) private var sourceManager
     let novel: Entry
-    var isEditing: Bool = false
-    var onDelete: () -> Void = {}
 
     /// Cached counts; see `LibraryChapterCounts`. Reading `novel.unreadCount`
     /// here resolved the whole chapter relationship per row, three times over.
@@ -128,12 +70,6 @@ struct LibraryListRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if isEditing {
-                DeleteBadge(action: onDelete)
-                .transition(.move(edge: .leading).combined(with: .opacity))
-                .zIndex(10)
-            }
-
             EntryCoverView(
                 url: novel.displayThumbnailURL,
                 aspectRatio: LayoutConstants.coverAspectRatio

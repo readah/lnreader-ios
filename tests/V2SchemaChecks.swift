@@ -1,4 +1,4 @@
-// V2SchemaChecks.swift - Exercises the v2 SwiftData schema for real.
+// V2SchemaChecks.swift - Exercises the v4 SwiftData schema for real.
 //
 // `@Model` mistakes (bad inverses, unsupported unique constraints, cascade
 // rules) only surface when a container is built and rows are saved, so this
@@ -12,7 +12,7 @@ import SwiftData
 struct V2SchemaChecks {
 
     static func main() throws {
-        let schema = Schema(versionedSchema: SchemaV3.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         let container = try ModelContainer(
             for: schema,
             migrationPlan: LNReaderSchemaMigrationPlan.self,
@@ -28,11 +28,12 @@ struct V2SchemaChecks {
         try checkHighlights(context)
         try checkEntryUniqueConstraint(container)
         try checkMigrationFromV1()
-        try checkMigrationFromV2ToV3()
+        try checkMigrationFromV2()
+        try checkMigrationFromV3()
 
-        print("PASS: v3 schema — library round-trip, chapter state, categories, "
+        print("PASS: v4 schema — library round-trip, chapter state, categories, "
             + "history cascade, download queue, highlights, entry uniqueness, "
-            + "V1 → V3 and V2 → V3 store migration")
+            + "V1 → V4, V2 → V4 and V3 → V4 store migration")
     }
 
     // MARK: Library
@@ -58,7 +59,7 @@ struct V2SchemaChecks {
             try context.save()
         }
 
-        let current = Schema(versionedSchema: SchemaV3.self)
+        let current = Schema(versionedSchema: SchemaV4.self)
         let container = try ModelContainer(
             for: current, migrationPlan: LNReaderSchemaMigrationPlan.self,
             configurations: ModelConfiguration(schema: current, url: file))
@@ -74,9 +75,9 @@ struct V2SchemaChecks {
         precondition(highlights == 0, "the new table starts empty")
     }
 
-    /// A V2 store opens through the plan and gains the highlight table without
-    /// touching the rows it already has.
-    private static func checkMigrationFromV2ToV3() throws {
+    /// A V2 store opens through the plan, gains the highlight table and loses
+    /// `libraryOrder` without touching the rows it already has.
+    private static func checkMigrationFromV2() throws {
         let folder = FileManager.default.temporaryDirectory.appending(path: "V3Migration-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -86,21 +87,22 @@ struct V2SchemaChecks {
             let old = Schema(versionedSchema: SchemaV2.self)
             let container = try ModelContainer(for: old, configurations: ModelConfiguration(schema: old, url: file))
             let context = ModelContext(container)
-            let entry = Entry(kind: .novel, sourceKey: "ln:reader", url: "/n", title: "Newer")
+            let entry = SchemaV2.Entry(kind: .novel, sourceKey: "ln:reader", url: "/n", title: "Newer")
+            entry.libraryOrder = 42
             context.insert(entry)
-            let chapter = Chapter(url: "c1", name: "Chapter 1", chapterNumber: 1)
+            let chapter = SchemaV2.Chapter(url: "c1", name: "Chapter 1", chapterNumber: 1)
             context.insert(chapter)
             chapter.entry = entry
             try context.save()
         }
 
-        let current = Schema(versionedSchema: SchemaV3.self)
+        let current = Schema(versionedSchema: SchemaV4.self)
         let container = try ModelContainer(
             for: current, migrationPlan: LNReaderSchemaMigrationPlan.self,
             configurations: ModelConfiguration(schema: current, url: file))
         let context = ModelContext(container)
         let entries = try context.fetch(FetchDescriptor<Entry>())
-        precondition(entries.count == 1 && entries[0].chapters.count == 1, "V2 rows survive V2 → V3")
+        precondition(entries.count == 1 && entries[0].chapters.count == 1, "V2 rows survive V2 → V4")
         let emptyHighlights = try context.fetchCount(FetchDescriptor<Highlight>())
         precondition(emptyHighlights == 0)
 
@@ -114,6 +116,45 @@ struct V2SchemaChecks {
         try context.save()
         let storedHighlights = try context.fetchCount(FetchDescriptor<Highlight>())
         precondition(storedHighlights == 1)
+    }
+
+    /// A V3 store opens through the plan with its highlights and drops the
+    /// custom-order column it no longer has.
+    private static func checkMigrationFromV3() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "V4Migration-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appending(path: "migrate.store")
+
+        do {
+            let old = Schema(versionedSchema: SchemaV3.self)
+            let container = try ModelContainer(for: old, configurations: ModelConfiguration(schema: old, url: file))
+            let context = ModelContext(container)
+            let entry = SchemaV2.Entry(kind: .manga, sourceKey: "mihon:9", url: "/v3", title: "Ordered")
+            entry.libraryOrder = 7
+            context.insert(entry)
+            let chapter = SchemaV2.Chapter(url: "c1", name: "Chapter 1", chapterNumber: 1)
+            context.insert(chapter)
+            chapter.entry = entry
+            context.insert(Highlight(
+                text: "kept", color: "pink",
+                sourceKey: "mihon:9", entryURL: "/v3",
+                chapterURL: "c1", chapterName: "Chapter 1", chapterNumber: 1, sourceOrder: 0,
+                paragraphIndex: 0, startOffset: 0, endOffset: 4,
+                bookTitle: "Ordered", bookCoverURL: nil))
+            try context.save()
+        }
+
+        let current = Schema(versionedSchema: SchemaV4.self)
+        let container = try ModelContainer(
+            for: current, migrationPlan: LNReaderSchemaMigrationPlan.self,
+            configurations: ModelConfiguration(schema: current, url: file))
+        let context = ModelContext(container)
+        let entries = try context.fetch(FetchDescriptor<Entry>())
+        precondition(entries.count == 1 && entries[0].chapters.count == 1, "V3 rows survive V3 → V4")
+        precondition(entries[0].title == "Ordered", "the dropped column takes nothing with it")
+        let highlights = try context.fetchCount(FetchDescriptor<Highlight>())
+        precondition(highlights == 1, "V3 highlights survive V3 → V4")
     }
 
     // MARK: Highlights
@@ -237,7 +278,7 @@ struct V2SchemaChecks {
 
     private static func checkCategories(_ context: ModelContext) throws {
         let entry = try unwrap(context.fetch(FetchDescriptor<Entry>()).first)
-        let category = SchemaV2.Category(name: "Favourites", order: 1)
+        let category = SchemaV4.Category(name: "Favourites", order: 1)
         context.insert(category)
         category.entries.append(entry)
         try context.save()
@@ -251,7 +292,7 @@ struct V2SchemaChecks {
         try context.save()
         precondition(entry.categories.isEmpty)
         try expectCount(context, Entry.self, 1)
-        try expectCount(context, SchemaV2.Category.self, 1)
+        try expectCount(context, SchemaV4.Category.self, 1)
     }
 
     // MARK: History
@@ -261,19 +302,19 @@ struct V2SchemaChecks {
         let chapters = entry.chapters.sorted { $0.sourceOrder < $1.sourceOrder }
         let chapter = chapters[1]
 
-        let history = SchemaV2.History(chapterURL: chapter.url, lastRead: .now)
+        let history = SchemaV4.History(chapterURL: chapter.url, lastRead: .now)
         history.chapter = chapter
         history.timeRead = 120
         context.insert(history)
         try context.save()
 
-        try expectCount(context, SchemaV2.History.self, 1)
+        try expectCount(context, SchemaV4.History.self, 1)
         precondition(chapter.history?.timeRead == 120)
 
         // Deleting a chapter takes its history row with it.
         context.delete(chapter)
         try context.save()
-        try expectCount(context, SchemaV2.History.self, 0)
+        try expectCount(context, SchemaV4.History.self, 0)
 
         // Deleting the entry cascades to the remaining chapters.
         context.delete(entry)

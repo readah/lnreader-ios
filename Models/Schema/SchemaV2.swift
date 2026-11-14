@@ -1,7 +1,7 @@
-// SchemaV2.swift - The app's current SwiftData schema.
+// SchemaV2.swift - Frozen SwiftData schema.
 //
-// V1 plus `Chapter.hidden`. `SchemaV1.swift` is frozen so the migration knows what
-// the old store looked like; views use the typealiases at the bottom of this file.
+// V1 plus `Chapter.hidden`. Kept as shipped so the migration knows what an
+// existing store looked like; current models live in `SchemaV4.swift`.
 
 import Foundation
 import SwiftData
@@ -418,14 +418,3 @@ enum SchemaV2: VersionedSchema {
     }
 }
 
-// MARK: - Type aliases
-
-/// Short handles so views read naturally (`Entry`, `Chapter`, …).
-typealias Entry = SchemaV2.Entry
-typealias Chapter = SchemaV2.Chapter
-typealias History = SchemaV2.History
-typealias Category = SchemaV2.Category
-typealias Track = SchemaV2.Track
-typealias ExtensionRepo = SchemaV2.ExtensionRepo
-typealias DownloadItem = SchemaV2.DownloadItem
-typealias PendingTrackUpdate = SchemaV2.PendingTrackUpdate

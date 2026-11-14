@@ -420,7 +420,6 @@ extension SyncNovelPayload {
         self.inLibrary = entry.inLibrary
         // v1 field: only LN plugins paginate their chapter lists.
         self.totalPages = 0
-        self.libraryPosition = entry.libraryOrder
         self.chapters = ChapterOrder.oldestFirst(entry.chapters)
             .map { SyncChapterPayload(chapter: $0) }
     }

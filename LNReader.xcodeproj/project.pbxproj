@@ -56,7 +56,6 @@
 		126F9AF4E3EB6F3756B32B06 /* EntryCoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1760A05DBF7E612169B36D46 /* EntryCoverView.swift */; };
 		C8F88569499CAB7195C6398F /* RowCoverButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11778C8CA624C5440462A96E /* RowCoverButton.swift */; };
 		15AD774453BD05193C6CA87A /* EntryStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE91DE9B4F4B703D510650E /* EntryStatus.swift */; };
-		172170C0C9733A83E162D5EA /* WiggleModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DB09D701D00140674D1ADF4 /* WiggleModifier.swift */; };
 		1A90711DB39A3061C8ECBFE1 /* ChapterComment.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAA6EC9C1F5F0F6587444BBF /* ChapterComment.swift */; };
 		1F81C415072C2CC58104534D /* LibraryGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60F9403D2E7706164EFA9DFB /* LibraryGridView.swift */; };
 		2220BBC5FB756854B1B4A9A9 /* SourceFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32DFC42772907A1432627098 /* SourceFilters.swift */; };
@@ -110,7 +109,6 @@
 		85CDA37BF617A6E77D899825 /* TinyXMLParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E10BF3DAB13B839E1205F6D /* TinyXMLParser.swift */; };
 		86B3C0C4E92106BD234C6EC6 /* MangaReaderSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 751B70951B5FBD5C069CA2EE /* MangaReaderSettingsSheet.swift */; };
 		89250E2ACAFF39E3822A10DC /* LibraryBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59D1FE204D5E1D61ADCB246F /* LibraryBadges.swift */; };
-		89540930F1A34DF599CEA02B /* DeleteBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 623EA90F63B7AF0B5426E96B /* DeleteBadge.swift */; };
 		8B3EDC653451FF7B962965A6 /* SourceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95FC6D6218E18B347E20036D /* SourceManager.swift */; };
 		8C06989B481578FF1985D66A /* LNReaderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C9E9CDAAAE1E4CA9DAA3212 /* LNReaderApp.swift */; };
 		8C1F779158B5AE64F3CC4DE1 /* MangaReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92CB4FC06A797835ACB92A41 /* MangaReaderView.swift */; };
@@ -133,6 +131,7 @@
 		A20AEBDF82B2FBE78CFA2301 /* SchemaV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 411A922DF6EBC87D54E62301 /* SchemaV2.swift */; };
 		A4FBFDFEFA8DAB3E3F26B5AE /* DisplayMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BAC8A5A6A4148EFD000C5E /* DisplayMode.swift */; };
 		ABCD35010000000000000001 /* SchemaV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD35000000000000000001 /* SchemaV3.swift */; };
+		ABCD35030000000000000001 /* SchemaV4.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD35020000000000000001 /* SchemaV4.swift */; };
 		ABCD35010000000000000002 /* ReaderHighlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD35000000000000000002 /* ReaderHighlight.swift */; };
 		ABCD35010000000000000003 /* ReaderHighlightJavaScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD35000000000000000003 /* ReaderHighlightJavaScript.swift */; };
 		ABCD35010000000000000004 /* BookmarksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD35000000000000000004 /* BookmarksView.swift */; };
@@ -189,7 +188,6 @@
 		DE4A5907E56E2BAB4FECEACB /* ChapterCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41D501E72071F4D5F9CBE58C /* ChapterCache.swift */; };
 		DF964DDA1C4FB131E160580E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BA227D06471ABC5D87C79929 /* Assets.xcassets */; };
 		E0AC98E967703470CE4D8097 /* MiniZIP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4233BADE3CB7AF56E45C68 /* MiniZIP.swift */; };
-		E271F36B96D33AAE2F3411A4 /* NovelDropDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 528A1466337E800799FED5D8 /* NovelDropDelegate.swift */; };
 		E583BD542D9AA66F4F2F3C64 /* WebtoonScrollController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 262701D6ACC5D6FCEF035D3A /* WebtoonScrollController.swift */; };
 		EB7155DE60ABC4A9AF8D661A /* View+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD79F29E8F9031396631E55 /* View+Extensions.swift */; };
 		EB83EEFDBC246CAE607A6791 /* TTSAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = E46BA28F00A8896A7E69C83B /* TTSAudio.swift */; };
@@ -300,6 +298,7 @@
 		411A922DF6EBC87D54E6D854 /* SchemaV1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV1.swift; sourceTree = "<group>"; };
 		411A922DF6EBC87D54E62301 /* SchemaV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV2.swift; sourceTree = "<group>"; };
 		ABCD35000000000000000001 /* SchemaV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV3.swift; sourceTree = "<group>"; };
+		ABCD35020000000000000001 /* SchemaV4.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV4.swift; sourceTree = "<group>"; };
 		ABCD35000000000000000002 /* ReaderHighlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHighlight.swift; sourceTree = "<group>"; };
 		ABCD35000000000000000003 /* ReaderHighlightJavaScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderHighlightJavaScript.swift; sourceTree = "<group>"; };
 		ABCD35000000000000000004 /* BookmarksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarksView.swift; sourceTree = "<group>"; };
@@ -314,7 +313,6 @@
 		4C4CCC920C4381FB8A63F2AE /* NovelFireCommentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovelFireCommentsView.swift; sourceTree = "<group>"; };
 		4FEB9DFD69BA0045086A56C6 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		50F9C09B8F93F66D136B578B /* HistoryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryRow.swift; sourceTree = "<group>"; };
-		528A1466337E800799FED5D8 /* NovelDropDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovelDropDelegate.swift; sourceTree = "<group>"; };
 		529ECBBE4EC3C2A151959310 /* SortOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortOrder.swift; sourceTree = "<group>"; };
 		575BF20D543425010A281D1D /* TTSAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSAPIClient.swift; sourceTree = "<group>"; };
 		59C2348B0AD69E92A13FEE75 /* WebtoonStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebtoonStrip.swift; sourceTree = "<group>"; };
@@ -323,7 +321,6 @@
 		5ED6BA0F67B3BD27D533F6FB /* LibraryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryListView.swift; sourceTree = "<group>"; };
 		5FD4C74B21159391A3ADBF63 /* PageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageLoader.swift; sourceTree = "<group>"; };
 		60F9403D2E7706164EFA9DFB /* LibraryGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryGridView.swift; sourceTree = "<group>"; };
-		623EA90F63B7AF0B5426E96B /* DeleteBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteBadge.swift; sourceTree = "<group>"; };
 		6296321DDD74C291B504BEC0 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		635EBF2C4EBF46F848E6E070 /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		6370955C5BC3A2447F107BA1 /* MangaReaderControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MangaReaderControls.swift; sourceTree = "<group>"; };
@@ -338,7 +335,6 @@
 		788EA87FDCBD419221019BB2 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		7C9E9CDAAAE1E4CA9DAA3212 /* LNReaderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LNReaderApp.swift; sourceTree = "<group>"; };
 		7D3F1BA3EBA23C4DD838C9A2 /* HTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPClient.swift; sourceTree = "<group>"; };
-		7DB09D701D00140674D1ADF4 /* WiggleModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiggleModifier.swift; sourceTree = "<group>"; };
 		7EEF274A8894E93ADF933C84 /* EdgeSwipeDismiss.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeSwipeDismiss.swift; sourceTree = "<group>"; };
 		81B56C93284B01AADA092F99 /* Interceptors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Interceptors.swift; sourceTree = "<group>"; };
 		864A984E2C4C0237F815C05E /* EntryHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryHeaderView.swift; sourceTree = "<group>"; };
@@ -451,7 +447,6 @@
 				A9F0C0DE0000000000000011 /* VoiceGlow.swift */,
 				A9F0C0DE0000000000000012 /* VoiceGlow.metal */,
 				FCDA490AB7000042D1AA6DAF /* GlassOverlay.swift */,
-				7DB09D701D00140674D1ADF4 /* WiggleModifier.swift */,
 			);
 			path = ViewModifiers;
 			sourceTree = "<group>";
@@ -470,7 +465,6 @@
 			children = (
 				1F23349EABEA436D6793D9B6 /* BadgeView.swift */,
 				9B15C949254CA69833D943AC /* CustomAsyncImage.swift */,
-				623EA90F63B7AF0B5426E96B /* DeleteBadge.swift */,
 				F1B42540A8553644A4BA6829 /* EmptyStateView.swift */,
 				9430A68510C88D1F4FB65F58 /* ErrorDetailBox.swift */,
 				179854008F9437120FBDEDDB /* GlassCard.swift */,
@@ -541,6 +535,7 @@
 				411A922DF6EBC87D54E6D854 /* SchemaV1.swift */,
 				411A922DF6EBC87D54E62301 /* SchemaV2.swift */,
 				ABCD35000000000000000001 /* SchemaV3.swift */,
+				ABCD35020000000000000001 /* SchemaV4.swift */,
 				2F271CE6759A7893EA806D65 /* UpdateStrategy.swift */,
 			);
 			path = Schema;
@@ -805,7 +800,6 @@
 				3CA58C4DB13E5A295FDC841B /* LibraryOptionsSheet.swift */,
 				1B7EA7CD78D6EB26DF7E50ED /* LibraryToolbar.swift */,
 				EA29494108CD17219086F81C /* LibraryView.swift */,
-				528A1466337E800799FED5D8 /* NovelDropDelegate.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -987,6 +981,7 @@
 				ABCD35010000000000000005 /* ReaderEditMenu.swift in Sources */,
 				ABCD35010000000000000004 /* BookmarksView.swift in Sources */,
 				ABCD35010000000000000001 /* SchemaV3.swift in Sources */,
+				ABCD35030000000000000001 /* SchemaV4.swift in Sources */,
 				2484C593F6D40E679494C6CC /* BookAudioDownloadsView.swift in Sources */,
 				D98D203BBBEF09D9B8E99C39 /* TTSAudioAppDelegate.swift in Sources */,
 				76AB4E1FBB6ED32F82E3CDFB /* TTSChapterSource.swift in Sources */,
@@ -1015,7 +1010,6 @@
 				A0B014000000000000000004 /* LiquidGlassShader.metal in Sources */,
 				70AF3DCF891725ECA2575D6E /* CustomAsyncImage.swift in Sources */,
 				291B1C3AB4E3A7256BB48E6F /* Date+Extensions.swift in Sources */,
-				89540930F1A34DF599CEA02B /* DeleteBadge.swift in Sources */,
 				A4FBFDFEFA8DAB3E3F26B5AE /* DisplayMode.swift in Sources */,
 				BFFABD8B1BC6977119832E29 /* EmptyStateView.swift in Sources */,
 				DFBF0694C2631EE2B16421B4 /* ErrorDetailBox.swift in Sources */,
@@ -1057,7 +1051,6 @@
 				126F9AF4E3EB6F3756B32B06 /* EntryCoverView.swift in Sources */,
 				C8F88569499CAB7195C6398F /* RowCoverButton.swift in Sources */,
 				982859293982550BA36FA065 /* EntryDetailView.swift in Sources */,
-				E271F36B96D33AAE2F3411A4 /* NovelDropDelegate.swift in Sources */,
 				4166A7FC148CCAA3EBE3DB68 /* NovelFireCommentsService.swift in Sources */,
 				ED66F03304D686E37ED4776B /* NovelFireCommentsView.swift in Sources */,
 				B5A5AC4F4D44510F58EEA357 /* NovelFireLoginView.swift in Sources */,
@@ -1096,7 +1089,6 @@
 				844BC985C7BAC123C2DB2C06 /* UpdatesView.swift in Sources */,
 				9E3ED16AD43AC4A98B214B9C /* UserProfile.swift in Sources */,
 				EB7155DE60ABC4A9AF8D661A /* View+Extensions.swift in Sources */,
-				172170C0C9733A83E162D5EA /* WiggleModifier.swift in Sources */,
 				56341F97A069B5B9EAC2C373 /* MangaPageView.swift in Sources */,
 				F5748C2F70B0F83B25583038 /* MangaProgress.swift in Sources */,
 				8C1F779158B5AE64F3CC4DE1 /* MangaReaderView.swift in Sources */,
