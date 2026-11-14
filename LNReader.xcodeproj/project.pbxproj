@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A0B015000000000000000001 /* AccountAuroraBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B015000000000000000011 /* AccountAuroraBackground.swift */; };
+		A0B015000000000000000002 /* AccountAuroraShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = A0B015000000000000000012 /* AccountAuroraShader.metal */; };
 		A9F0C0DE0000000000000001 /* VoiceGlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F0C0DE0000000000000011 /* VoiceGlow.swift */; };
 		A9F0C0DE0000000000000002 /* VoiceGlow.metal in Sources */ = {isa = PBXBuildFile; fileRef = A9F0C0DE0000000000000012 /* VoiceGlow.metal */; };
 		A0B014000000000000000001 /* LiquidGlassOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B014000000000000000011 /* LiquidGlassOnboardingView.swift */; };
@@ -215,6 +217,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A0B015000000000000000011 /* AccountAuroraBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Auth/AccountAuroraBackground.swift; sourceTree = SOURCE_ROOT; };
+		A0B015000000000000000012 /* AccountAuroraShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Features/Auth/AccountAuroraShader.metal; sourceTree = SOURCE_ROOT; };
 		A9F0C0DE0000000000000011 /* VoiceGlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceGlow.swift; sourceTree = "<group>"; };
 		A9F0C0DE0000000000000012 /* VoiceGlow.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = VoiceGlow.metal; sourceTree = "<group>"; };
 		A0B014000000000000000011 /* LiquidGlassOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Onboarding/LiquidGlassOnboardingView.swift; sourceTree = SOURCE_ROOT; };
@@ -626,6 +630,8 @@
 				BA227D06471ABC5D87C79929 /* Assets.xcassets */,
 				3098E6B5EE638FB9BAC7732D /* ContentView.swift */,
 				A0B014000000000000000011 /* LiquidGlassOnboardingView.swift */,
+				A0B015000000000000000011 /* AccountAuroraBackground.swift */,
+				A0B015000000000000000012 /* AccountAuroraShader.metal */,
 				A0B014000000000000000012 /* OnboardingGeometry.swift */,
 				A0B014000000000000000013 /* OnboardingFountain.swift */,
 				A0B014000000000000000014 /* LiquidGlassShader.metal */,
@@ -995,6 +1001,8 @@
 				FD91FA952D879AFFD81F3ED3 /* Constants.swift in Sources */,
 				CB4E20E102161D7E220CEDDD /* ContentView.swift in Sources */,
 				A0B014000000000000000001 /* LiquidGlassOnboardingView.swift in Sources */,
+				A0B015000000000000000001 /* AccountAuroraBackground.swift in Sources */,
+				A0B015000000000000000002 /* AccountAuroraShader.metal in Sources */,
 				A0B014000000000000000002 /* OnboardingGeometry.swift in Sources */,
 				A0B014000000000000000003 /* OnboardingFountain.swift in Sources */,
 				A0B014000000000000000004 /* LiquidGlassShader.metal in Sources */,
