@@ -409,7 +409,7 @@ struct LibraryView: View {
 
         Task { @MainActor in
             let counts = await LibraryChapterCounts.shared.counts(
-                for: candidates, container: container)
+                for: candidates, container: container, fresh: true)
             isPickingRandom = false
 
             let unread = candidates.filter { (counts[$0]?.unread ?? 0) > 0 }

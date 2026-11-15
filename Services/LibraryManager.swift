@@ -713,7 +713,7 @@ final class LibraryChapterCounts {
 
     static let shared = LibraryChapterCounts()
 
-    struct Counts: Equatable, Sendable {
+    struct Counts: Equatable, Sendable, Codable {
         var total = 0
         var unread = 0
         /// Chapters whose download finished and is on disk. Filled only when
@@ -731,7 +731,7 @@ final class LibraryChapterCounts {
         var loaded: Extras = []
     }
 
-    struct Extras: OptionSet, Sendable {
+    struct Extras: OptionSet, Sendable, Codable {
         let rawValue: Int
         /// Chapters with a finished download. A badge or filter asks for it.
         static let downloads = Extras(rawValue: 1)
@@ -770,6 +770,105 @@ final class LibraryChapterCounts {
         NotificationCenter.default.addObserver(
             forName: ChapterVisibility.didChange, object: nil, queue: .main
         ) { [weak self] _ in MainActor.assumeIsolated { self?.invalidate() } }
+        seedFromDisk()
+    }
+
+    // MARK: - Persistence
+
+    /// The counts of the last session, so the first frame after launch can
+    /// sort by unread instead of waiting for the whole pass. A hint, not a
+    /// source of truth: every entry is re-counted and replaced.
+    private struct DiskEntry: Codable {
+        var id: PersistentIdentifier
+        var counts: Counts
+        var at: Date
+    }
+
+    private struct DiskFile: Codable {
+        var version: Int
+        var entries: [DiskEntry]
+    }
+
+    nonisolated private static let diskVersion = 1
+    private static var diskURL: URL {
+        ModelContainerFactory.storeURL
+            .deletingLastPathComponent()
+            .appending(path: "chapter-counts.json")
+    }
+
+    private var loadTask: Task<Void, Never>?
+    private var saveTask: Task<Void, Never>?
+    /// Counts read from disk, waiting to be matched to the live identifiers a
+    /// view asks for. Not stored in `cache` directly: a decoded identifier is
+    /// `==` to the live one but does not hash the same, so it cannot be a
+    /// dictionary key. Keyed by the identifier's encoded form instead, which
+    /// is a plain string and matches in O(1).
+    private var pendingSeed: [String: DiskEntry] = [:]
+
+    nonisolated private static func seedKey(_ id: PersistentIdentifier) -> String? {
+        guard let data = try? JSONEncoder().encode(id) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Read the previous session's counts off the main actor. `counts(for:)`
+    /// waits for this, so a cached answer is available in the same launch
+    /// rather than one pass later.
+    private func seedFromDisk() {
+        let url = Self.diskURL
+        // A global invalidation that lands while the file is read wins: its
+        // counts describe changes the file cannot know about.
+        let start = generation
+        loadTask = Task { [weak self] in
+            let seed: [String: DiskEntry]? = await Task.detached(priority: .utility) {
+                guard let data = try? Data(contentsOf: url),
+                      let file = try? JSONDecoder().decode(DiskFile.self, from: data),
+                      file.version == Self.diskVersion
+                else { return nil }
+                var out: [String: DiskEntry] = [:]
+                out.reserveCapacity(file.entries.count)
+                for entry in file.entries {
+                    if let key = Self.seedKey(entry.id) { out[key] = entry }
+                }
+                return out
+            }.value
+            // `invalidate()` clears `pendingSeed`, so a seed that arrives
+            // after one must not be installed.
+            guard let self, start == self.generation, let seed else { return }
+            self.pendingSeed = seed
+        }
+    }
+
+    /// Move last session's counts into `cache` under the live identifiers.
+    private func takeSeed(for ids: [PersistentIdentifier]) {
+        guard !pendingSeed.isEmpty else { return }
+        for id in ids {
+            guard let key = Self.seedKey(id),
+                  let entry = pendingSeed.removeValue(forKey: key) else { continue }
+            cache[id] = Cached(counts: entry.counts, at: entry.at)
+        }
+    }
+
+    /// Write the cache once the pass settles. Debounced: a burst of
+    /// invalidations would otherwise rewrite the file per entry. Losing the
+    /// file costs one count pass, never correctness.
+    private func scheduleSave() {
+        saveTask?.cancel()
+        saveTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            // A copy-on-write snapshot; the map and encode happen off main.
+            let snapshot = self.cache
+            let url = Self.diskURL
+            await Task.detached(priority: .utility) {
+                let file = DiskFile(
+                    version: Self.diskVersion,
+                    entries: snapshot.map {
+                        DiskEntry(id: $0.key, counts: $0.value.counts, at: $0.value.at)
+                    })
+                guard let data = try? JSONEncoder().encode(file) else { return }
+                try? data.write(to: url, options: .atomic)
+            }.value
+        }
     }
 
     /// Synchronous read for body code. `nil` means "not known yet".
@@ -786,6 +885,7 @@ final class LibraryChapterCounts {
         generation &+= 1
         cache.removeAll()
         wanted.removeAll()
+        pendingSeed.removeAll()
         revision &+= 1
     }
 
@@ -821,22 +921,49 @@ final class LibraryChapterCounts {
     /// Everything else joins the same pass, so a caller asking for the whole
     /// library and thirty cells asking for themselves cost one round of
     /// queries between them.
+    ///
+    /// A count from a previous session (or older than the TTL) is answered
+    /// immediately while the pass re-counts it, so a launch does not block on
+    /// the whole library. Only a count nothing has ever seen is awaited.
+    /// `fresh` opts a caller that acts on the answer out of the hint.
     func counts(
         for ids: [PersistentIdentifier],
         container: ModelContainer,
-        extras: Extras = []
+        extras: Extras = [],
+        fresh: Bool = false
     ) async -> [PersistentIdentifier: Counts] {
+        // A caller that opts out of the hint has no use for the seed.
+        if !fresh, let loadTask { await loadTask.value }
+        takeSeed(for: ids)
         var out: [PersistentIdentifier: Counts] = [:]
         out.reserveCapacity(ids.count)
         var needed: [PersistentIdentifier] = []
+        var answeredStale = false
 
         for id in ids {
             wanted[id, default: []].formUnion(extras)
             if let counts = cached(id), counts.loaded.isSuperset(of: extras) {
                 out[id] = counts
+            } else if !fresh, let counts = cache[id]?.counts, counts.loaded.isSuperset(of: extras) {
+                out[id] = counts
+                answeredStale = true
+                needed.append(id)
             } else {
                 needed.append(id)
             }
+        }
+
+        guard !needed.isEmpty else { return out }
+        if answeredStale {
+            // Displayable now; tell watchers to ask again once the pass lands.
+            pending.formUnion(needed)
+            startPassIfNeeded(container)
+            let running = pass
+            Task { @MainActor in
+                await running?.value
+                revision &+= 1
+            }
+            return out
         }
 
         // A pass that is already running picks up `pending` when it loops, so
@@ -874,9 +1001,12 @@ final class LibraryChapterCounts {
                 // be wrong, and storing it would pin the stale answer for the
                 // whole TTL. Drop it; the caller re-asks against a new pass.
                 guard start == generation else { continue }
+                var changed = false
                 for (id, counts) in results {
+                    if cache[id]?.counts != counts { changed = true }
                     cache[id] = Cached(counts: counts, at: .now)
                 }
+                if changed { scheduleSave() }
             }
             pass = nil
         }
