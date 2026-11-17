@@ -212,11 +212,12 @@ struct MigrationSourcesView: View {
                 .onMove { enabled.move(fromOffsets: $0, toOffset: $1) }
                 .onDelete { enabled.remove(atOffsets: $0) }
             } header: {
-                Text("Tried, in this order")
-            } footer: {
-                Text("Each entry takes the first source here with a strong title match. "
-                    + "The entry's own source is marked Current and is never searched. "
-                    + "This list is kept for the next migration of this kind.")
+                SettingsSectionHeader(
+                    title: "Tried, in this order",
+                    info: "Each entry takes the first source here with a strong title match. "
+                        + "The entry's own source is marked Current and is never searched. "
+                        + "This list is kept for the next migration of this kind."
+                )
             }
 
             if !off.isEmpty {
@@ -268,9 +269,10 @@ struct MigrationOptionsSection: View {
             Toggle("Categories", isOn: $options.carryCategories)
             Toggle("Tracking", isOn: $options.carryTracking)
         } header: {
-            Text("Carry over")
-        } footer: {
-            Text("The old entry leaves your library. Its chapters and history stay behind, so read state is not lost if you add it back.")
+            SettingsSectionHeader(
+                title: "Carry over",
+                info: "The old entry leaves your library. Its chapters and history stay behind, so read state is not lost if you add it back."
+            )
         }
     }
 }
@@ -284,9 +286,10 @@ struct MigrationCleanupSection: View {
         Section {
             Toggle("Delete its downloads", isOn: $options.deleteOldDownloads)
         } header: {
-            Text("Old entry")
-        } footer: {
-            Text("Off keeps the downloaded chapters on disk. On frees the space and cannot be undone.")
+            SettingsSectionHeader(
+                title: "Old entry",
+                info: "Off keeps the downloaded chapters on disk. On frees the space and cannot be undone."
+            )
         }
     }
 }

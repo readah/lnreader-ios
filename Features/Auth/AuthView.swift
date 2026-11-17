@@ -399,7 +399,7 @@ struct AuthView: View {
     private var serverSettingsSheet: some View {
         NavigationStack {
             Form {
-                DisclosureGroup("Server settings", isExpanded: $serverSettingsExpanded) {
+                DisclosureGroup(isExpanded: $serverSettingsExpanded) {
                     TextField("Server URL", text: $backendURL)
                         .accessibilityLabel("Server URL")
                         .keyboardType(.URL)
@@ -408,9 +408,6 @@ struct AuthView: View {
                         .focused($focused, equals: .server)
                         .submitLabel(.done)
                         .onSubmit { focused = nil }
-                    Text("Use the default server unless you host your own. Your credentials are sent to this server.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                     if let serverValidationError {
                        AppLabel(serverValidationError, systemName: "exclamationmark.circle", size: 13, relativeTo: .footnote)
                             .font(.footnote)
@@ -420,6 +417,11 @@ struct AuthView: View {
                        AppLabel("HTTP is not encrypted. Use HTTPS for a remote server.", systemName: "exclamationmark.shield", size: 13, relativeTo: .footnote)
                             .font(.footnote)
                             .foregroundStyle(AppTheme.warning)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Server settings")
+                        InfoButton(text: "Use the default server unless you host your own. Your credentials are sent to this server.")
                     }
                 }
             }

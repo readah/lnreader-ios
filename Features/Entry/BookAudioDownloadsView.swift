@@ -131,10 +131,6 @@ struct VoiceReferencePassageView: View {
     var body: some View {
         List {
             Section {
-                Text("Read at your usual pace, with natural pauses and a mostly neutral tone. Use gentle expression without acting out emotions.")
-                    .foregroundStyle(.secondary)
-            }
-            Section {
                 Text(Self.passage)
                     .lineSpacing(6)
                     .textSelection(.enabled)
@@ -147,9 +143,10 @@ struct VoiceReferencePassageView: View {
                         }
                 .accessibilityHint("Copies only the passage text")
             } header: {
-                Text("The Rainbow Passage")
-            } footer: {
-                Text("A public-domain passage for sampling English speech sounds, by Grant Fairbanks.")
+                SettingsSectionHeader(
+                    title: "The Rainbow Passage",
+                    info: "Read at your usual pace, with natural pauses and a mostly neutral tone. Use gentle expression without acting out emotions. A public-domain passage for sampling English speech sounds, by Grant Fairbanks."
+                )
             }
             Section {
                 Link(destination: URL(string: "https://www.dialectsarchive.com/the-rainbow-passage")!) { AppLabel("Read the original at IDEA", systemName: "arrow.up.right.square", size: 17, relativeTo: .body) }
@@ -1070,8 +1067,11 @@ private struct CustomVoiceCreationView: View {
                     if sample.file != nil && !sample.recording {
                         Button { sample.togglePlayback() } label: { AppLabel(sample.playing ? "Stop sample" : "Listen to sample", systemName: sample.playing ? "stop.fill" : "play.fill", size: 17, relativeTo: .body) }
                     }
-                } header: { Text("Voice sample") } footer: {
-                    Text("Record 3–60 seconds of clear speech without music or other speakers. Speak naturally with a mostly neutral tone. Longer recordings do not guarantee a better clone.")
+                } header: {
+                    SettingsSectionHeader(
+                        title: "Voice sample",
+                        info: "Record 3–60 seconds of clear speech without music or other speakers. Speak naturally with a mostly neutral tone. Longer recordings do not guarantee a better clone."
+                    )
                 }
                 Section {
                     NavigationLink { VoiceReferencePassageView() } label: { AppLabel("Read or copy the sample passage", systemName: "text.quote", size: 17, relativeTo: .body) }
@@ -1080,8 +1080,11 @@ private struct CustomVoiceCreationView: View {
                 }
                 Section {
                     TextEditor(text: $transcript).frame(minHeight: 100).accessibilityLabel("Recording transcript, optional")
-                } header: { Text("Transcript · optional") } footer: {
-                    Text("Enter exactly what was spoken. Leave blank to transcribe the sample automatically during preparation.")
+                } header: {
+                    SettingsSectionHeader(
+                        title: "Transcript · optional",
+                        info: "Enter exactly what was spoken. Leave blank to transcribe the sample automatically during preparation."
+                    )
                 }
                 if let message = error ?? sample.error { Section { Text(message).foregroundStyle(AppTheme.destructive).textSelection(.enabled) } }
                 Section {
@@ -1099,7 +1102,12 @@ private struct CustomVoiceCreationView: View {
                         HStack { if saving { ProgressView() }; Text(saving ? "Saving voice…" : "Add voice and prepare preview") }
                     }
                     .disabled(saving || sample.recording || sample.file == nil || sample.duration < 3 || sample.duration > 60 || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name.count > 60 || transcript.count > 6000)
-                } footer: { Text("Your sample stays on this phone. Chapter audio and the voice preview are prepared remotely, then downloaded for offline listening.") }
+                } header: {
+                    SettingsSectionHeader(
+                        title: "Preparation",
+                        info: "Your sample stays on this phone. Chapter audio and the voice preview are prepared remotely, then downloaded for offline listening."
+                    )
+                }
             }
             .disabled(saving)
             .navigationTitle("Your voice")

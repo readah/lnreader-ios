@@ -236,12 +236,12 @@ struct LibraryUpdateSettingsView: View {
                 Toggle("Download new chapters", isOn: $autoDownload)
                 Toggle("Notify about new chapters", isOn: $notify)
             } header: {
-                Text("Refresh")
+                SettingsSectionHeader(
+                    title: "Refresh",
+                    info: "iOS decides when this runs; Low Power Mode can delay it."
+                )
             } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("iOS decides when this runs; Low Power Mode can delay it.")
-                    if !schedulingError.isEmpty { Text(schedulingError) }
-                }
+                if !schedulingError.isEmpty { Text(schedulingError) }
             }
             Section {
                 NavigationLink {
@@ -296,8 +296,11 @@ private struct PerTitleUpdatesView: View {
                             try? context.save()
                         }
                     }
-                } footer: {
-                    Text("“Only once” fetches the chapter list once, for finished series. “Never” skips the title in every update, manual or automatic.")
+                } header: {
+                    SettingsSectionHeader(
+                        title: "Titles",
+                        info: "“Only once” fetches the chapter list once, for finished series. “Never” skips the title in every update, manual or automatic."
+                    )
                 }
             }
         }
@@ -816,7 +819,7 @@ struct LNReaderBackupPreviewSheet: View {
                     .padding(.vertical, 4)
                 }
 
-                Section("Contents") {
+                Section {
                     LabeledContent("Titles", value: "\(snapshot.entries.count)")
                     LabeledContent("Categories", value: "\(snapshot.categories.count)")
                     let totalChapters = snapshot.entries.reduce(0) { $0 + $1.chapters.count }
@@ -826,12 +829,11 @@ struct LNReaderBackupPreviewSheet: View {
                         LabeledContent("Imported book files", value: "\(snapshot.localFiles.count) (\(ByteCountFormatter.string(fromByteCount: Int64(totalBytes), countStyle: .file)))")
                     }
                     LabeledContent("Reading progress & settings", value: "Included")
-                }
-
-                Section {
-                    Text("Existing titles and reading progress will be merged non-destructively. Downloaded chapter files and newer reading history on this device will not be lost.")
-                        .font(Typography.caption)
-                        .foregroundStyle(.secondary)
+                } header: {
+                    SettingsSectionHeader(
+                        title: "Contents",
+                        info: "Existing titles and reading progress will be merged non-destructively. Downloaded chapter files and newer reading history on this device will not be lost."
+                    )
                 }
             }
             .navigationTitle("Restore backup")
@@ -890,7 +892,7 @@ struct MihonBackupPreviewSheet: View {
                     .padding(.vertical, 4)
                 }
 
-                Section("Contents") {
+                Section {
                     LabeledContent("Manga titles", value: "\(backup.manga.count)")
                     LabeledContent("Categories", value: "\(backup.categories.count)")
                     let totalChapters = backup.manga.reduce(0) { $0 + $1.chapters.count }
@@ -899,6 +901,11 @@ struct MihonBackupPreviewSheet: View {
                     if totalTracks > 0 {
                         LabeledContent("Tracking entries", value: "\(totalTracks)")
                     }
+                } header: {
+                    SettingsSectionHeader(
+                        title: "Contents",
+                        info: "Existing library titles and reading progress will be merged non-destructively."
+                    )
                 }
 
                 let preview = MihonBackup.preview(backup)
@@ -929,12 +936,6 @@ struct MihonBackupPreviewSheet: View {
                         }
                         .padding(.vertical, 2)
                     }
-                }
-
-                Section {
-                    Text("Existing library titles and reading progress will be merged non-destructively.")
-                        .font(Typography.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Import backup")
@@ -1194,11 +1195,12 @@ struct LibraryBackupView: View {
                 .buttonStyle(SettingsRowButtonStyle())
                 .disabled(isExportDisabled)
             } header: {
-                Text(encryptBackup ? "Encrypted backup" : "Backup (.lnbk)")
-            } footer: {
-                Text(encryptBackup
-                     ? "Keep the recovery key apart from the backup; restoring on another device needs it. Imported book files are large, so leaving them out means importing them again after a restore."
-                     : "The backup is saved without encryption and does not need a recovery key to restore. Imported book files are large, so leaving them out means importing them again after a restore.")
+                SettingsSectionHeader(
+                    title: encryptBackup ? "Encrypted backup" : "Backup (.lnbk)",
+                    info: encryptBackup
+                        ? "Keep the recovery key apart from the backup; restoring on another device needs it. Imported book files are large, so leaving them out means importing them again after a restore."
+                        : "The backup is saved without encryption and does not need a recovery key to restore. Imported book files are large, so leaving them out means importing them again after a restore."
+                )
             }
 
             Section {
@@ -1275,9 +1277,10 @@ struct LibraryBackupView: View {
                 .buttonStyle(SettingsRowButtonStyle())
                 .disabled(backupManager.isRunning || readingFile)
             } header: {
-                Text("Restore and merge")
-            } footer: {
-                Text("Leave blank to use this device’s key. Unencrypted backups do not require a key.")
+                SettingsSectionHeader(
+                    title: "Restore and merge",
+                    info: "Leave blank to use this device’s key. Unencrypted backups do not require a key."
+                )
             }
 
             Section {
@@ -1316,9 +1319,10 @@ struct LibraryBackupView: View {
                 .buttonStyle(SettingsRowButtonStyle())
                 .disabled(backupManager.isRunning || readingFile)
             } header: {
-                Text("Mihon / Tachiyomi (.tachibk)")
-            } footer: {
-                Text("Export or import backups compatible with Mihon, Tachiyomi, Yokai or Tachimanga.")
+                SettingsSectionHeader(
+                    title: "Mihon / Tachiyomi (.tachibk)",
+                    info: "Export or import backups compatible with Mihon, Tachiyomi, Yokai or Tachimanga."
+                )
             }
         }
         .settingsScreen("Backup & restore")

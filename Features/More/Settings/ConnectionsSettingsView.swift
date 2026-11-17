@@ -88,9 +88,10 @@ struct ConnectionsSettingsView: View {
                 commentRow(site)
             }
         } header: {
-            Text("Comments")
-        } footer: {
-            Text("Only needed to post and vote on comments.")
+            SettingsSectionHeader(
+                title: "Comments",
+                info: "Only needed to post and vote on comments."
+            )
         }
     }
 

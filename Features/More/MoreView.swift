@@ -212,13 +212,12 @@ struct MoreView: View {
                 }
             }
         } header: {
-            Text("Cloud sync")
-        } footer: {
-            if syncManager.currentUser != nil {
-                Text("Cloud sync includes your profile, sources, and non-local library entries. Restore replaces matching titles with the cloud copy. Local reading remains available when you sign out.")
-            } else {
-                Text("Your library and reading progress stay on this device. Sign in only if you want cloud sync; no account is needed to read.")
-            }
+            SettingsSectionHeader(
+                title: "Cloud sync",
+                info: syncManager.currentUser != nil
+                    ? "Cloud sync includes your profile, sources, and non-local library entries. Restore replaces matching titles with the cloud copy. Local reading remains available when you sign out."
+                    : "Your library and reading progress stay on this device. Sign in only if you want cloud sync; no account is needed to read."
+            )
         }
     }
 

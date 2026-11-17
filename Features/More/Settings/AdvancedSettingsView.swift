@@ -33,9 +33,10 @@ struct AdvancedSettingsView: View {
                     Text("Downloads, reading progress and history for books you have not added to the library will be deleted. This can't be undone.")
                 }
             } header: {
-                Text("Storage")
-            } footer: {
-                Text("Removes downloads, progress, history and saved data for books that are not in your library.")
+                SettingsSectionHeader(
+                    title: "Storage",
+                    info: "Removes downloads, progress, history and saved data for books that are not in your library."
+                )
             }
             Section("Maintenance") {
                 Button("Reset reader settings", role: .destructive) {

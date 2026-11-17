@@ -41,9 +41,10 @@ struct GeneralSettingsView: View {
                     }
                 }
             } header: {
-                Text("Defaults")
-            } footer: {
-                Text("Defaults for every category. A single category can override its sort, filters and layout from Library options.")
+                SettingsSectionHeader(
+                    title: "Defaults",
+                    info: "Defaults for every category. A single category can override its sort, filters and layout from Library options."
+                )
             }
 
             Section {

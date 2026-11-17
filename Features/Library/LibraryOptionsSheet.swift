@@ -120,11 +120,12 @@ struct LibraryOptionsSheet: View {
                 filterRow("Completed", noun: "completed", systemImage: "checkmark.seal", state: $filter.completed)
                 filterRow("Tracked", noun: "tracked", systemImage: "chart.bar", state: $filter.tracked)
             } header: {
-                Text(filter.isActive
-                     ? "\(filter.activeCount) \(filter.activeCount == 1 ? "filter" : "filters") active"
-                     : "Showing everything")
-            } footer: {
-                Text("Only keeps books that match, Hide removes them. Filters apply to \(scopeDescription).")
+                HStack(spacing: 6) {
+                    Text(filter.isActive
+                         ? "\(filter.activeCount) \(filter.activeCount == 1 ? "filter" : "filters") active"
+                         : "Showing everything")
+                    InfoButton(text: "Only keeps books that match, Hide removes them. Filters apply to \(scopeDescription).")
+                }
             }
         }
     }
@@ -151,9 +152,10 @@ struct LibraryOptionsSheet: View {
                     sortRow(order)
                 }
             } header: {
-                Text("Sort by")
-            } footer: {
-                Text("Kept for \(scopeDescription). Categories without their own sort follow Settings › General.")
+                SettingsSectionHeader(
+                    title: "Sort by",
+                    info: "Kept for \(scopeDescription). Categories without their own sort follow Settings › General."
+                )
             }
 
             if sort.order != .custom {
@@ -172,17 +174,23 @@ struct LibraryOptionsSheet: View {
             if sort.order.supportsEmptyLast {
                 Section {
                     Toggle("Empty ones last", isOn: $sort.emptyLast)
-                } footer: {
-                    Text("Books with a zero or missing value go to the end whichever way it sorts.")
+                } header: {
+                    SettingsSectionHeader(
+                        title: "Empty values",
+                        info: "Books with a zero or missing value go to the end whichever way it sorts."
+                    )
                 }
             }
 
             Section {
                 Button("Arrange books", systemImage: "arrow.up.arrow.down", action: onArrange)
-            } footer: {
-                Text(sort.order == .custom
-                     ? "Drag books into the order you want. Custom keeps that order."
-                     : "Arranging gives \(scopeDescription) a manual order you can drag books into.")
+            } header: {
+                SettingsSectionHeader(
+                    title: "Manual order",
+                    info: sort.order == .custom
+                        ? "Drag books into the order you want. Custom keeps that order."
+                        : "Arranging gives \(scopeDescription) a manual order you can drag books into."
+                )
             }
         }
     }
@@ -247,9 +255,7 @@ struct DisplayOptionsList: View {
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
             } header: {
-                Text("Layout")
-            } footer: {
-                Text(scopeFooter)
+                SettingsSectionHeader(title: "Layout", info: scopeFooter)
             }
 
             if displayMode != .list {
@@ -260,17 +266,21 @@ struct DisplayOptionsList: View {
                     }
                     .pickerStyle(.menu)
                 } header: {
-                    Text("Grid")
-                } footer: {
-                    Text("Shared by every category and by Browse. Auto fits as many covers as the screen allows.")
+                    SettingsSectionHeader(
+                        title: "Grid",
+                        info: "Shared by every category and by Browse. Auto fits as many covers as the screen allows."
+                    )
                 }
             }
 
             if scopeName != nil {
                 Section {
                     LabeledContent("Layout", value: hasOverride ? "Custom for this view" : "Using the default")
-                } footer: {
-                    Text("Picking a layout gives this view its own. Reset layout returns it to the default (\(defaultDisplayMode.displayName)) from Settings › General.")
+                } header: {
+                    SettingsSectionHeader(
+                        title: "This view",
+                        info: "Picking a layout gives this view its own. Reset layout returns it to the default (\(defaultDisplayMode.displayName)) from Settings › General."
+                    )
                 }
             }
         }

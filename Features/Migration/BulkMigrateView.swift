@@ -290,8 +290,11 @@ struct MigrateSourceSheet: View {
                         }
                         .contentShape(Rectangle())
                     }
-                } footer: {
-                    Text("Each entry takes the first source here with a strong title match.")
+                } header: {
+                    SettingsSectionHeader(
+                        title: "Destinations",
+                        info: "Each entry takes the first source here with a strong title match."
+                    )
                 }
 
                 MigrationOptionsSection(options: $options)

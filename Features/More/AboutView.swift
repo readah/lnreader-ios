@@ -33,9 +33,10 @@ struct AboutView: View {
                     destination: URL(string: "https://github.com/keiyoushi/extensions-source")!
                 )
             } header: {
-                Text("Credits")
-            } footer: {
-                Text("Sources are native Swift ports of the upstream projects above; manga sources keep Mihon's source ids. Narration uses Breeze TTS 2.")
+                SettingsSectionHeader(
+                    title: "Credits",
+                    info: "Sources are native Swift ports of the upstream projects above; manga sources keep Mihon's source ids. Narration uses Breeze TTS 2."
+                )
             }
         }
         .settingsScreen("About")

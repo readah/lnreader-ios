@@ -88,9 +88,10 @@ struct CategoriesSettingsView: View {
                 .onMove(perform: move)
             }
         } header: {
-            Text("Categories")
-        } footer: {
-            Text("Categories are shared by novels and manga. Tap one to name it, choose its titles or change its update scope, drag in Edit to reorder, and swipe left to delete it. Deleting a category keeps its titles in the library.")
+            SettingsSectionHeader(
+                title: "Categories",
+                info: "Categories are shared by novels and manga. Tap one to name it, choose its titles or change its update scope, drag in Edit to reorder, and swipe left to delete it. Deleting a category keeps its titles in the library."
+            )
         }
     }
 
@@ -341,9 +342,10 @@ private struct CategoryEditorSheet: View {
                 Section {
                     Toggle("Exclude from library updates", isOn: $excluded)
                 } header: {
-                    Text("Updates")
-                } footer: {
-                    Text("Excluded categories are skipped by library-wide and automatic updates. You can still refresh one from the library screen.")
+                    SettingsSectionHeader(
+                        title: "Updates",
+                        info: "Excluded categories are skipped by library-wide and automatic updates. You can still refresh one from the library screen."
+                    )
                 }
 
                 if let category {
@@ -353,8 +355,11 @@ private struct CategoryEditorSheet: View {
                         } label: {
                             LabeledContent("Titles", value: "\(titleCount)")
                         }
-                    } footer: {
-                        Text("Choose which novels and manga belong to this category. A title can be in several categories, and stays in your library if this one is deleted.")
+                    } header: {
+                        SettingsSectionHeader(
+                            title: "Membership",
+                            info: "Choose which novels and manga belong to this category. A title can be in several categories, and stays in your library if this one is deleted."
+                        )
                     }
                 }
             }
@@ -436,8 +441,11 @@ private struct CategoryTitlesPickerView: View {
                         .buttonStyle(.plain)
                     }
                 }
-            } footer: {
-                Text("\(memberIDs.count) of \(entries.count) titles in \(category.name). A title can belong to more than one category.")
+            } header: {
+                SettingsSectionHeader(
+                    title: "\(memberIDs.count) of \(entries.count) titles in \(category.name)",
+                    info: "A title can belong to more than one category."
+                )
             }
         }
         .navigationTitle("Titles")

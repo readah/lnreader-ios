@@ -80,10 +80,11 @@ struct TrackerSheet: View {
                     Button { draft = result } label: { resultRow(result) }
                         .buttonStyle(.plain)
                 }
-            } footer: {
-                if results.isEmpty && !isBusy {
-                    Text("Search for the title, then pick the matching entry.")
-                }
+            } header: {
+                SettingsSectionHeader(
+                    title: "Results",
+                    info: "Search for the title, then pick the matching entry."
+                )
             }
         }
         .task { runSearch() }
@@ -124,8 +125,11 @@ struct TrackerSheet: View {
             Section { resultRow(result) }
             Section {
                 Toggle("Private", isOn: $draftPrivate)
-            } footer: {
-                Text("Private entries stay off your AniList profile and activity feed. Tap Done to start tracking.")
+            } header: {
+                SettingsSectionHeader(
+                    title: "Options",
+                    info: "Private entries stay off your AniList profile and activity feed. Tap Done to start tracking."
+                )
             }
         }
     }

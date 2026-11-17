@@ -40,10 +40,13 @@ struct ScanlatorSettingsView: View {
             List {
                 Section {
                     Toggle("Priority scanlator", isOn: priorityBinding)
-                } footer: {
-                    Text(isPriorityOn
-                        ? "Chapters with the same number are merged, keeping the scanlator highest in this list. Drag to reorder."
-                        : "Merge duplicate chapters by scanlator, and choose which scanlator wins. Hiding works either way.")
+                } header: {
+                    SettingsSectionHeader(
+                        title: "Priority",
+                        info: isPriorityOn
+                            ? "Chapters with the same number are merged, keeping the scanlator highest in this list. Drag to reorder."
+                            : "Merge duplicate chapters by scanlator, and choose which scanlator wins. Hiding works either way."
+                    )
                 }
 
                 Section {
@@ -62,10 +65,6 @@ struct ScanlatorSettingsView: View {
                     }
                 } header: {
                     sectionHeader
-                } footer: {
-                    Text(isPriorityOn
-                        ? "Top of the list wins. Uncheck one to hide it."
-                        : "Uncheck one to hide its chapters.")
                 }
                 .id(layoutRevision)
             }
@@ -102,7 +101,12 @@ struct ScanlatorSettingsView: View {
     /// all once they are all showing.
     private var sectionHeader: some View {
         HStack {
-            Text("Scanlators")
+            HStack(spacing: 6) {
+                Text("Scanlators")
+                InfoButton(text: isPriorityOn
+                    ? "Top of the list wins. Uncheck one to hide it."
+                    : "Uncheck one to hide its chapters.")
+            }
             Spacer()
             if rows.count > 1 {
                 Button(allVisible ? "Hide all" : "Show all") {
