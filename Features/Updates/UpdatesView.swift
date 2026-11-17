@@ -50,12 +50,15 @@ struct UpdatesView: View {
         AppNavigationStack(path: $path) {
             Group {
                 if recentChapters.isEmpty {
-                    EmptyStateView(
-                        icon: "bell.badge",
-                        title: "No Updates",
-                        subtitle: "New chapters from your library will appear here."
-                    )
-                    .refreshable {
+                    ScrollView {
+                        EmptyStateView(
+                            icon: "bell.badge",
+                            title: "No Updates",
+                            subtitle: "New chapters from your library will appear here."
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 300)
+                    }
+                    .appRefreshable("Refresh updates", enabled: !libraryManager.isUpdating) {
                         // The update banner shows progress; the pull indicator
                         // has no job beyond starting the run. Sleeping here
                         // pinned it for 1.5 s while the update wrote to the
@@ -91,7 +94,7 @@ struct UpdatesView: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
-                    .refreshable {
+                    .appRefreshable("Refresh updates", enabled: !libraryManager.isUpdating) {
                         // The update banner shows progress; the pull indicator
                         // has no job beyond starting the run. Sleeping here
                         // pinned it for 1.5 s while the update wrote to the

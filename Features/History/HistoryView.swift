@@ -7,6 +7,7 @@ import SwiftUI
 struct HistoryView: View {
     @Environment(ReaderRouter.self) private var readerRouter
     @Environment(IncognitoMode.self) private var incognito
+    @Environment(LibraryManager.self) private var libraryManager
     @Namespace private var chapterTransitions
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \History.lastRead, order: .reverse)
@@ -32,13 +33,19 @@ struct HistoryView: View {
         AppNavigationStack(path: $path) {
             Group {
                 if filteredHistory.isEmpty, !searchText.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
+                    ScrollView {
+                        ContentUnavailableView.search(text: searchText)
+                            .frame(maxWidth: .infinity, minHeight: 300)
+                    }
                 } else if filteredHistory.isEmpty {
-                    EmptyStateView(
-                        icon: "clock",
-                        title: "No Reading History",
-                        subtitle: "Chapters you read will appear here."
-                    )
+                    ScrollView {
+                        EmptyStateView(
+                            icon: "clock",
+                            title: "No Reading History",
+                            subtitle: "Chapters you read will appear here."
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 300)
+                    }
                 } else {
                     List {
                         ForEach(groupedHistory, id: \.key) { date, runs in
@@ -53,6 +60,11 @@ struct HistoryView: View {
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
                 }
+            }
+            .appRefreshable("Refresh history") {
+                libraryManager.flushProgress(context: modelContext)
+                held.items = nil
+                modelContext.processPendingChanges()
             }
             .appNavigationDestination(for: Entry.self) { entry in
                 // A migrated entry takes the place of the one that left the library.

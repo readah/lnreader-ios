@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct NovelFireCommentsView: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
+    @Environment(\.noLiquidGlass) private var classic
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let postId: String
     let chapterId: String
@@ -64,7 +65,7 @@ struct NovelFireCommentsView: View {
                 ForEach(visibleComments) { comment in
                     NativeCommentThread(comment: comment, activeVotes: activeVotes, hideSpoilers: hideSpoilers, onVote: vote)
                         .listRowSeparator(.hidden)
-                        .listRowBackground(Color(hex: backgroundColorHex) ?? Color(.secondarySystemGroupedBackground))
+                        .listRowBackground(classic ? AppTheme.surface : (Color(hex: backgroundColorHex) ?? Color(.secondarySystemGroupedBackground)))
                 }
                 if hasMoreComments {
                     Button { Task { await loadMore() } } label: {
@@ -80,13 +81,12 @@ struct NovelFireCommentsView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .scrollContentBackground(backgroundColorHex.isEmpty ? .visible : .hidden)
-            .background(Color(hex: backgroundColorHex) ?? Color(.systemGroupedBackground))
-            .foregroundStyle(Color(hex: textColorHex) ?? .primary)
+            .scrollContentBackground(classic || !backgroundColorHex.isEmpty ? .hidden : .visible)
+            .background(classic ? Color.clear : (Color(hex: backgroundColorHex) ?? Color(.systemGroupedBackground)))
+            .foregroundStyle(classic ? Color.primary : (Color(hex: textColorHex) ?? .primary))
             .appNavigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
             .appToolbar {
-                AppToolbarItem(placement: .cancellationAction) { Button("Done", role: .close) { dismiss() } }
                 AppToolbarItem(placement: .primaryAction) {
                     AppMenu {
                         Toggle("Hide spoilers", isOn: $hideSpoilers)
@@ -97,10 +97,11 @@ struct NovelFireCommentsView: View {
                         AppLabel("Comment filters and account", systemName: hideSpoilers || onlyReplies ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease", size: 17, relativeTo: .body)
                     }
                 }
+                AppToolbarItem(placement: .confirmationAction) { Button("Done", role: .close) { dismiss() } }
             }
             .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: hideSpoilers)
             .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: onlyReplies)
-            .refreshable { await loadFirstPage() }
+            .appRefreshable { await loadFirstPage() }
             .task {
                 resolvedPostId = postId; resolvedChapterId = chapterId; resolvedCSRF = csrfToken
                 if !initialHTML.isEmpty {
@@ -228,7 +229,7 @@ private struct NativeCommentThread: View {
                 } label: {
                     AppLabel(expanded ? "Hide replies" : "\(replies.count) replies", systemName: expanded ? "chevron.up" : "bubble.left.and.bubble.right", size: 15, relativeTo: .subheadline)
                         .font(.subheadline.weight(.medium))
-                }.buttonStyle(.borderless)
+                }.buttonStyle(AppBorderlessButtonStyle())
                 if expanded {
                     ForEach(replies) { reply in
                         cell(reply.comment)
@@ -254,7 +255,7 @@ private struct NativeCommentThread: View {
             if item.isSpoiler && !revealed.contains(item.id) {
                 Button("Show spoiler", systemImage: "eye.slash") {
                     withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) { _ = revealed.insert(item.id) }
-                }.buttonStyle(.borderless)
+                }.buttonStyle(AppBorderlessButtonStyle())
             } else {
                 Text(item.text).font(.body).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             }
@@ -265,7 +266,7 @@ private struct NativeCommentThread: View {
                     .accessibilityLabel("Dislike comment by \(item.author), \(item.dislikes) dislikes")
                 if activeVotes.contains(item.id) { ProgressView().controlSize(.mini) }
             }
-            .font(.caption).foregroundStyle(.secondary).buttonStyle(.borderless)
+            .font(.caption).foregroundStyle(.secondary).buttonStyle(AppBorderlessButtonStyle())
             .disabled(activeVotes.contains(item.id))
         }
     }

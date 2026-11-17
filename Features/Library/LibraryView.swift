@@ -69,6 +69,10 @@ struct LibraryView: View {
     @State private var showNoUnreadManga = false
     /// Don't hand out the same manga twice in a row when there is a choice.
     @State private var lastRandomEntryID: PersistentIdentifier?
+    /// The bottom of the pinned kind picker (or of the bar above the content
+    /// when it is hidden), in global coordinates. Cells blur progressively as
+    /// they scroll up under it, the way the Minimal library's rows do.
+    @State private var headerBottom: CGFloat = 0
 
     var body: some View {
         AppNavigationStack(path: $navigationPath) {
@@ -290,7 +294,7 @@ struct LibraryView: View {
                 .accessibilityHint("Expands a search field to filter your library.")
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .foregroundStyle(.primary)
         .padding(.vertical, 4)
         .frame(maxWidth: isSearchExpanded ? .infinity : nil)
@@ -317,6 +321,20 @@ struct LibraryView: View {
     /// page rebuilt the scroll view under the navigation bar and lagged.
     private var libraryPager: some View {
         libraryPage(showsKindPicker ? (LibraryKindFilter(rawValue: kindFilterRaw) ?? .all) : .all)
+            // The band every cell measures itself against while it scrolls.
+            .environment(\.progressiveBlurBand, headerBottom)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                // A ZStack, not a bare `if`: the probe below needs a view that
+                // lays out even when the picker is hidden, or the band would
+                // go stale at its last measured value.
+                ZStack {
+                    if showsKindPicker { kindPicker }
+                }
+                .frame(maxWidth: .infinity)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.frame(in: .global).maxY
+                } action: { headerBottom = $0 }
+            }
             .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: kindFilterRaw)
             .simultaneousGesture(kindSwipe)
     }
@@ -363,14 +381,11 @@ struct LibraryView: View {
         .padding(.bottom, 8)
     }
 
-    /// The scrollable content for one kind: category chips, then the grid.
+    /// Category chips and the grid scroll beneath the pinned kind selector.
     private func libraryPage(_ kind: LibraryKindFilter) -> some View {
         let items = pageItems(for: kind)
 
         return ScrollView {
-            // First thing in the scroll view, so it scrolls away with the content
-            // instead of pinning over the search field.
-            if showsKindPicker { kindPicker }
 
             if !categories.isEmpty {
                 CategoryTabView(
@@ -381,6 +396,7 @@ struct LibraryView: View {
                     onToggleUpdates: toggleUpdates
                 )
                 .padding(.horizontal)
+                .progressiveTopBlur()
             }
 
             if items.isEmpty, activeSort.needsChapterCounts, !hasLoadedCounts {
@@ -394,14 +410,8 @@ struct LibraryView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .immediateScrollTouches()
-        .refreshable {
-            // Pulling down inside a category refreshes just that category. The
-            // update has its own progress banner pinned at the bottom of the
-            // screen, so the pull indicator has no job beyond starting the run.
-            // Waiting (or sleeping) kept the control pinned while the update
-            // saved to the store, which left the scroll view sitting in its
-            // pulled position. `updateLibrary` runs in its own task, so it
-            // survives the refresh action being cancelled on re-render.
+        .appRefreshable("Refresh library", enabled: !libraryManager.isUpdating) {
+            // The update outlives the pull; its existing banner owns progress.
             let context = modelContext, sources = sourceManager, category = selectedCategory?.name
             Task {
                 await libraryManager.updateLibrary(context: context, sourceManager: sources, category: category)

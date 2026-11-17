@@ -38,7 +38,7 @@ compile_and_run_plain() {
 
 # The checks that take no arguments, in dependency order: the cheap layers
 # first, so a break in the foundation shows up before the expensive ones run.
-PLAIN_CHECKS="foundation links schema chapter-sync chapter-order page-pipeline scanlators \
+PLAIN_CHECKS="foundation navigation links schema chapter-sync chapter-order page-pipeline scanlators \
 reader-settings manga-zoom haptics filters sorts categories badges offline mihon-backup tts-contracts \
 sync migration cover-art"
 
@@ -50,7 +50,7 @@ No argument        list the checks
 all                run every check that takes no arguments
 <check>            run one check
 
-Checks: foundation links schema chapter-sync chapter-order page-pipeline scanlators
+Checks: foundation navigation links schema chapter-sync chapter-order page-pipeline scanlators
         reader-settings manga-zoom haptics filters sorts categories badges offline mihon-backup
         tts-contracts sync migration cover-art native-comments player
 
@@ -65,6 +65,9 @@ USAGE
 
 run() {
   case "$1" in
+    navigation)
+      compile_and_run_plain navigation Models/ReadingNavigation.swift tests/NavigationContractChecks.swift
+      ;;
     foundation)
       compile_and_run_plain foundation \
         Models/Schema/ContentKind.swift \
