@@ -9,7 +9,6 @@ struct MoreView: View {
     @Environment(SourceManager.self) private var sourceManager
     @Environment(SyncManager.self) private var syncManager
     @Environment(\.modelContext) private var modelContext
-    @Query(filter: #Predicate<Entry> { $0.inLibrary }) private var libraryNovels: [Entry]
     @Query private var profiles: [UserProfile]
 
     @State private var showingEditProfile = false
@@ -53,12 +52,6 @@ struct MoreView: View {
             }
             .onAppear {
                 ensureProfileExists()
-            }
-            // Signing in or out changes who owns the server copy, so the local
-            // store has to catch up with it before the next push overwrites it.
-            .onChange(of: syncManager.currentUser?.id) { _, id in
-                guard id != nil else { return }
-                Task { await syncManager.pull(into: modelContext, quiet: true) }
             }
         }
     }
@@ -159,14 +152,13 @@ struct MoreView: View {
                     Task {
                         await syncManager.push(
                             profile: userProfile,
-                            entries: libraryNovels,
-                            sources: sourceManager.novelSources,
+                            sources: sourceManager.allSources,
                             context: modelContext
                         )
                     }
                 } label: {
                     HStack {
-                        AppLabel("Sync library now", systemName: "arrow.triangle.2.circlepath", size: 17, relativeTo: .body)
+                        AppLabel("Sync up", systemName: "arrow.up.circle", size: 17, relativeTo: .body)
                         if syncManager.isWorking {
                             Spacer()
                             ProgressView()
@@ -178,7 +170,7 @@ struct MoreView: View {
                 Button {
                     showingRestore = true
                 } label: {
-                    AppLabel("Restore from cloud", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
+                    AppLabel("Sync download", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
                 }
                 .disabled(syncManager.isWorking)
                 .confirmationDialog(
@@ -186,7 +178,7 @@ struct MoreView: View {
                     isPresented: $showingRestore,
                     titleVisibility: .visible
                 ) {
-                    Button("Restore from cloud", action: download)
+                    Button("Sync download", action: download)
                     Button("Cancel", role: .cancel) {}
                 } message: {
                     Text("The cloud copy wins wherever the two disagree. Reading progress made on this device since the last sync is replaced.")
@@ -215,7 +207,7 @@ struct MoreView: View {
             SettingsSectionHeader(
                 title: "Cloud sync",
                 info: syncManager.currentUser != nil
-                    ? "Cloud sync includes your profile, sources, and non-local library entries. Restore replaces matching titles with the cloud copy. Local reading remains available when you sign out."
+                    ? "Sync is manual. Sync up replaces the cloud copy with this device’s library, imported books, bookmarks and reading positions. Sync download brings them back and replaces matching local reading state."
                     : "Your library and reading progress stay on this device. Sign in only if you want cloud sync; no account is needed to read."
             )
         }
