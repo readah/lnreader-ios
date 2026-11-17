@@ -87,8 +87,8 @@ struct StatisticsView: View {
                 // Summary Overview Grid (systemGray6 cards, flat pastel icons)
                 LazyVGrid(columns: columns, spacing: 16) {
                     summaryCard(title: "Library", value: "\(stats.libraryCount)", icon: "books.vertical.fill", color: Pastel.blue)
-                    summaryCard(title: "Total Chapters", value: "\(stats.totalChapters)", icon: "list.number", color: Pastel.purple)
-                    summaryCard(title: "Downloaded", value: "\(downloadedCount)", icon: "arrow.down.circle.fill", color: Pastel.green)
+                    summaryCard(title: "Chapters Read", value: "\(readChaptersCount)", icon: "checkmark.circle.fill", color: Pastel.green)
+                    summaryCard(title: "Downloaded", value: "\(downloadedCount)", icon: "arrow.down.circle.fill", color: Pastel.teal)
                     summaryCard(title: "Last Read", value: lastReadText, icon: "clock.arrow.circlepath", color: Pastel.orange)
                 }
 
