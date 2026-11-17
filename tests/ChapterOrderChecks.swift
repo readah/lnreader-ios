@@ -11,6 +11,7 @@ struct ChapterOrderChecks {
 
     static func main() {
         checkStoredOrder()
+        checkResumeOrder()
         checkDisplayOrder()
         checkNormalizesAnOldestFirstList()
         checkNormalizesANewestFirstList()
@@ -58,6 +59,25 @@ struct ChapterOrderChecks {
             ChapterOrder.newestFirst(twins).map(\.url) == ["a", "b"],
             "the tie-break does not flip with the direction"
         )
+    }
+
+    private static func checkResumeOrder() {
+        let rows = chapters([0, 1, 2, 3])
+        func resume(_ path: String? = nil) -> String? {
+            ChapterOrder.resume(oldestFirst: rows, lastOpenedPath: path, isUnread: { !$0.read })?.url
+        }
+        precondition(resume() == "ch/0", "A new book starts at its oldest chapter")
+        precondition(resume("ch/2") == "ch/2", "Resume the last-opened unfinished chapter")
+        rows[0].read = true
+        rows[2].read = true
+        precondition(resume("ch/2") == "ch/3", "Advance after the latest read chapter")
+        precondition(resume("ch/1") == "ch/1", "An unfinished last-opened chapter wins over later reads")
+        rows[3].read = true
+        precondition(resume() == "ch/1", "Fall back to an earlier unread gap")
+        rows[1].read = true
+        precondition(resume() == "ch/3", "A finished book reopens its newest chapter")
+        precondition(resume("hidden-or-removed") == "ch/3", "Ignore a last-opened chapter outside the visible set")
+        precondition(ChapterOrder.resume(oldestFirst: [Chapter](), lastOpenedPath: nil, isUnread: { !$0.read }) == nil)
     }
 
     private static func checkDisplayOrder() {
