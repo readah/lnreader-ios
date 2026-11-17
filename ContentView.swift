@@ -8,6 +8,8 @@ import SwiftUI
 /// Tab bar automatically adopts Liquid Glass when compiled with Xcode 26.
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.springUnblurMotion) private var springUnblurMotion
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(SyncManager.self) private var syncManager
     @Environment(SourceManager.self) private var sourceManager
@@ -26,14 +28,16 @@ struct ContentView: View {
     var body: some View {
         // Minimal Mode is the library alone: no tab bar, no other sections. The
         // `…` menu on that screen is the way back to the full app.
-        Group {
+        ZStack {
             if minimalMode {
                 MinimalLibraryView(openedEntry: $openedEntry)
-                    .appReveal()
+                    .transition(modeTransition)
             } else {
                 tabRoot
+                    .transition(modeTransition)
             }
         }
+        .animation(springUnblurMotion ? AppMotion.reveal(reduceMotion: reduceMotion) : AppMotion.tabSwitch(reduceMotion: reduceMotion), value: minimalMode)
         .id(ObjectIdentifier(modelContext))
         .overlay(alignment: .top) {
             SyncProgressToast()
@@ -77,7 +81,6 @@ struct ContentView: View {
                 highlightParagraph: request.paragraphIndex
             )
             .environment(readerRouter)
-            .appReveal()
         }
         .onChange(of: ObjectIdentifier(modelContext)) { _, _ in
             readerRouter.close()
@@ -101,6 +104,11 @@ struct ContentView: View {
             }
         }
         .environment(\.noLiquidGlass, noLiquidGlass)
+        .modifier(AppRootButtonStyle())
+    }
+
+    private var modeTransition: AnyTransition {
+        springUnblurMotion && !reduceMotion ? .appSpringUnblur : .opacity
     }
 
     /// The full app: five tabs on Liquid Glass. The tab-only chrome lives here
@@ -237,11 +245,17 @@ private struct UpdateBannerHost: ViewModifier {
                         LibraryUpdateBanner()
                             .background(.thinMaterial, in: .rect(cornerRadius: 22))
                             .padding(.horizontal, 16)
+                            .padding(.bottom, 12)
+                            .offset(y: -ChromeAppearance.classicTabBarHeight)
                     }
                 }
         } else {
             content.safeAreaInset(edge: .bottom, spacing: 0) {
-                if isActive { LibraryUpdateBanner().background(.bar) }
+                if isActive {
+                    LibraryUpdateBanner().background(.bar)
+                        .padding(.bottom, classic ? 12 : 0)
+                        .offset(y: classic ? -ChromeAppearance.classicTabBarHeight : 0)
+                }
             }
         }
     }

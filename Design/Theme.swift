@@ -26,6 +26,7 @@ enum AppTheme {
     /// their tint. Do not put a `.tint` at the root: an explicit tint beats a
     /// button's role, so destructive swipe actions would lose their red.
     static let accent = Color("AccentColor")
+    static let confirmation = Color.blue
 
     /// High-contrast fill for a primary control (play button, selected dot).
     static let primaryFill = Color.primary
@@ -103,7 +104,9 @@ struct AppSlidingPicker<Selection: Hashable>: View {
     let title: String
     @Binding var selection: Selection
     let options: [Selection]
+    var classicSelectionIndicator = false
     let label: (Selection) -> String
+    @Environment(\.noLiquidGlass) private var classic
     @Namespace private var indicator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -123,29 +126,33 @@ struct AppSlidingPicker<Selection: Hashable>: View {
                     Text(label(option))
                         .font(Typography.body)
                         .fontWeight(selection == option ? .semibold : .regular)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(.primary.opacity(!classic || selection == option ? 1 : 0.55))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .background {
-                            if selection == option {
-                                Capsule()
-                                    .fill(.ultraThinMaterial)
-                                    .overlay {
-                                        Capsule().strokeBorder(AppTheme.hairline, lineWidth: 0.5)
+                            if selection == option && (!classic || classicSelectionIndicator) {
+                                Group {
+                                    if classic {
+                                        Capsule().fill(.primary.opacity(0.16))
+                                            .overlay { Capsule().strokeBorder(AppTheme.hairline, lineWidth: 0.5) }
+                                    } else {
+                                        Capsule().fill(.clear)
+                                            .glassEffect(.regular.tint(.primary.opacity(0.08)), in: .capsule)
                                     }
-                                    .matchedGeometryEffect(id: "selection", in: indicator)
+                                }
+                                .matchedGeometryEffect(id: "selection", in: indicator)
                             }
                         }
                         .contentShape(.capsule)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .accessibilityAddTraits(selection == option ? .isSelected : [])
             }
         }
         .padding(4)
-        .background(.ultraThinMaterial, in: .rect(cornerRadius: 28))
+        .appGlassEffect(.regular, in: .rect(cornerRadius: 28))
         .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: selection)
         .hapticFeedback(.selection, trigger: selection)
         .accessibilityElement(children: .contain)
@@ -193,6 +200,8 @@ enum Typography {
     /// Section heading — 22pt semibold rounded.
     static let title: Font = .system(.title2, design: .rounded, weight: .semibold)
 
+    static let navigationTitle: Font = .system(.title2, design: .serif, weight: .bold)
+
     /// Row / card heading — 17pt semibold.
     static let headline: Font = .headline
 
@@ -217,6 +226,7 @@ extension View {
             .accentColor(AppTheme.accent)
             .navigationTitle(title)
             .preference(key: AppScreenTitleKey.self, value: title)
+            .modifier(AppTitleSwipePreference(action: onTitleVerticalSwipe))
             .appNavigationChrome()
             .background {
                 NavigationTitleFontBridge(onTitleVerticalSwipe: onTitleVerticalSwipe)
@@ -265,6 +275,7 @@ private struct NavigationTitleFontBridge: UIViewControllerRepresentable {
     final class Controller: UIViewController, UIGestureRecognizerDelegate {
         var onTitleVerticalSwipe: (() -> Void)?
         private weak var swipeBar: UINavigationBar?
+        private weak var swipeHost: UIView?
         private var titlePan: UIPanGestureRecognizer?
         override func loadView() {
             view = UIView()
@@ -356,20 +367,26 @@ private struct NavigationTitleFontBridge: UIViewControllerRepresentable {
                 removeTitleSwipe()
                 return
             }
-            guard swipeBar !== bar || titlePan == nil else { return }
+            guard let host = bar.window else { return }
+            guard swipeBar !== bar || swipeHost !== host || titlePan == nil else { return }
             removeTitleSwipe()
             let pan = UIPanGestureRecognizer(target: self, action: #selector(titleSwiped(_:)))
             pan.maximumNumberOfTouches = 1
+            pan.cancelsTouchesInView = false
             pan.delegate = self
-            bar.addGestureRecognizer(pan)
+            // Glass chrome can hit-test through the bar. Observe from its window,
+            // but accept only touches on the visible title below.
+            host.addGestureRecognizer(pan)
+            swipeHost = host
             swipeBar = bar
             titlePan = pan
         }
 
         func removeTitleSwipe() {
-            if let titlePan { swipeBar?.removeGestureRecognizer(titlePan) }
+            if let titlePan { swipeHost?.removeGestureRecognizer(titlePan) }
             titlePan = nil
             swipeBar = nil
+            swipeHost = nil
         }
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
@@ -379,7 +396,7 @@ private struct NavigationTitleFontBridge: UIViewControllerRepresentable {
             func titleFrame(in view: UIView) -> CGRect? {
                 guard !view.isHidden, view.alpha > 0.01 else { return nil }
                 if let label = view as? UILabel,
-                   label.text == navigationController?.topViewController?.navigationItem.title,
+                   label.text?.isEmpty == false,
                    label.font.pointSize >= 24 {
                     let frame = label.convert(label.bounds, to: bar)
                     if frame.intersects(bar.bounds) { return frame }
@@ -389,8 +406,29 @@ private struct NavigationTitleFontBridge: UIViewControllerRepresentable {
                 }
                 return nil
             }
-            guard let frame = titleFrame(in: bar) else { return false }
-            return frame.insetBy(dx: -8, dy: -6).contains(touch.location(in: bar))
+            if let frame = titleFrame(in: bar) {
+                return frame.insetBy(dx: -8, dy: -6).contains(touch.location(in: bar))
+            }
+            // iOS can host the large title in a private SwiftUI-backed view,
+            // not a UILabel. Use that title container's bounds as a fallback.
+            func largeTitleFrame(in view: UIView) -> CGRect? {
+                guard !view.isHidden, view.alpha > 0.01 else { return nil }
+                if String(describing: type(of: view)).contains("LargeTitle"),
+                   view.bounds.width > 0, view.bounds.height > 0 {
+                    return view.convert(view.bounds, to: bar)
+                }
+                for child in view.subviews {
+                    if let frame = largeTitleFrame(in: child) { return frame }
+                }
+                return nil
+            }
+            guard let frame = largeTitleFrame(in: bar) else { return false }
+            return frame.intersection(bar.bounds).contains(touch.location(in: bar))
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            true
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
