@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct MangaReaderSettingsSheet: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Per-series layout and tap zones.
@@ -317,7 +317,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
     }
 
     var body: some View {
-        Form {
+        AppForm {
             readingModeSection
 
             if unconditional || readingMode == .pager {
@@ -432,7 +432,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
                     .stroke(isSelected ? (AppTheme.primaryFill) : Color.clear, lineWidth: 2)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
@@ -694,7 +694,7 @@ struct ReadingModeCard: View {
             )
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

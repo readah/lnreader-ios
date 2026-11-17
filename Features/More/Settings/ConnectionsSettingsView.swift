@@ -23,7 +23,7 @@ struct ConnectionsSettingsView: View {
 
     var body: some View {
         @Bindable var tracking = tracking
-        List {
+        AppForm {
             trackingSection
             commentsSection
             Section {
@@ -49,7 +49,7 @@ struct ConnectionsSettingsView: View {
             if tracking.isLoggedIn {
                 LabeledContent("Signed in as", value: tracking.userName ?? "AniList user")
                 Button("Disconnect", role: .destructive) { tracking.logout() }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(AppBorderlessButtonStyle())
             } else {
                 Button(action: connectAniList) {
                     HStack {
@@ -58,7 +58,7 @@ struct ConnectionsSettingsView: View {
                         if isSigningInToAniList { ProgressView().controlSize(.small) }
                     }
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(AppBorderlessButtonStyle())
                 .disabled(isSigningInToAniList)
             }
         } header: {
@@ -107,10 +107,10 @@ struct ConnectionsSettingsView: View {
             Spacer()
             if connected {
                 Button("Disconnect", role: .destructive) { disconnect(site) }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(AppBorderlessButtonStyle())
             } else {
                 Button("Connect") { signingIn = site }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(AppBorderlessButtonStyle())
             }
         }
     }

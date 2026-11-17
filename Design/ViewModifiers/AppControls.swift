@@ -1,5 +1,70 @@
 import SwiftUI
 
+/// Settings share the same cards in a full screen and in a classic sheet.
+/// Data-heavy lists keep List's reuse and editing behavior instead.
+struct AppForm<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 24) {
+                ForEach(sections: content()) { section in
+                    VStack(alignment: .leading, spacing: 8) {
+                        if !section.header.isEmpty {
+                            section.header
+                                .font(Typography.caption)
+                                .padding(.horizontal, 14)
+                        }
+                        VStack(spacing: 0) {
+                            ForEach(subviews: section.content) { row in
+                                if row.id != section.content.first?.id {
+                                    Rectangle().fill(AppTheme.hairline).frame(height: 0.5)
+                                        .padding(.leading, 16)
+                                }
+                                row
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .padding(.horizontal, 16).padding(.vertical, 8)
+                            }
+                        }
+                        .background { FrostedSurface(shape: RoundedRectangle(cornerRadius: 22), dense: true) }
+                        if !section.footer.isEmpty {
+                            section.footer.font(Typography.caption).foregroundStyle(.secondary)
+                                .padding(.horizontal, 14)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 20).padding(.vertical, 16)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .buttonStyle(AppFormButtonStyle())
+        .environment(\.appFormRow, true)
+    }
+}
+
+private struct AppFormRowKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var appFormRow: Bool {
+        get { self[AppFormRowKey.self] }
+        set { self[AppFormRowKey.self] = newValue }
+    }
+}
+
+/// Buttons own their press feedback through `ButtonStyle.isPressed`. A row with
+/// a Toggle, Picker or Stepper is not a button, so there is no gesture here:
+/// observing touches on the row would steal the ScrollView's pan.
+private struct AppFormButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(.rect)
+            .foregroundStyle(configuration.role == .destructive ? AppTheme.destructive : AppTheme.accent)
+            .opacity(enabled ? (configuration.isPressed ? 0.6 : 1) : 0.4)
+            .appPressFeedback(configuration.isPressed)
+    }
+}
+
 struct AppMenu<Label: View, Content: View>: View {
     @Environment(\.noLiquidGlass) private var classic
     @Environment(\.appPopupDismiss) private var parentPopup
@@ -18,10 +83,10 @@ struct AppMenu<Label: View, Content: View>: View {
                             .padding(.horizontal, 14)
                             .background(AppTheme.surface.opacity(0.4), in: .rect(cornerRadius: 16))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppPlainButtonStyle())
                 } else {
                     Button { presented = true } label: {
-                        label().frame(minWidth: 44, minHeight: 44).contentShape(.rect)
+                        label().contentShape(.rect)
                     }
                 }
             } else {
@@ -58,7 +123,7 @@ struct AppPicker<Selection: Hashable, Content: View, Label: View>: View {
     @ViewBuilder var content: () -> Content
     @ViewBuilder var label: () -> Label
     @State private var presented = false
-    @Namespace private var highlight
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -85,7 +150,7 @@ struct AppPicker<Selection: Hashable, Content: View, Label: View>: View {
                         .frame(minHeight: 44)
                         .contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppPlainButtonStyle())
                 }
             } else {
                 nativePicker
@@ -123,22 +188,16 @@ struct AppPicker<Selection: Hashable, Content: View, Label: View>: View {
                             HStack(spacing: 8) {
                                 subview
                                 if !segmented { Spacer(minLength: 8) }
-                                if !segmented && selection == value { AppIcon(systemName: "checkmark", size: 14) }
+
                             }
                             .font(Typography.body.weight(selection == value ? .semibold : .regular))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(.primary.opacity(selection == value ? 1 : 0.55))
                             .frame(maxWidth: .infinity, minHeight: 44)
                             .padding(.horizontal, 10)
-                            .background {
-                                if selection == value {
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(.primary.opacity(0.12))
-                                        .matchedGeometryEffect(id: "selection", in: highlight)
-                                }
-                            }
+
                             .contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPlainButtonStyle())
                         .accessibilityAddTraits(selection == value ? .isSelected : [])
                     }
                 }
@@ -245,7 +304,9 @@ struct AppButtonToggleStyle: ToggleStyle {
     @Environment(\.noLiquidGlass) private var classic
     @ViewBuilder func makeBody(configuration: Configuration) -> some View {
         if classic {
-            Button { configuration.isOn.toggle() } label: { configuration.label }
+            Button { configuration.isOn.toggle() } label: {
+                configuration.label.opacity(configuration.isOn ? 1 : 0.55)
+            }
                 .buttonStyle(FrostedButtonStyle())
                 .accessibilityAddTraits(configuration.isOn ? .isSelected : [])
         } else { Toggle(configuration).toggleStyle(.button) }
@@ -255,6 +316,7 @@ struct AppButtonToggleStyle: ToggleStyle {
 struct ClassicToggleStyle: ToggleStyle {
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var direction
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 12) {
             configuration.label
@@ -265,14 +327,16 @@ struct ClassicToggleStyle: ToggleStyle {
             } label: {
                 Capsule().fill(configuration.isOn ? AppTheme.controlFill : AppTheme.hairline.opacity(0.5))
                     .frame(width: 50, height: 30)
-                    .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                    .overlay(alignment: .leading) {
                         Circle().fill(.white).frame(width: 24, height: 24).padding(3)
                             .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                            .offset(x: configuration.isOn ? (direction == .rightToLeft ? -20 : 20) : 0)
                     }
+                    .animation(AppMotion.reveal(reduceMotion: reduceMotion), value: configuration.isOn)
                     .frame(minWidth: 50, minHeight: 44)
                     .contentShape(.rect)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPlainButtonStyle())
             .accessibilityLabel(configuration.isOn ? "On" : "Off")
         }
         .opacity(enabled ? 1 : 0.4)
@@ -300,7 +364,7 @@ struct AppStepper<Value: Strideable, Label: View>: View where Value: Comparable,
                     Button { change(step) } label: { AppIcon(systemName: "plus", size: 16).frame(width: 44, height: 44) }
                         .disabled(value >= bounds.upperBound).accessibilityLabel("Increase")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .background { FrostedSurface(shape: RoundedRectangle(cornerRadius: 16)) }
             }
         } else { Stepper(value: $value, in: bounds, step: step, label: label) }
@@ -352,15 +416,90 @@ private struct AppSearchModifier: ViewModifier {
                         .autocorrectionDisabled().textInputAutocapitalization(.never)
                     if !text.isEmpty {
                         Button { text = "" } label: { AppIcon(systemName: "xmark", size: 13) }
-                            .buttonStyle(.plain).frame(width: 32, height: 44)
+                            .buttonStyle(AppPlainButtonStyle()).frame(width: 32, height: 44)
                             .accessibilityLabel("Clear search")
                     }
                 }
                 .padding(.horizontal, 16).frame(height: 46)
                 .background { FrostedSurface(shape: RoundedRectangle(cornerRadius: 18)) }
-                .padding(.horizontal, 16).padding(.bottom, 4)
-                .appReveal(edge: .top)
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 4)
             }
         } else { content.searchable(text: $text, placement: placement, prompt: prompt) }
+    }
+}
+
+/// An overlay, not a refresh-control inset: it cannot pin or resize the grid
+/// while the independently owned update task publishes library changes.
+private struct AppRefreshModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let enabled: Bool
+    let label: String
+    let refresh: @MainActor () async -> Void
+    @State private var pull = PullToRefreshState()
+    @State private var isRefreshing = false
+    @State private var refreshTask: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        content
+            .scrollBounceBehavior(.always, axes: .vertical)
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                max(0, -(geometry.contentOffset.y + geometry.contentInsets.top))
+            } action: { _, distance in
+                pull.changed(distance: distance)
+            }
+            .onScrollPhaseChange { old, phase, context in
+                let distance = max(0, -(context.geometry.contentOffset.y + context.geometry.contentInsets.top))
+                if phase == .interacting {
+                    pull.begin(enabled: enabled && !isRefreshing)
+                    pull.changed(distance: distance)
+                } else if old == .interacting, phase == .idle || phase == .decelerating {
+                    if pull.end(distance: distance, enabled: enabled && !isRefreshing) { activate() }
+                } else if phase == .idle || phase == .animating {
+                    pull.cancel()
+                }
+            }
+            .overlay(alignment: .top) { indicator }
+            .onDisappear { refreshTask?.cancel() }
+            .accessibilityAction(named: Text(label)) {
+                activate()
+            }
+    }
+
+    private var indicator: some View {
+        ZStack {
+            if pull.didRelease {
+                ProgressView().controlSize(.small)
+            } else {
+                Circle().trim(from: 0, to: pull.progress)
+                    .stroke(.primary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 22, height: 22)
+                AppIcon(systemName: "arrow.down", size: 12)
+                    .rotationEffect(.degrees(pull.progress >= 1 ? 180 : 0))
+                    .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: pull.progress >= 1)
+            }
+        }
+        .frame(width: 36, height: 36)
+        .background { FrostedSurface(shape: Circle()) }
+        .offset(y: min(pull.distance, 120) / 2 - 18)
+        .opacity((pull.isPulling && enabled) || pull.didRelease ? min(1, max(0, (pull.distance - 4) / 24)) : 0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func activate() {
+        guard enabled, !isRefreshing else { return }
+        Haptics.shared.impact(.light)
+        isRefreshing = true
+        refreshTask = Task { @MainActor in
+            defer { isRefreshing = false; refreshTask = nil }
+            await refresh()
+        }
+    }
+}
+
+extension View {
+    func appRefreshable(_ label: String = "Refresh", enabled: Bool = true, action: @escaping @MainActor () async -> Void) -> some View {
+        modifier(AppRefreshModifier(enabled: enabled, label: label, refresh: action))
     }
 }

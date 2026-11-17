@@ -139,7 +139,7 @@ struct ReaderSettings: View {
     @AppStorage("reader.highlightOpacity") private var highlightOpacity = 0.26
     /// The brightness slider. ReaderView reads the same key for its veil.
     @AppStorage(ReaderDim.key) private var dimLevel = 0.0
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     var body: some View {
         if isEmbedded {
@@ -260,7 +260,7 @@ struct ReaderSettings: View {
                 .frame(height: GlassMetrics.side)
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel(delta > 0 ? "Larger text" : "Smaller text")
     }
 
@@ -409,7 +409,7 @@ struct ReaderSettings: View {
 
     /// The settings the half sheet leaves out.
     private var settingsForm: some View {
-        Form {
+        AppForm {
             themesSection
             typographySection
             spacingSection
@@ -802,7 +802,7 @@ struct ReaderSettings: View {
                     .padding(.vertical, 3)
                     .background(resolvedLocalTextColor.opacity(0.08), in: .capsule)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .accessibilityLabel(isPreviewExpanded ? "Collapse preview" : "Expand preview")
             }
             .padding(.horizontal, 14)
@@ -1018,7 +1018,7 @@ struct ThemePickerCard: View {
                 alignment: .topTrailing
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
     }
 }
 

@@ -49,13 +49,13 @@ struct NarrationVoicePicker: View {
                         }
                         Spacer()
                     }
-                }.buttonStyle(.plain)
+                }.buttonStyle(AppPlainButtonStyle())
                 if let sample = library.records.first(where: { $0.isPreview && $0.isAvailable && $0.rendition.voiceId == voice.id }) {
                     Button { preview.play(sample) } label: {
                         AppLabel("\(preview.voiceId == voice.id ? "Stop" : "Play") downloaded \(voice.name) preview", systemName: preview.voiceId == voice.id ? "stop.fill" : "play.fill", size: 17, relativeTo: .body)
                             .labelStyle(.iconOnly)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(AppBorderlessButtonStyle())
                 } else if let sample = voice.preview, sample.status == "failed" {
                     Button {
                         Task {
@@ -63,7 +63,7 @@ struct NarrationVoicePicker: View {
                             catch { library.errorMessage = error.localizedDescription }
                         }
                     } label: { AppLabel("Retry \(voice.name) preview", systemName: "arrow.clockwise", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(AppBorderlessButtonStyle())
                 } else {
                     ProgressView().accessibilityLabel("Preview is being prepared")
                 }
@@ -129,7 +129,7 @@ struct VoiceReferencePassageView: View {
     @State private var copied = false
 
     var body: some View {
-        List {
+        AppForm {
             Section {
                 Text(Self.passage)
                     .lineSpacing(6)
@@ -159,7 +159,7 @@ struct VoiceReferencePassageView: View {
 
 struct BookAudioDownloadsView: View {
     @Environment(SourceManager.self) private var sourceManager
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     @Environment(\.coverTint) private var coverTint
     @ObservedObject private var library = TTSOfflineLibrary.shared
     let bookId: String
@@ -251,7 +251,7 @@ struct BookAudioDownloadsView: View {
                                 Spacer()
                                 Button("Stop") { preparationTask?.cancel() }
                                     .font(Typography.caption.weight(.semibold))
-                                    .buttonStyle(.borderless)
+                                    .buttonStyle(AppBorderlessButtonStyle())
                             }
                         }
                         if let message = error ?? library.errorMessage ?? (library.engineState?.needsAttention == true ? library.engineState?.message : nil) {
@@ -317,19 +317,19 @@ struct BookAudioDownloadsView: View {
                     } label: { AppLabel("Audio download options", systemName: "ellipsis.circle", size: 17, relativeTo: .body) }
                 }
                 AppToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
-            }
-            .toolbar(pageCount > 1 ? .visible : .hidden, for: .bottomBar)
-            .appToolbar {
-                AppToolbarItemGroup(placement: .bottomBar) {
-                    Button { chapterPage = max(0, currentPage - 1) } label: { AppLabel("Previous chapters", systemName: "chevron.left", size: 12, relativeTo: .caption).labelStyle(.iconOnly) }
-                        .disabled(currentPage == 0)
-                    Spacer()
-                    Text(pageLabel).font(.caption.monospacedDigit())
-                    Spacer()
-                    Button { chapterPage = min(pageCount - 1, currentPage + 1) } label: { AppLabel("Next chapters", systemName: "chevron.right", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
-                        .disabled(currentPage + 1 >= pageCount)
+                if pageCount > 1 {
+                    AppToolbarItemGroup(placement: .bottomBar) {
+                        Button { chapterPage = max(0, currentPage - 1) } label: { AppLabel("Previous chapters", systemName: "chevron.left", size: 12, relativeTo: .caption).labelStyle(.iconOnly) }
+                            .disabled(currentPage == 0)
+                        Spacer()
+                        Text(pageLabel).font(.caption.monospacedDigit())
+                        Spacer()
+                        Button { chapterPage = min(pageCount - 1, currentPage + 1) } label: { AppLabel("Next chapters", systemName: "chevron.right", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
+                            .disabled(currentPage + 1 >= pageCount)
+                    }
                 }
             }
+            .toolbar(pageCount > 1 ? .visible : .hidden, for: .bottomBar)
             // Pinned exactly like Browse: the drawer sits under the title and
             // stays while the list scrolls.
             .appSearchable(
@@ -341,7 +341,7 @@ struct BookAudioDownloadsView: View {
             .autocorrectionDisabled()
             .appSheet(isPresented: $showVoices) {
                 AppNavigationStack {
-                    List { Section { NarrationComputePicker() }; Section("Narrator") { NarrationVoicePicker(selected: $selectedVoices) } }
+                    AppForm { Section { NarrationComputePicker() }; Section("Narrator") { NarrationVoicePicker(selected: $selectedVoices) } }
                         .appNavigationTitle("Choose voices").navigationBarTitleDisplayMode(.large)
                         .appToolbar { AppToolbarItem(placement: .confirmationAction) { Button("Done") {
                             if let voice = selectedVoices.sorted().first { library.setBookVoice(voice, bookId: bookId) }
@@ -363,7 +363,7 @@ struct BookAudioDownloadsView: View {
                     do { try await Task.sleep(for: .seconds(3)) } catch { return }
                 }
             }
-            .refreshable { await library.refreshVoices(); await library.refresh() }
+            .appRefreshable { await library.refreshVoices(); await library.refresh() }
             .onChange(of: search) { _, _ in chapterPage = 0 }
             .onChange(of: stateFilter) { _, _ in chapterPage = 0 }
             .onChange(of: voiceFilter) { _, _ in chapterPage = 0 }
@@ -469,7 +469,7 @@ struct BookAudioDownloadsView: View {
             .background { VoiceGlowSurface(voiceId: activeVoice, halo: 9) }
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel("Narrator: \(name)")
         .accessibilityHint("Choose a narrator voice")
     }
@@ -581,7 +581,7 @@ struct BookAudioDownloadsView: View {
     /// way the user pushes; the old version disabled the button they reached for.
     private var rangePicker: some View {
         AppNavigationStack {
-            Form {
+            AppForm {
                 Section {
                     VStack(spacing: 12) {
                         ChapterRangeSlider(lower: $fromChapter, upper: $throughChapter, count: chapters.count)
@@ -710,7 +710,7 @@ struct BookAudioDownloadsView: View {
                         Text(primary.map { $0.isAvailable ? "\(voiceName($0)) · Offline" : $0.rendition.completedChunks > 0 ? "\(voiceName($0)) · \($0.rendition.completedChunks)/\($0.rendition.totalChunks) parts ready" : status($0) } ?? (records.isEmpty ? "Tap to see details" : "\(records.count) voices saved"))
                             .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                }.buttonStyle(.plain)
+                }.buttonStyle(AppPlainButtonStyle())
                 if let primary, canPlay(primary) {
                     Button { playAudio(primary) } label: { AppLabel("Play \(chapter.title)", systemName: "play.circle.fill", size: 28, relativeTo: .title).labelStyle(.iconOnly).font(.title) }
                 } else if let primary, ["failed", "paused"].contains(primary.state) {
@@ -720,13 +720,13 @@ struct BookAudioDownloadsView: View {
                 } else {
                     Button { downloadChapter(chapter) } label: { AppLabel("Download \(chapter.title)", systemName: "arrow.down.circle", size: 22, relativeTo: .title2).labelStyle(.iconOnly).font(.title2) }.disabled(preparing)
                 }
-            }.buttonStyle(.borderless)
+            }.buttonStyle(AppBorderlessButtonStyle())
             if let primary, ["waiting", "downloading"].contains(primary.state) { ProgressView(value: primary.progress) }
             if let primary, primary.state == "failed" || primary.state == "paused" {
                 HStack(alignment: .top) {
                     Text(primary.error ?? "Preparation is paused.").font(.caption).foregroundStyle(AppTheme.warning).lineLimit(2)
                     Spacer()
-                    Button("Retry") { Task { await library.retry(primary.id) } }.font(.caption.weight(.semibold)).buttonStyle(.borderless)
+                    Button("Retry") { Task { await library.retry(primary.id) } }.font(.caption.weight(.semibold)).buttonStyle(AppBorderlessButtonStyle())
                 }
             }
         }.padding(.vertical, 4)
@@ -1037,7 +1037,7 @@ private final class VoiceSampleRecorder: NSObject, ObservableObject, AVAudioPlay
 }
 
 private struct CustomVoiceCreationView: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     @StateObject private var sample = VoiceSampleRecorder()
     @State private var name = ""
     @State private var transcript = ""
@@ -1048,7 +1048,7 @@ private struct CustomVoiceCreationView: View {
 
     var body: some View {
         AppNavigationStack {
-            Form {
+            AppForm {
                 Section { NarrationComputePicker() }
                 Section {
                     TextField("Voice name", text: $name).textInputAutocapitalization(.words)
@@ -1058,7 +1058,7 @@ private struct CustomVoiceCreationView: View {
                         Button {
                             if sample.recording { sample.stopRecording() } else { Task { await sample.record() } }
                         } label: { AppLabel(sample.recording ? "Stop recording" : "Record sample", systemName: sample.recording ? "stop.circle.fill" : "mic.fill", size: 17, relativeTo: .body) }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(AppBorderlessButtonStyle())
                         .disabled(sample.requestingPermission)
                         Spacer()
                         Text("\(Int(sample.duration))s / 60s").monospacedDigit().foregroundStyle(.secondary)

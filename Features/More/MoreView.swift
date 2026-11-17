@@ -23,7 +23,7 @@ struct MoreView: View {
 
     var body: some View {
         AppNavigationStack {
-            List {
+            AppForm {
                 profileSection
                 syncSection
                 libraryManagementSection
@@ -304,7 +304,7 @@ struct MoreView: View {
 
 struct ProfileEditSheet: View {
     @Bindable var profile: UserProfile
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var nameInput: String = ""
@@ -312,7 +312,7 @@ struct ProfileEditSheet: View {
     
     var body: some View {
         AppNavigationStack {
-            Form {
+            AppForm {
                 Section("Avatar") {
                     HStack {
                         Spacer()

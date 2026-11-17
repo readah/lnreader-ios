@@ -12,7 +12,7 @@ struct AdvancedSettingsView: View {
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
-        Form {
+        AppForm {
             Section {
                 Button {
                     showCleanupDialog = true

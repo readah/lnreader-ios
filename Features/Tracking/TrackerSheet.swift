@@ -8,7 +8,7 @@ struct TrackerSheet: View {
     let entry: Entry
     @Environment(TrackingManager.self) private var tracking
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     @State private var query = ""
     @State private var results: [TrackSearchResult] = []
@@ -78,7 +78,7 @@ struct TrackerSheet: View {
             Section {
                 ForEach(results) { result in
                     Button { draft = result } label: { resultRow(result) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPlainButtonStyle())
                 }
             } header: {
                 SettingsSectionHeader(
@@ -121,7 +121,7 @@ struct TrackerSheet: View {
     }
 
     private func draftForm(_ result: TrackSearchResult) -> some View {
-        Form {
+        AppForm {
             Section { resultRow(result) }
             Section {
                 Toggle("Private", isOn: $draftPrivate)
@@ -152,7 +152,7 @@ struct TrackerSheet: View {
 
     private func editor(_ track: Track) -> some View {
         let status = TrackStatus(rawValue: track.status) ?? .planning
-        return Form {
+        return AppForm {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(track.title).font(.headline)
@@ -207,11 +207,11 @@ struct TrackerSheet: View {
             if let date {
                 AppDatePicker(title, selection: Binding(get: { date }, set: { set($0) }), displayedComponents: .date)
                 Button { set(nil) } label: { AppLabel("Clear \(title.lowercased()) date", systemName: "xmark.circle.fill", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
-                    .buttonStyle(.borderless).foregroundStyle(.secondary)
+                    .buttonStyle(AppBorderlessButtonStyle()).foregroundStyle(.secondary)
             } else {
                 Text(title)
                 Spacer()
-                Button("Set") { set(.now) }.buttonStyle(.borderless)
+                Button("Set") { set(.now) }.buttonStyle(AppBorderlessButtonStyle())
             }
         }
     }

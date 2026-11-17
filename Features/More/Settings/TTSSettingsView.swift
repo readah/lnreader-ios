@@ -7,7 +7,7 @@ struct TTSSettingsView: View {
     @State private var selected: Set<String> = []
     @State private var showStorage = false
     var body: some View {
-        Form {
+        AppForm {
             Section { Toggle("Enable narration", isOn: $enabled); NarrationComputePicker() }
             Section {
                 NarrationVoicePicker(selected: $selected)
@@ -28,7 +28,7 @@ struct TTSSettingsView: View {
                                 if let message = record.error { AppIcon(systemName: "exclamationmark.circle.fill", size: 17, relativeTo: .body).foregroundStyle(AppTheme.warning).accessibilityLabel(message) }
                                 Spacer()
                                 Button(role: .destructive) { Task { await library.delete(record.id) } } label: { AppIcon(systemName: "trash", size: 17, relativeTo: .body) }
-                                    .buttonStyle(.borderless)
+                                    .buttonStyle(AppBorderlessButtonStyle())
                                     .accessibilityLabel("Delete audio")
                             }
                         }

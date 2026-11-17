@@ -12,7 +12,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(RevealMotion.enabledKey) private var springUnblurMotion = false
 
     var body: some View {
-        List {
+        AppForm {
             Section {
                 Toggle("No Liquid Glass", isOn: $noLiquidGlass)
             } header: {
@@ -27,7 +27,7 @@ struct AppearanceSettingsView: View {
             } header: {
                 Text("Motion")
             } footer: {
-                Text("Screens, sheets and controls settle into place with a subtle spring and sharpen into focus. Includes onboarding. Respects Reduce Motion.")
+                Text("Custom popups and controls settle into place and sharpen into focus. Includes onboarding and switching library modes. Standard iOS navigation, tabs and sheets keep their own transitions. Respects Reduce Motion.")
             }
 
             Section {

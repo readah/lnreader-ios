@@ -20,7 +20,7 @@ struct LibraryOptionsSheet: View {
     var hasDisplayOverride = false
     var onResetSort: () -> Void = {}
     var onResetDisplay: () -> Void = {}
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     var body: some View {
         AppNavigationStack {
@@ -80,7 +80,7 @@ struct LibraryOptionsSheet: View {
     // MARK: - Filter
 
     private var filterList: some View {
-        List {
+        AppForm {
             Section {
                 filterRow("Downloaded", noun: "downloaded", systemImage: "arrow.down.circle", state: $filter.downloaded)
                 filterRow("Unread", noun: "unread", systemImage: "eye.slash", state: $filter.unread)
@@ -115,7 +115,7 @@ struct LibraryOptionsSheet: View {
     // MARK: - Sort
 
     private var sortList: some View {
-        List {
+        AppForm {
             Section {
                 ForEach(SortOrder.allCases) { order in
                     sortRow(order)
@@ -189,7 +189,7 @@ struct DisplayOptionsList: View {
     @AppStorage(LibraryGridColumns.key) private var columnCount = LibraryGridColumns.automatic
 
     var body: some View {
-        List {
+        AppForm {
             Section {
                 DisplayModePicker(selection: $displayMode)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
@@ -224,6 +224,7 @@ struct DisplayOptionsList: View {
 /// "Cover Only") never said what any of them actually looks like.
 struct DisplayModePicker: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.noLiquidGlass) private var classic
     @Binding var selection: DisplayMode
 
     var body: some View {
@@ -261,22 +262,21 @@ struct DisplayModePicker: View {
                 }
                 Spacer(minLength: 0)
             }
-            // Everything tappable reads as primary; only the metadata is grey.
-            .foregroundStyle(.primary)
+            .foregroundStyle(.primary.opacity(!classic || selected ? 1 : 0.55))
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(selected ? AppTheme.accent.opacity(0.10) : Color.clear)
+                    .fill(!classic && selected ? AppTheme.accent.opacity(0.10) : Color.clear)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(selected ? AppTheme.accent : AppTheme.hairline,
-                            lineWidth: selected ? 1.5 : 0.5)
+                    .stroke(!classic && selected ? AppTheme.accent : AppTheme.hairline,
+                            lineWidth: !classic && selected ? 1.5 : 0.5)
             }
             .contentShape(.rect(cornerRadius: 12))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel("\(mode.displayName), \(mode.detail)")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }

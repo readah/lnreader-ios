@@ -82,7 +82,7 @@ struct MigrationCandidatePicker: View {
                 Section {
                     ForEach(results) { candidate in
                         Button { onPick(candidate) } label: { MigrationCandidateRow(candidate: candidate) }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppPlainButtonStyle())
                     }
                 } header: {
                     Text("Move to")
@@ -181,7 +181,7 @@ struct MigrationCandidateRow: View {
 /// kind, reused by every migration.
 struct MigrationSourcesView: View {
     @Environment(SourceManager.self) private var sourceManager
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     let kind: ContentKind
     /// The source the current migration is moving away from. It stays in the list
@@ -231,7 +231,7 @@ struct MigrationSourcesView: View {
                             }
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPlainButtonStyle())
                     }
                 }
             }
@@ -300,7 +300,7 @@ struct MigrateConfirmView: View {
     @Environment(SourceManager.self) private var sourceManager
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     let old: Entry
     let candidate: MigrationCandidate
@@ -328,7 +328,7 @@ struct MigrateConfirmView: View {
     }
 
     var body: some View {
-        Form {
+        AppForm {
             Section {
                 MigrationOriginRow(entry: old, sourceName: originName)
             } header: {
@@ -461,7 +461,7 @@ struct MigrateConfirmView: View {
 
 /// Migrate one entry: pick a match, confirm, read the outcome.
 struct MigrateEntrySheet: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     let entry: Entry
     /// Called with the new entry once the user has seen the outcome. The presenter

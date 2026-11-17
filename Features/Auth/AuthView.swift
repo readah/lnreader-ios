@@ -12,7 +12,7 @@ struct AuthView: View {
     var isRestoringSession = false
 
     @Environment(SyncManager.self) private var syncManager
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var focused: Field?
 
@@ -95,7 +95,7 @@ struct AuthView: View {
             Button("Close") { dismiss() }
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.white)
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .padding(24)
                 .disabled(busy)
         }
@@ -116,7 +116,7 @@ struct AuthView: View {
             footer
         }
         .foregroundStyle(.white)
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
     }
 
     private var header: some View {
@@ -393,7 +393,7 @@ struct AuthView: View {
 
     private var serverSettingsSheet: some View {
         AppNavigationStack {
-            Form {
+            AppForm {
                 DisclosureGroup(isExpanded: $serverSettingsExpanded) {
                     TextField("Server URL", text: $backendURL)
                         .accessibilityLabel("Server URL")

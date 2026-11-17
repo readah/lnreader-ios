@@ -232,7 +232,7 @@ final class BulkMigrationModel {
 
 /// Migrate every library entry that came from one source.
 struct MigrateSourceSheet: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     @Environment(SourceManager.self) private var sourceManager
 
     let sourceKey: String
@@ -262,7 +262,7 @@ struct MigrateSourceSheet: View {
 
     var body: some View {
         AppNavigationStack {
-            Form {
+            AppForm {
                 Section {
                     HStack(spacing: 12) {
                         if let source { SourceIconView(source: source, size: 40) }
@@ -546,7 +546,7 @@ struct BulkMigrateReviewView: View {
             } label: {
                 AppIcon(systemName: "arrow.clockwise", size: 17, relativeTo: .body).foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPlainButtonStyle())
             .accessibilityLabel("Search again")
         case .matched:
             Button {
@@ -556,7 +556,7 @@ struct BulkMigrateReviewView: View {
                     .foregroundStyle(row.include ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                     .font(.title3)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPlainButtonStyle())
             .accessibilityLabel(row.include ? "Will migrate" : "Will not migrate")
         }
     }

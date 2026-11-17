@@ -21,7 +21,7 @@ struct GeneralSettingsView: View {
     @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = false
 
     var body: some View {
-        Form {
+        AppForm {
             Section {
                 AppPicker("Sort order", selection: defaultSortOrder) {
                     ForEach(SortOrder.allCases) { order in

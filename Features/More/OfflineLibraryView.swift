@@ -161,7 +161,7 @@ private struct DownloadQueueRow: View {
             Button {
                 if isActive { downloads.pause(item) } else { downloads.retry(item) }
             } label: { stateIcon.frame(width: 44, height: 44).contentShape(Rectangle()) }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .accessibilityLabel(isActive ? "Pause download" : "Resume download")
             if let entry = item.chapter?.entry {
                 AppNavigationLink { EntryDetailView(entry: entry) } label: { details }
@@ -223,7 +223,7 @@ struct LibraryUpdateSettingsView: View {
     @AppStorage("updates.skipCompleted") private var skipCompleted = false
     @AppStorage("updates.schedulingError") private var schedulingError = ""
     var body: some View {
-        Form {
+        AppForm {
             Section("On launch") {
                 Toggle("Update library on launch", isOn: $autoUpdateOnLaunch)
             }
@@ -798,11 +798,11 @@ private struct MihonWrapper: Identifiable {
 struct LNReaderBackupPreviewSheet: View {
     let snapshot: LibraryBackup.Snapshot
     let onConfirm: () -> Void
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     var body: some View {
         AppNavigationStack {
-            List {
+            AppForm {
                 Section {
                     HStack(spacing: 14) {
                         AppIcon(systemName: "externaldrive.badge.checkmark", size: 28, relativeTo: .body)
@@ -871,11 +871,11 @@ struct LNReaderBackupPreviewSheet: View {
 struct MihonBackupPreviewSheet: View {
     let backup: MihonBackup.Backup
     let onConfirm: () -> Void
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     var body: some View {
         AppNavigationStack {
-            List {
+            AppForm {
                 Section {
                     HStack(spacing: 14) {
                         AppIcon(systemName: "arrow.down.doc.fill", size: 28, relativeTo: .body)
@@ -972,11 +972,11 @@ struct MihonBackupPreviewSheet: View {
 
 struct BackupProgressSheet: View {
     @Bindable var manager: BackupManager
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     var body: some View {
         AppNavigationStack {
-            List {
+            AppForm {
                 if let progress = manager.progress {
                     Section {
                         if progress.isFinished {
@@ -1081,6 +1081,7 @@ private struct SettingsRowButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .opacity(configuration.isPressed ? 0.55 : 1.0)
+            .appPressFeedback(configuration.isPressed)
             .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: configuration.isPressed)
     }
 }
@@ -1114,7 +1115,7 @@ struct LibraryBackupView: View {
     }
 
     var body: some View {
-        Form {
+        AppForm {
             if readingFile {
                 Section {
                     HStack(spacing: 12) {
@@ -1153,7 +1154,7 @@ struct LibraryBackupView: View {
                                     .frame(width: 32, height: 32)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppPlainButtonStyle())
                             .accessibilityLabel(showRecoveryKey ? "Hide recovery key" : "Show recovery key")
                         }
                     }
@@ -1176,7 +1177,7 @@ struct LibraryBackupView: View {
                     .disabled(recoveryKey.isEmpty)
                 }
 
-                Toggle("Include imported books", isOn: $includeLocalBooks)
+                Toggle("Include imported books (EPUBs)", isOn: $includeLocalBooks)
 
                 Button {
                     export()
@@ -1226,7 +1227,7 @@ struct LibraryBackupView: View {
                                 .frame(width: 32, height: 32)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPlainButtonStyle())
                         .accessibilityLabel("Clear recovery key")
                     }
                     Button {
@@ -1238,7 +1239,7 @@ struct LibraryBackupView: View {
                             .frame(width: 32, height: 32)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppPlainButtonStyle())
                     .accessibilityLabel(showImportKey ? "Hide recovery key" : "Show recovery key")
                 }
 

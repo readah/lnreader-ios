@@ -15,13 +15,13 @@ struct LibraryUpdateBanner: View {
     var body: some View {
         if let progress = libraryManager.updateProgress {
             Button { showDetail = true } label: { bannerLabel(progress) }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .appSheet(isPresented: $showDetail) {
                     LibraryUpdateSheet().appPresentationDetents([.medium, .large])
                 }
         } else if let progress = backupManager.progress {
             Button { showBackupDetail = true } label: { backupBannerLabel(progress) }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .appSheet(isPresented: $showBackupDetail) {
                     BackupProgressSheet(manager: backupManager).appPresentationDetents([.medium, .large])
                 }
@@ -103,11 +103,11 @@ struct LibraryUpdateBanner: View {
 
 struct LibraryUpdateSheet: View {
     @Environment(LibraryManager.self) private var libraryManager
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     var body: some View {
         AppNavigationStack {
-            List {
+            AppForm {
                 if let progress = libraryManager.updateProgress {
                     Section {
                         if let note = progress.note {

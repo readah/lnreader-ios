@@ -19,7 +19,7 @@ struct SourceFilterSheet: View {
     let refresh: FilterRefresh?
     let onApply: (FilterState) -> Void
 
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     @State private var draft: FilterState
 
     init(
@@ -34,7 +34,7 @@ struct SourceFilterSheet: View {
 
     var body: some View {
         AppNavigationStack {
-            Form {
+            AppForm {
                 ForEach(Self.sections(from: filters)) { section in
                     Section {
                         ForEach(section.filters) { filter in
@@ -336,7 +336,7 @@ private struct FilterChoiceList: View {
     let title: String
     let options: [FilterOption]
     @Binding var selection: String
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     @State private var query = ""
 
     var body: some View {

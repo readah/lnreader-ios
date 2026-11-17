@@ -121,7 +121,7 @@ struct CategoriesSettingsView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .swipeActions(edge: .trailing) {
             Button("Delete", role: .destructive) { pendingDelete = category }
         }
@@ -278,7 +278,7 @@ private struct CategoryEditor: Identifiable {
 // MARK: - Editor sheet
 
 private struct CategoryEditorSheet: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     let category: Category?
     let otherNames: [String]
@@ -328,7 +328,7 @@ private struct CategoryEditorSheet: View {
 
     var body: some View {
         AppNavigationStack {
-            Form {
+            AppForm {
                 Section("Name") {
                     TextField("Category name", text: $name)
                         .textInputAutocapitalization(.words)
@@ -438,7 +438,7 @@ private struct CategoryTitlesPickerView: View {
                             }
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPlainButtonStyle())
                     }
                 }
             } header: {
