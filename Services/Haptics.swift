@@ -189,6 +189,17 @@ final class Haptics {
         ]) { impact(.rigid) }
     }
 
+    // MARK: - Library
+
+    /// A book passing under the minimal library's reading line: one soft click
+    /// per row, brighter the faster the shelf moves. Only the main switch gates
+    /// it: this is browsing a list, not the reader's scroll texture.
+    func shelfRowPassed(speed: Double) {
+        guard Self.isEnabled else { return }
+        let t = ScrollFeel.level(speed)
+        play([tap(0, 0.34 + 0.4 * t, 0.3 + 0.35 * t)]) { selection() }
+    }
+
     // MARK: - Playing
 
     /// One soft swell on the player cached for that direction. The pattern is a

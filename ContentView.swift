@@ -13,6 +13,7 @@ struct ContentView: View {
     @Environment(SourceManager.self) private var sourceManager
     @Environment(\.modelContext) private var modelContext
     @AppStorage("general.autoUpdateOnLaunch") private var autoUpdateOnLaunch = false
+    @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
     @State private var selectedTab: AppTab = .library
     @State private var readerRouter = ReaderRouter()
     /// Bumped when the History tab is tapped while already showing; resumes the top entry.
@@ -21,43 +22,13 @@ struct ContentView: View {
     @State private var openedEntry: SourceEntry?
 
     var body: some View {
-        TabView(selection: Binding(
-            get: { selectedTab },
-            set: { tab in
-                if tab == .history, selectedTab == .history { historyResume += 1 }
-                selectedTab = tab
-            }
-        )) {
-            Tab(value: .library) {
-                LibraryView(openedEntry: $openedEntry) {
-                    selectedTab = .browse
-                }
-            } label: {
-                AppTabLabel(title: AppTab.library.title, systemName: AppTab.library.icon)
-            }
-
-            Tab(value: .updates) {
-                UpdatesView()
-            } label: {
-                AppTabLabel(title: AppTab.updates.title, systemName: AppTab.updates.icon)
-            }
-
-            Tab(value: .history) {
-                HistoryView(resumeTrigger: historyResume)
-            } label: {
-                AppTabLabel(title: AppTab.history.title, systemName: AppTab.history.icon)
-            }
-
-            Tab(value: .browse) {
-                BrowseView()
-            } label: {
-                AppTabLabel(title: AppTab.browse.title, systemName: AppTab.browse.icon)
-            }
-
-            Tab(value: .more) {
-                MoreView()
-            } label: {
-                AppTabLabel(title: AppTab.more.title, systemName: AppTab.more.icon)
+        // Minimal Mode is the library alone: no tab bar, no other sections. The
+        // `…` menu on that screen is the way back to the full app.
+        Group {
+            if minimalMode {
+                MinimalLibraryView(openedEntry: $openedEntry)
+            } else {
+                tabRoot
             }
         }
         .id(ObjectIdentifier(modelContext))
@@ -66,8 +37,6 @@ struct ContentView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .modifier(UpdateBannerHost(isActive: libraryManager.updateProgress != nil || BackupManager.shared.progress != nil))
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
                 libraryManager.flushProgress(context: modelContext)
@@ -127,6 +96,60 @@ struct ContentView: View {
                 await libraryManager.updateLibrary(context: modelContext, sourceManager: sourceManager, automatic: true)
             }
         }
+    }
+
+    /// The full app: five tabs on Liquid Glass. The tab-only chrome lives here
+    /// so it disappears with the tabs in Minimal Mode.
+    private var tabRoot: some View {
+        TabView(selection: Binding(
+            get: { selectedTab },
+            set: { tab in
+                if tab == .history, selectedTab == .history { historyResume += 1 }
+                selectedTab = tab
+            }
+        )) {
+            Tab(value: .library) {
+                LibraryView(openedEntry: $openedEntry) {
+                    selectedTab = .browse
+                }
+                .appBackdrop()
+            } label: {
+                AppTabLabel(title: AppTab.library.title, systemName: AppTab.library.icon)
+            }
+
+            Tab(value: .updates) {
+                UpdatesView()
+                    .appBackdrop()
+            } label: {
+                AppTabLabel(title: AppTab.updates.title, systemName: AppTab.updates.icon)
+            }
+
+            Tab(value: .history) {
+                HistoryView(resumeTrigger: historyResume)
+                    .appBackdrop()
+            } label: {
+                AppTabLabel(title: AppTab.history.title, systemName: AppTab.history.icon)
+            }
+
+            Tab(value: .browse) {
+                BrowseView()
+                    .appBackdrop()
+            } label: {
+                AppTabLabel(title: AppTab.browse.title, systemName: AppTab.browse.icon)
+            }
+
+            Tab(value: .more) {
+                MoreView()
+                    .appBackdrop()
+            } label: {
+                AppTabLabel(title: AppTab.more.title, systemName: AppTab.more.icon)
+            }
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        // Lists and forms stay clear so each screen's `appBackdrop` reaches the
+        // edges instead of sitting around an opaque card.
+        .scrollContentBackground(.hidden)
+        .modifier(UpdateBannerHost(isActive: libraryManager.updateProgress != nil || BackupManager.shared.progress != nil))
     }
 }
 

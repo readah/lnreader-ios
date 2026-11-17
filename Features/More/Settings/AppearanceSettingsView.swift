@@ -7,6 +7,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppearanceTint.enabledKey) private var tintDetails = false
     @AppStorage(AppearanceTint.strengthKey) private var strength = AppearanceTint.defaultStrength
     @AppStorage(IconPack.storageKey) private var iconPack = IconPack.swiftIcons.rawValue
+    @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
 
     var body: some View {
         List {
@@ -16,6 +17,7 @@ struct AppearanceSettingsView: View {
                         Text(pack.displayName).tag(pack.rawValue)
                     }
                 }
+                .tint(AppTheme.accent)
             } header: {
                 Text("Icons")
             }
@@ -30,10 +32,19 @@ struct AppearanceSettingsView: View {
                     Slider(value: $strength, in: 0.1...1) {
                         Text("Tint strength")
                     }
+                    .tint(AppTheme.accent)
                 }
                 .disabled(!tintDetails)
             } header: {
                 Text("Detail screens")
+            }
+
+            Section {
+                Toggle("Minimal Mode", isOn: $minimalMode)
+            } header: {
+                Text("Library")
+            } footer: {
+                Text("The library becomes a full-screen list and the tab bar is hidden. Turn it off from the ··· menu on that screen.")
             }
         }
         .settingsScreen("Appearance")
