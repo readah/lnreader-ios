@@ -46,6 +46,12 @@ struct MinimalLibraryView: View {
     @State private var scrollPhase: ScrollPhase = .idle
     @State private var lastRowChange: TimeInterval = 0
     @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
+    @State private var showUpdateSheet = false
+    @State private var showNewChapters = false
+    /// A row chosen in the new-chapters sheet. The sheet closes first; the
+    /// push or the reader happens in its `onDismiss`.
+    @State private var pendingEntryOpen: Entry?
+    @State private var pendingChapterOpen: ReaderRequest?
 
     private let rowHeight: CGFloat = 122
     private let topInset: CGFloat = 84
@@ -77,8 +83,21 @@ struct MinimalLibraryView: View {
                         Spacer()
                     }
 
-                    VStack {
+                    VStack(spacing: 10) {
                         Spacer()
+                        if let state = updateCardState {
+                            MinimalUpdateCard(
+                                state: state,
+                                onOpen: openUpdateCard,
+                                onDismiss: {
+                                    Haptics.shared.selection()
+                                    libraryManager.dismissUpdateSummary()
+                                }
+                            )
+                            .padding(.horizontal, 20)
+                            .appReveal(edge: .bottom)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        }
                         MinimalLibraryBar(
                             resumeCoverURL: resumeEntry?.displayThumbnailURL,
                             canResume: resumeEntry != nil,
@@ -90,7 +109,24 @@ struct MinimalLibraryView: View {
                         )
                         .padding(.bottom, 14)
                     }
+                    .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: updateCardState)
                 }
+            }
+            .appSheet(isPresented: $showUpdateSheet) {
+                LibraryUpdateSheet().appPresentationDetents([.medium, .large])
+            }
+            .appSheet(isPresented: $showNewChapters, onDismiss: openFromNewChapters) {
+                MinimalNewChaptersSheet(
+                    onOpenEntry: { entry in
+                        pendingEntryOpen = entry
+                        showNewChapters = false
+                    },
+                    onOpenChapter: { request in
+                        pendingChapterOpen = request
+                        showNewChapters = false
+                    }
+                )
+                .appPresentationDetents([.medium, .large])
             }
             .appNavigationDestination(for: Entry.self) { novel in
                 // A migrated entry takes the place of the one that left the
@@ -195,6 +231,7 @@ struct MinimalLibraryView: View {
             }
         }
         .ignoresSafeArea(edges: .bottom)
+        .refreshable { refreshLibrary() }
         .onScrollPhaseChange { _, phase in scrollPhase = phase }
         .onScrollGeometryChange(for: Int.self) { geometry in
             Int(((geometry.contentOffset.y + geometry.contentInsets.top) / rowHeight).rounded(.down))
@@ -429,6 +466,47 @@ struct MinimalLibraryView: View {
         return best
     }
 
+    // MARK: - Updates
+
+    /// Only a refresh the user started earns a card. Automatic launch updates
+    /// and a background count of new chapters must not surface one on its own.
+    private var updateCardState: MinimalUpdateCard.State? {
+        guard let progress = libraryManager.updateProgress, !progress.automatic else { return nil }
+        if !progress.isFinished || progress.note != nil || progress.wasCancelled || !progress.failures.isEmpty {
+            return .progress(progress)
+        }
+        if progress.newChapters > 0 { return .newChapters(progress.newChapters) }
+        return .progress(progress)
+    }
+
+    private func openUpdateCard() {
+        guard let state = updateCardState else { return }
+        Haptics.shared.selection()
+        switch state {
+        case .newChapters:
+            showNewChapters = true
+        case .progress(let progress):
+            if progress.isFinished && progress.newChapters > 0 {
+                showNewChapters = true
+            } else {
+                showUpdateSheet = true
+            }
+        }
+    }
+
+    private func openFromNewChapters() {
+        let entry = pendingEntryOpen
+        let request = pendingChapterOpen
+        pendingEntryOpen = nil
+        pendingChapterOpen = nil
+        if let request {
+            Haptics.shared.impact(.light)
+            readerRouter.request = request
+        } else if let entry, entry.inLibrary {
+            open(entry)
+        }
+    }
+
     // MARK: - Actions
 
     private func open(_ entry: Entry) {
@@ -483,6 +561,192 @@ struct MinimalLibraryView: View {
         guard let entry = openedEntry else { return }
         openedEntry = nil
         navigationPath.append(entry)
+    }
+}
+
+// MARK: - Update card and new chapters
+
+private struct MinimalUpdateCard: View {
+    enum State: Equatable {
+        case progress(LibraryUpdateProgress)
+        case newChapters(Int)
+
+        var title: String {
+            switch self {
+            case .newChapters(let count): return "\(count) new \(count == 1 ? "chapter" : "chapters")"
+            case .progress(let progress):
+                if !progress.isFinished { return progress.isCancelling ? "Stopping update…" : "Updating library" }
+                if progress.wasCancelled { return "Update stopped" }
+                if progress.note != nil { return "Update skipped" }
+                return progress.failures.isEmpty ? "Library updated" : "Update needs attention"
+            }
+        }
+
+        var subtitle: String {
+            switch self {
+            case .newChapters: return "Choose a chapter to read"
+            case .progress(let progress):
+                if let note = progress.note { return note }
+                if !progress.isFinished {
+                    return progress.inFlight.first ?? "\(progress.completed) of \(progress.total) titles"
+                }
+                if progress.newChapters == 0 && progress.failures.isEmpty {
+                    return "No new chapters"
+                }
+                let added = "\(progress.newChapters) new \(progress.newChapters == 1 ? "chapter" : "chapters")"
+                return progress.failures.isEmpty ? added : "\(added) · \(progress.failures.count) failed"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .newChapters: "books.vertical"
+            case .progress(let progress):
+                progress.wasCancelled ? "stop.circle" : (progress.note != nil || !progress.failures.isEmpty ? "exclamationmark.circle" : "checkmark.circle")
+            }
+        }
+
+        var fraction: Double? {
+            if case .progress(let progress) = self, !progress.isFinished { return progress.fraction }
+            return nil
+        }
+
+        var canDismiss: Bool {
+            if case .progress(let progress) = self { return progress.isFinished }
+            return true
+        }
+    }
+
+    let state: State
+    let onOpen: () -> Void
+    let onDismiss: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @GestureState private var dragX: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: onOpen) {
+                HStack(spacing: 12) {
+                    if let fraction = state.fraction {
+                        ProgressView(value: fraction).progressViewStyle(.circular)
+                            .frame(width: 24, height: 24)
+                    } else {
+                        AppIcon(systemName: state.symbol, size: 22)
+                            .frame(width: 24)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(state.title).font(Typography.headline)
+                        Text(state.subtitle).font(Typography.caption)
+                            .foregroundStyle(.secondary).lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                    AppIcon(systemName: "chevron.up", size: 12)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(.rect)
+            }
+            .buttonStyle(AppPlainButtonStyle())
+            if state.canDismiss {
+                Button(action: onDismiss) {
+                    AppIcon(systemName: "xmark", size: 13).frame(width: 44, height: 44)
+                }
+                .buttonStyle(AppPlainButtonStyle())
+                .accessibilityLabel("Dismiss update summary")
+            }
+        }
+        .foregroundStyle(.primary)
+        .padding(14)
+        .appGlassEffect(.regular.interactive(), in: .rect(cornerRadius: 24))
+        // Swipe left to dismiss only once the update has finished. A held
+        // finger drags the card; release past the threshold dismisses, a
+        // shorter drag springs back. Vertical movement never dismisses.
+        .offset(x: state.canDismiss ? dragX : 0)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85), value: dragX)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20)
+                .updating($dragX) { value, current, _ in
+                    guard state.canDismiss, value.translation.width < 0,
+                          abs(value.translation.width) > abs(value.translation.height) else { return }
+                    current = max(-140, value.translation.width)
+                }
+                .onEnded { value in
+                    guard state.canDismiss, value.translation.width < -80,
+                          abs(value.translation.width) > abs(value.translation.height) else { return }
+                    Haptics.shared.selection()
+                    onDismiss()
+                }
+        )
+        .accessibilityHint(state.canDismiss ? "Swipe left to dismiss" : "")
+    }
+}
+
+private enum MinimalNewChaptersFeed {
+    static var predicate: Predicate<Chapter> {
+        #Predicate<Chapter> {
+            $0.dateFetch != nil && !$0.hidden && !$0.read
+        }
+    }
+
+    static let limit = 300
+    static var descriptor: FetchDescriptor<Chapter> {
+        var descriptor = FetchDescriptor<Chapter>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\Chapter.dateFetch, order: .reverse)])
+        descriptor.fetchLimit = limit
+        return descriptor
+    }
+}
+
+private struct MinimalNewChaptersSheet: View {
+    @Environment(\.appDismiss) private var dismiss
+    @Query private var allChapters: [Chapter]
+    let onOpenEntry: (Entry) -> Void
+    let onOpenChapter: (ReaderRequest) -> Void
+
+    private var chapters: [Chapter] {
+        allChapters.filter { $0.entry?.inLibrary == true }
+    }
+
+    init(onOpenEntry: @escaping (Entry) -> Void, onOpenChapter: @escaping (ReaderRequest) -> Void) {
+        self.onOpenEntry = onOpenEntry
+        self.onOpenChapter = onOpenChapter
+        _allChapters = Query(MinimalNewChaptersFeed.descriptor)
+    }
+
+    var body: some View {
+        AppNavigationStack {
+            List {
+                if chapters.isEmpty {
+                    ContentUnavailableView("No new chapters", systemImage: "checkmark.circle",
+                                           description: Text("New unread chapters from your library will appear here."))
+                        .listRowBackground(Color.clear)
+                } else {
+                    ForEach(chapters) { chapter in
+                        UpdateRow(chapter: chapter, onOpenEntry: {
+                            if let entry = chapter.entry { onOpenEntry(entry) }
+                        }, onOpenChapter: { openChapter(chapter) })
+                        .listRowBackground(Color.clear)
+                    }
+                    if chapters.count == MinimalNewChaptersFeed.limit {
+                        Text("Showing the latest \(MinimalNewChaptersFeed.limit) unread chapters. Open a book to see its full chapter list.")
+                            .font(Typography.caption).foregroundStyle(.secondary)
+                            .listRowBackground(Color.clear)
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .appNavigationTitle("New chapters")
+            .appToolbar {
+                AppToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
+    }
+
+    private func openChapter(_ chapter: Chapter) {
+        guard let entry = chapter.entry, entry.inLibrary, !chapter.hidden else { return }
+        onOpenChapter(ReaderRequest(sourceKey: entry.sourceKey, entryURL: entry.url, kind: entry.kind,
+                                    chapterURL: chapter.url, chapterName: chapter.name))
     }
 }
 
@@ -619,7 +883,7 @@ private struct MinimalLibraryBar: View {
                 .frame(width: innerPillWidth, height: innerPillHeight)
                 .contentShape(.capsule)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPlainButtonStyle())
             .appGlassEffect(.clear.interactive(), in: .capsule)
             .disabled(!canResume)
             .opacity(canResume ? 1 : 0.5)
@@ -656,7 +920,7 @@ private struct MinimalLibraryBar: View {
                 .frame(width: (pillWidth - innerPillWidth) / 2, height: pillHeight)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
     }
 }
 
