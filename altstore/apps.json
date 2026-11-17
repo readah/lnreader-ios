@@ -42,6 +42,15 @@
       },
       "versions": [
         {
+          "version": "2.2.2",
+          "buildVersion": "17",
+          "date": "2026-11-17",
+          "localizedDescription": "Left-aligned classic navigation titles, restored native interactive swipe-back, expandable search bar, and UI polish",
+          "downloadURL": "https://github.com/readah/lnreader-ios/releases/download/v2.2.2/LNReader-2.2.2.ipa",
+          "size": 18572366,
+          "minOSVersion": "26.0"
+        },
+        {
           "version": "2.2.1",
           "buildVersion": "16",
           "date": "2026-11-17",
