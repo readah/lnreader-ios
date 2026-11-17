@@ -42,6 +42,19 @@ enum EntryStatus: Int, Codable, CaseIterable, Sendable, Hashable {
         }
     }
 
+    /// The v1 status names, which is what other sync clients still parse.
+    var legacyRawValue: String {
+        switch self {
+        case .unknown: "Unknown"
+        case .ongoing: "Ongoing"
+        case .completed: "Completed"
+        case .licensed: "Licensed"
+        case .publishingFinished: "Publishing Finished"
+        case .cancelled: "Cancelled"
+        case .onHiatus: "On Hiatus"
+        }
+    }
+
     /// Best-effort parse of the loose status strings sources return.
     ///
     /// LN plugins hand back free text ("Ongoing", "COMPLETED", "hiatus", …)

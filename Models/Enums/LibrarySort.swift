@@ -45,11 +45,11 @@ struct LibrarySort: Codable, Equatable, Sendable {
 }
 
 extension SortOrder {
-    /// Alphabetical and manual order read naturally first-to-last; everything
-    /// else is about "most" or "newest", which people want on top.
+    /// Alphabetical reads naturally A to Z; everything else is about "most" or
+    /// "newest", which people want on top.
     var defaultDirection: SortDirection {
         switch self {
-        case .alphabetical, .custom: .ascending
+        case .alphabetical: .ascending
         default: .descending
         }
     }
@@ -63,11 +63,11 @@ extension SortOrder {
 
     var needsChapterDates: Bool { self == .latestChapter || self == .chapterFetched }
 
-    /// Whether "empty" means something for this order. Names, manual order and
-    /// date added always have a value.
+    /// Whether "empty" means something for this order. Names and date added
+    /// always have a value.
     var supportsEmptyLast: Bool {
         switch self {
-        case .custom, .alphabetical, .dateAdded: false
+        case .alphabetical, .dateAdded: false
         default: true
         }
     }
@@ -77,7 +77,6 @@ extension SortOrder {
         switch self {
         case .alphabetical: ("A to Z", "Z to A")
         case .totalChapters, .unread: ("Fewest first", "Most first")
-        case .custom: ("First to last", "Last to first")
         default: ("Oldest first", "Newest first")
         }
     }
@@ -87,7 +86,6 @@ extension SortOrder {
 /// columns and `LibraryChapterCounts`, never from the `chapters` relationship.
 struct LibrarySortFacts: Equatable, Sendable {
     var title = ""
-    var libraryOrder = 0
     var dateAdded = Date.distantPast
     var lastReadAt: Date?
     /// When the entry was last refreshed from its source.
@@ -108,7 +106,7 @@ struct LibrarySortFacts: Equatable, Sendable {
         case .lastUpdated: lastChecked == nil
         case .latestChapter: latestUpload == nil
         case .chapterFetched: latestFetch == nil
-        case .custom, .alphabetical, .dateAdded: false
+        case .alphabetical, .dateAdded: false
         }
     }
 }
@@ -143,7 +141,6 @@ enum LibrarySorter {
 
     private static func compare(_ l: LibrarySortFacts, _ r: LibrarySortFacts, order: SortOrder) -> ComparisonResult {
         switch order {
-        case .custom: compare(l.libraryOrder, r.libraryOrder)
         case .alphabetical: titleOrder(l.title, r.title)
         case .lastRead: compare(l.lastReadAt, r.lastReadAt)
         case .lastUpdated: compare(l.lastChecked, r.lastChecked)

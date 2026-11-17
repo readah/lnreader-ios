@@ -20,7 +20,7 @@ enum LibraryBackup {
         let title: String; let author: String?; let artist: String?; let summary: String?
         let genres: [String]; let status: EntryStatus; let thumbnail: String?
         let inLibrary: Bool; let dateAdded: Date; let lastUpdate: Date?; let lastReadAt: Date?
-        let order: Int; let viewerFlags: Int; let strategy: UpdateStrategy; let memo: String
+        let viewerFlags: Int; let strategy: UpdateStrategy; let memo: String
         let customTitle: String?; let customAuthor: String?; let customArtist: String?
         let customDescription: String?; let customThumbnail: String?
         let categories: [String]; let chapters: [Part]; let tracks: [Tracking]
@@ -175,7 +175,7 @@ enum LibraryBackup {
             books.append(Book(
                 sourceKey: e.sourceKey, url: e.url, kind: e.kind, title: e.title, author: e.author, artist: e.artist,
                 summary: e.summary, genres: e.genres, status: e.status, thumbnail: e.thumbnailURL, inLibrary: e.inLibrary,
-                dateAdded: e.dateAdded, lastUpdate: e.lastUpdate, lastReadAt: e.lastReadAt, order: e.libraryOrder,
+                dateAdded: e.dateAdded, lastUpdate: e.lastUpdate, lastReadAt: e.lastReadAt,
                 viewerFlags: e.viewerFlags, strategy: e.updateStrategy, memo: e.memo, customTitle: e.customTitle,
                 customAuthor: e.customAuthor, customArtist: e.customArtist, customDescription: e.customDescription,
                 customThumbnail: e.customThumbnailURL, categories: e.categories.map(\.name), chapters: e.chapters.map { c in
@@ -224,7 +224,7 @@ enum LibraryBackup {
             if found == nil {
                 context.insert(entry); entry.author = book.author; entry.artist = book.artist; entry.summary = book.summary
                 entry.genres = book.genres; entry.status = book.status; entry.thumbnailURL = book.thumbnail
-                entry.dateAdded = book.dateAdded; entry.lastUpdate = book.lastUpdate; entry.libraryOrder = book.order
+                entry.dateAdded = book.dateAdded; entry.lastUpdate = book.lastUpdate
                 entry.viewerFlags = book.viewerFlags; entry.updateStrategy = book.strategy; entry.memo = book.memo
                 entry.customTitle = book.customTitle; entry.customAuthor = book.customAuthor; entry.customArtist = book.customArtist
                 entry.customDescription = book.customDescription; entry.customThumbnailURL = book.customThumbnail

@@ -17,7 +17,8 @@
 #      size) to altstore/apps.json, the AltStore/SideStore source. A failed build never
 #      advertises a version.
 #
-# Needs: a clean working tree on main that is level with origin/main.
+# Needs: a clean working tree on main that is level with, or ahead of, origin/main. Local
+# commits that origin does not have are pushed first; a diverged or behind main is refused.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -31,7 +32,7 @@ while [ $# -gt 0 ]; do
     -m|--message) shift; NOTES=${1:-} ;;
     --dry-run) DRY=1 ;;
     --no-push) PUSH=0 ;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "release: unknown argument '$1' (try --help)" >&2; exit 2 ;;
   esac
   shift
@@ -45,9 +46,18 @@ REPO=$(git remote get-url origin | sed -E 's#^(git@github.com:|https://github.co
 [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || { echo "release: not on main" >&2; exit 1; }
 [ -z "$(git status --porcelain)" ] || { echo "release: working tree is not clean" >&2; exit 1; }
 git fetch -q origin main
-if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
-  echo "release: main is not level with origin/main (pull or push first)" >&2
-  exit 1
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/main)
+if [ "$LOCAL" != "$REMOTE" ]; then
+  if git merge-base --is-ancestor "$REMOTE" "$LOCAL"; then
+    if [ "$DRY" -eq 0 ] && [ "$PUSH" -eq 1 ]; then
+      git push origin main
+      echo "==> Pushed unpushed commits on main"
+    fi
+  else
+    echo "release: main is behind or diverged from origin/main (pull first)" >&2
+    exit 1
+  fi
 fi
 
 # --- Next version ------------------------------------------------------------

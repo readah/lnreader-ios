@@ -104,7 +104,7 @@ struct V2ChapterSyncChecks {
     // MARK: - Merge
 
     private static func makeContainer() throws -> ModelContainer {
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         return try ModelContainer(
             for: schema,
             migrationPlan: LNReaderSchemaMigrationPlan.self,

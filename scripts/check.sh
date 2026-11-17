@@ -39,7 +39,7 @@ compile_and_run_plain() {
 # The checks that take no arguments, in dependency order: the cheap layers
 # first, so a break in the foundation shows up before the expensive ones run.
 PLAIN_CHECKS="foundation links schema chapter-sync chapter-order page-pipeline scanlators \
-reader-settings haptics filters sorts categories badges offline mihon-backup tts-contracts \
+reader-settings manga-zoom haptics filters sorts categories badges offline mihon-backup tts-contracts \
 sync migration cover-art"
 
 usage() {
@@ -51,7 +51,7 @@ all                run every check that takes no arguments
 <check>            run one check
 
 Checks: foundation links schema chapter-sync chapter-order page-pipeline scanlators
-        reader-settings haptics filters sorts categories badges offline mihon-backup
+        reader-settings manga-zoom haptics filters sorts categories badges offline mihon-backup
         tts-contracts sync migration cover-art native-comments player
 
 Checks needing setup, not part of `all`:
@@ -97,6 +97,7 @@ run() {
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
         Models/Schema/SchemaV3.swift \
+        Models/Schema/SchemaV4.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -111,6 +112,7 @@ run() {
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
         Models/Schema/SchemaV3.swift \
+        Models/Schema/SchemaV4.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -131,6 +133,7 @@ run() {
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
         Models/Schema/SchemaV3.swift \
+        Models/Schema/SchemaV4.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -147,6 +150,7 @@ run() {
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
         Models/Schema/SchemaV3.swift \
+        Models/Schema/SchemaV4.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -191,6 +195,11 @@ run() {
         Features/MangaReader/MangaReaderSettings.swift \
         tests/V2ReaderSettingsChecks.swift
       ;;
+    manga-zoom)
+      compile_and_run manga-zoom \
+        Features/MangaReader/MangaZoom.swift \
+        tests/MangaZoomChecks.swift
+      ;;
     haptics)
       compile_and_run haptics \
         Services/ScrollHaptics.swift \
@@ -228,6 +237,8 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
+        Models/Schema/SchemaV4.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
         Services/Sources/SourceModels.swift \
@@ -247,6 +258,7 @@ run() {
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
         Models/Schema/SchemaV3.swift \
+        Models/Schema/SchemaV4.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -264,6 +276,8 @@ run() {
     tts-contracts)
       compile_and_run_plain tts-contracts \
         Models/TTSAudio.swift \
+        Extensions/Color+Extensions.swift \
+        Features/Reader/ReaderHighlight.swift \
         Features/Reader/ReaderTTSJavaScript.swift \
         Features/Reader/ReaderContentBridge.swift \
         Services/TTSChapterSource.swift \
@@ -273,7 +287,6 @@ run() {
       sync_check=SyncApplyChecks
       if [ "$1" = sync-network ]; then sync_check=SyncNetworkChecks; fi
       compile_and_run "$1" \
-        Models/Schema/SchemaV3.swift \
         Services/SyncFiles.swift \
         Services/SyncManager.swift \
         Services/Sources/CatalogSource.swift \
@@ -285,6 +298,8 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
+        Models/Schema/SchemaV4.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \

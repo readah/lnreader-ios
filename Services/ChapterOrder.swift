@@ -79,9 +79,12 @@ enum ChapterOrder {
         ascending ? oldestFirst(items) : newestFirst(items)
     }
 
-    /// Resume an unfinished last-opened chapter; otherwise advance past the
-    /// latest read chapter, then fall back to an unread chapter or the newest.
-    /// Callers pass only visible chapters, in reading order.
+    /// Which chapter "Continue reading" opens, given chapters in `oldestFirst`
+    /// order.
+    ///
+    /// Reopens the chapter opened last if it is still unread; otherwise the
+    /// first unread chapter after the latest one read, then the first unread
+    /// chapter, then the newest.
     static func resume<T: ChapterOrdered>(
         oldestFirst: [T],
         lastOpenedPath: String?,

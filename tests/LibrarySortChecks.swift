@@ -15,17 +15,16 @@ struct LibrarySortChecks {
     static func main() {
         let day: TimeInterval = 86_400
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let a = LibrarySortFacts(title: "Alpha", libraryOrder: 2, dateAdded: now - 3 * day, lastReadAt: now - day,
+        let a = LibrarySortFacts(title: "Alpha", dateAdded: now - 3 * day, lastReadAt: now - day,
                                  lastChecked: now - 2 * day, total: 10, unread: 4, latestUpload: now - 5 * day, latestFetch: nil)
-        let b = LibrarySortFacts(title: "bravo", libraryOrder: 0, dateAdded: now - 2 * day, lastReadAt: nil,
+        let b = LibrarySortFacts(title: "bravo", dateAdded: now - 2 * day, lastReadAt: nil,
                                  lastChecked: now - 3 * day, total: 50, unread: 0, latestUpload: now - day, latestFetch: now - day)
-        let c = LibrarySortFacts(title: "Chapter 10", libraryOrder: 1, dateAdded: now - day, lastReadAt: now - 2 * day,
+        let c = LibrarySortFacts(title: "Chapter 10", dateAdded: now - day, lastReadAt: now - 2 * day,
                                  lastChecked: nil, total: 5, unread: 5, latestUpload: nil, latestFetch: now - 4 * day)
         let all = [a, b, c]
 
         check(titles(all, LibrarySort(order: .alphabetical)) == ["Alpha", "bravo", "Chapter 10"], "A to Z ascending, case-insensitive")
         check(titles(all, LibrarySort(order: .alphabetical, direction: .descending)) == ["Chapter 10", "bravo", "Alpha"], "alphabetical descending")
-        check(titles(all, LibrarySort(order: .custom)) == ["bravo", "Chapter 10", "Alpha"], "custom follows libraryOrder")
         check(titles(all, LibrarySort(order: .lastRead)) == ["Alpha", "Chapter 10", "bravo"], "last read newest first, never-read last")
         check(titles(all, LibrarySort(order: .lastRead, direction: .ascending)) == ["bravo", "Chapter 10", "Alpha"], "last read oldest first")
         check(titles(all, LibrarySort(order: .lastUpdated)) == ["Alpha", "bravo", "Chapter 10"], "last checked, never-checked last")

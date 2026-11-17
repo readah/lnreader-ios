@@ -38,7 +38,7 @@ struct MigrationChecks {
     }
 
     private static func checkCarry() throws {
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         let container = try ModelContainer(
             for: schema,
             configurations: ModelConfiguration("MigrationChecks", schema: schema, isStoredInMemoryOnly: true))

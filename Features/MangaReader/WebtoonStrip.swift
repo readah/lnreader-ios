@@ -106,8 +106,6 @@ final class WebtoonViewController: UIViewController,
 
     private let layout = UICollectionViewFlowLayout()
     private var collectionView: UICollectionView!
-    private let scrollbar = WebtoonScrollbar()
-    private var segmentPageRanges: [Int: (first: Int, last: Int)] = [:]
     private var activeSegmentIndex: Int = 0
     private var didRestore = false
     private var lastReported: Int
@@ -160,13 +158,6 @@ final class WebtoonViewController: UIViewController,
         collectionView.register(WebtoonPageCell.self, forCellWithReuseIdentifier: WebtoonPageCell.reuseID)
         collectionView.register(WebtoonEndCell.self, forCellWithReuseIdentifier: WebtoonEndCell.reuseID)
         view.addSubview(collectionView)
-
-        scrollbar.frame = CGRect(x: view.bounds.width - 40, y: 0, width: 40, height: view.bounds.height)
-        scrollbar.autoresizingMask = [.flexibleHeight, .flexibleLeftMargin]
-        scrollbar.onScrub = { [weak self] progress in self?.scrub(to: progress) }
-        scrollbar.onScrubActivity = { [weak self] in self?.controller.onScrollActivity?() }
-        scrollbar.onTap = { [weak self] point in self?.onTap?(point) }
-        view.addSubview(scrollbar)
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
         tap.cancelsTouchesInView = false
@@ -260,15 +251,10 @@ final class WebtoonViewController: UIViewController,
         segments = newSegments
         var built: [WebtoonItem] = []
         var lookup: [String: [Int]] = [:]
-        var ranges: [Int: (first: Int, last: Int)] = [:]
         for (segment, entry) in newSegments.enumerated() {
-            let start = built.count
             for (index, page) in entry.pages.enumerated() {
                 lookup[page.url, default: []].append(built.count)
                 built.append(.page(segment: segment, index: index, page: page))
-            }
-            if !entry.pages.isEmpty {
-                ranges[segment] = (first: start, last: built.count - 1)
             }
             if let title = entry.nextTitle {
                 built.append(.divider(segment: segment, title: title, loading: segment == newSegments.count - 1))
@@ -276,7 +262,6 @@ final class WebtoonViewController: UIViewController,
         }
         items = built
         indexByURL = lookup
-        segmentPageRanges = ranges
         if let dropped, dropped > 0 {
             activeSegmentIndex = max(0, activeSegmentIndex - dropped)
         }
@@ -470,7 +455,6 @@ final class WebtoonViewController: UIViewController,
         context.invalidateFlowLayoutDelegateMetrics = true
         context.contentOffsetAdjustment = CGPoint(x: 0, y: adjustment)
         layout.invalidateLayout(with: context)
-        updateScrollbar()
     }
 
     // MARK: Layout and position
@@ -493,7 +477,6 @@ final class WebtoonViewController: UIViewController,
             // A strip that fits on screen, or restores to offset 0, never scrolls.
             scrollViewDidScroll(collectionView)
         }
-        updateScrollbar()
     }
 
     private var maxOffsetY: CGFloat {
@@ -565,41 +548,6 @@ final class WebtoonViewController: UIViewController,
             endCardSegment = endSegment
             onEndCard?(endSegment)
         }
-        updateScrollbar()
-    }
-
-    /// Top and height of the active chapter's pages in the strip, once laid out.
-    private var activeChapterSpan: (startY: CGFloat, height: CGFloat)? {
-        guard let range = segmentPageRanges[activeSegmentIndex],
-              let first = layout.layoutAttributesForItem(at: IndexPath(item: range.first, section: 0))?.frame,
-              let last = layout.layoutAttributesForItem(at: IndexPath(item: range.last, section: 0))?.frame,
-              first.height > 0, last.height > 0, last.maxY > first.minY
-        else { return nil }
-        return (first.minY, last.maxY - first.minY)
-    }
-
-    private func updateScrollbar() {
-        guard !scrollbar.isDragging, let span = activeChapterSpan else { return }
-        let viewportHeight = collectionView.bounds.height
-        guard viewportHeight > 0 else { return }
-
-        let maxOffset = max(1, span.height - viewportHeight)
-        let currentOffset = min(max(collectionView.contentOffset.y - span.startY, 0), maxOffset)
-        let thumbRatio = min(1.0, max(0.08, viewportHeight / span.height))
-        scrollbar.setProgress(currentOffset / maxOffset, thumbRatio: thumbRatio)
-    }
-
-    private func scrub(to progress: CGFloat) {
-        guard let span = activeChapterSpan else { return }
-        let maxOffset = max(0, span.height - collectionView.bounds.height)
-        let startY = span.startY
-        let targetY = min(max(startY + progress * maxOffset, 0), maxOffsetY)
-
-        controller.stopAuto()
-        // A scrub replaces a step's animation, which then reports no end.
-        controller.stepSettled()
-        collectionView.setContentOffset(CGPoint(x: 0, y: targetY), animated: false)
-        playScrollHaptics(top: targetY, userDriven: true)
     }
 
     // MARK: Rest
@@ -679,156 +627,4 @@ final class WebtoonViewController: UIViewController,
         _ gestureRecognizer: UIGestureRecognizer,
         shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
     ) -> Bool { true }
-}
-
-/// A vertical scrollbar that represents and controls progress within the current chapter.
-@MainActor
-final class WebtoonScrollbar: UIControl {
-    private let thumbView = UIView()
-    private var hideTimer: Timer?
-    private(set) var isDragging = false
-    private var currentProgress: CGFloat = 0
-    private var currentThumbRatio: CGFloat = 0.1
-
-    var onScrub: ((CGFloat) -> Void)?
-    var onScrubActivity: (() -> Void)?
-    var onTap: ((CGPoint) -> Void)?
-
-    private static let idleWidth: CGFloat = 3.5
-    private static let activeWidth: CGFloat = 7.5
-    private static let minThumbHeight: CGFloat = 28
-    private static let rightMargin: CGFloat = 3
-    private static let touchTargetWidth: CGFloat = 44
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        backgroundColor = .clear
-        alpha = 0
-
-        thumbView.backgroundColor = UIColor(white: 1.0, alpha: 0.35)
-        thumbView.layer.cornerRadius = Self.idleWidth / 2
-        thumbView.layer.masksToBounds = true
-        thumbView.isUserInteractionEnabled = false
-        addSubview(thumbView)
-
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
-        pan.cancelsTouchesInView = true
-        addGestureRecognizer(pan)
-
-        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
-        tap.cancelsTouchesInView = false
-        addGestureRecognizer(tap)
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        updateThumbFrame(animated: false)
-    }
-
-    private var trackTop: CGFloat {
-        safeAreaInsets.top + 16
-    }
-
-    private var trackBottom: CGFloat {
-        safeAreaInsets.bottom + 16
-    }
-
-    private var trackHeight: CGFloat {
-        max(1, bounds.height - trackTop - trackBottom)
-    }
-
-    private func updateThumbFrame(animated: Bool) {
-        let width = isDragging ? Self.activeWidth : Self.idleWidth
-        let thumbHeight = max(Self.minThumbHeight, trackHeight * currentThumbRatio)
-        let travel = max(0, trackHeight - thumbHeight)
-        let y = trackTop + currentProgress * travel
-        let x = bounds.width - Self.rightMargin - width
-        let targetFrame = CGRect(x: x, y: y, width: width, height: thumbHeight)
-
-        let update = {
-            self.thumbView.frame = targetFrame
-            self.thumbView.layer.cornerRadius = width / 2
-            self.thumbView.backgroundColor = UIColor(white: 1.0, alpha: self.isDragging ? 0.75 : 0.35)
-        }
-
-        if animated {
-            UIView.animate(withDuration: 0.15, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: update)
-        } else {
-            update()
-        }
-    }
-
-    func setProgress(_ progress: CGFloat, thumbRatio: CGFloat) {
-        let clamped = min(max(progress, 0), 1)
-        currentProgress = clamped
-        currentThumbRatio = min(max(thumbRatio, 0.05), 1.0)
-        updateThumbFrame(animated: false)
-
-        guard !isDragging else { return }
-        showAndScheduleHide()
-    }
-
-    private func showAndScheduleHide() {
-        if alpha < 1 {
-            UIView.animate(withDuration: 0.15) { self.alpha = 1 }
-        }
-        // Called every scroll frame: push the existing timer back instead of
-        // building a new one 120 times a second.
-        if let timer = hideTimer, timer.isValid {
-            timer.fireDate = Date(timeIntervalSinceNow: 0.8)
-            return
-        }
-        hideTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, !self.isDragging else { return }
-                UIView.animate(withDuration: 0.3) { self.alpha = 0 }
-            }
-        }
-    }
-
-    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-        let y = gesture.location(in: self).y
-        let relativeY = y - trackTop
-        let progress = min(max(relativeY / trackHeight, 0), 1)
-
-        switch gesture.state {
-        case .began:
-            isDragging = true
-            hideTimer?.invalidate()
-            alpha = 1
-            Haptics.shared.selection()
-            updateThumbFrame(animated: true)
-            onScrub?(progress)
-            onScrubActivity?()
-        case .changed:
-            currentProgress = progress
-            updateThumbFrame(animated: false)
-            onScrub?(progress)
-            onScrubActivity?()
-        case .ended, .cancelled, .failed:
-            isDragging = false
-            updateThumbFrame(animated: true)
-            showAndScheduleHide()
-        default:
-            break
-        }
-    }
-
-    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-        let pointInView = gesture.location(in: superview ?? self)
-        onTap?(pointInView)
-    }
-
-    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        guard alpha > 0.05 else { return false }
-        let touchArea = CGRect(
-            x: bounds.width - Self.touchTargetWidth,
-            y: trackTop,
-            width: Self.touchTargetWidth,
-            height: trackHeight
-        )
-        return touchArea.contains(point)
-    }
 }

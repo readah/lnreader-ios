@@ -39,7 +39,6 @@ struct SyncNovelPayload: Codable {
     var genres: String?
     var inLibrary: Bool
     var totalPages: Int
-    var libraryPosition: Int
     var chapters: [SyncChapterPayload]
     var sourceKey: String?
     var kind: ContentKind?
@@ -197,7 +196,6 @@ enum SyncApplier {
             novel.status = EntryStatus.parse(remoteNovel.status)
             novel.genres = splitGenres(remoteNovel.genres)
             novel.inLibrary = remoteNovel.inLibrary
-            novel.libraryOrder = remoteNovel.libraryPosition
             novel.lastReadAt = SyncWire.date(from: remoteNovel.lastReadAt)
             novel.lastUpdate = SyncWire.date(from: remoteNovel.lastUpdate)
 
@@ -254,11 +252,10 @@ extension SyncNovelPayload {
         summary = entry.summary
         author = entry.author
         artist = entry.artist
-        status = entry.status.displayName
+        status = entry.status.legacyRawValue
         genres = entry.genres.isEmpty ? nil : entry.genres.joined(separator: ", ")
         inLibrary = entry.inLibrary
         totalPages = 0
-        libraryPosition = entry.libraryOrder
         chapters = ChapterOrder.oldestFirst(entry.visibleChapters).map { SyncChapterPayload(chapter: $0) }
         sourceKey = entry.sourceKey
         kind = entry.kind

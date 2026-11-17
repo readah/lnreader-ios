@@ -1,11 +1,8 @@
 // LibraryOptionsSheet.swift
 // One sheet for everything that shapes the library: filter, sort and display.
 //
-// The confusing part was never the number of settings, it was that three of
-// them have different scopes. Filters, sort and layout belong to the category
-// on screen; "items per row" is shared with Browse; the default layout lives in
-// Settings › General. Every control here now says which of those it is, and
-// each tab has the same Reset affordance in the same place.
+// Each tab is only its controls. The per-category scope is carried by the
+// bindings the host passes in, so the sheet does not restate it on every tab.
 
 import SwiftUI
 
@@ -19,15 +16,10 @@ struct LibraryOptionsSheet: View {
     @Binding var filter: LibraryFilter
     @Binding var sort: LibrarySort
     @Binding var displayMode: DisplayMode
-    let scopeName: String
     var hasSortOverride = false
     var hasDisplayOverride = false
     var onResetSort: () -> Void = {}
     var onResetDisplay: () -> Void = {}
-    /// Dismisses the sheet and starts arranging; the host does it on dismiss.
-    var onArrange: () -> Void = {}
-    @AppStorage(LibraryGridColumns.key) private var columnCount = LibraryGridColumns.automatic
-    @AppStorage("general.defaultDisplayMode") private var defaultDisplayMode: DisplayMode = .comfortable
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -38,9 +30,7 @@ struct LibraryOptionsSheet: View {
                 }
                 .appPickerStyle(.segmented)
                 .padding(.horizontal)
-                .padding(.top, 8)
-
-                scopeCaption
+                .padding(.vertical, 8)
 
                 switch tab {
                 case .filter: filterList
@@ -60,28 +50,6 @@ struct LibraryOptionsSheet: View {
                 }
             }
         }
-    }
-
-    /// "All" is a tab name, not a word that reads well in a sentence.
-    private var scopeDescription: String {
-        scopeName == "All" ? "the whole library" : scopeName
-    }
-
-    /// One line that answers "am I changing everything, or just this tab?".
-    private var scopeCaption: some View {
-        HStack(spacing: 6) {
-            AppIcon(systemName: "info.circle", size: 11, relativeTo: .caption2)
-                .foregroundStyle(.secondary)
-            Text(tab == .display
-                 ? "Layout for \(scopeDescription). Grid columns are shared."
-                 : "Applies to \(scopeDescription).")
-                .font(Typography.small)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
     }
 
     private var canResetCurrentTab: Bool {
@@ -124,7 +92,7 @@ struct LibraryOptionsSheet: View {
                     Text(filter.isActive
                          ? "\(filter.activeCount) \(filter.activeCount == 1 ? "filter" : "filters") active"
                          : "Showing everything")
-                    InfoButton(text: "Only keeps books that match, Hide removes them. Filters apply to \(scopeDescription).")
+                    InfoButton(text: "Only keeps books that match, Hide removes them.")
                 }
             }
         }
@@ -155,21 +123,17 @@ struct LibraryOptionsSheet: View {
             } header: {
                 SettingsSectionHeader(
                     title: "Sort by",
-                    info: "Kept for \(scopeDescription). Categories without their own sort follow Settings › General."
+                    info: "Kept per category. Categories without their own sort follow Settings › General."
                 )
             }
 
-            if sort.order != .custom {
-                Section {
-                    AppPicker("Direction", selection: $sort.direction) {
-                        Text(sort.order.directionLabels.ascending).tag(SortDirection.ascending)
-                        Text(sort.order.directionLabels.descending).tag(SortDirection.descending)
-                    }
-                    .appPickerStyle(.segmented)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                } header: {
-                    Text("Direction")
+            Section {
+                AppPicker("Direction", selection: $sort.direction) {
+                    Text(sort.order.directionLabels.ascending).tag(SortDirection.ascending)
+                    Text(sort.order.directionLabels.descending).tag(SortDirection.descending)
                 }
+                .appPickerStyle(.segmented)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
 
             if sort.order.supportsEmptyLast {
@@ -181,17 +145,6 @@ struct LibraryOptionsSheet: View {
                         info: "Books with a zero or missing value go to the end whichever way it sorts."
                     )
                 }
-            }
-
-            Section {
-                Button("Arrange books", systemImage: "arrow.up.arrow.down", action: onArrange)
-            } header: {
-                SettingsSectionHeader(
-                    title: "Manual order",
-                    info: sort.order == .custom
-                        ? "Drag books into the order you want. Custom keeps that order."
-                        : "Arranging gives \(scopeDescription) a manual order you can drag books into."
-                )
             }
         }
     }
@@ -209,18 +162,14 @@ struct LibraryOptionsSheet: View {
                     .foregroundStyle(.primary)
                 Spacer()
                 if selected {
-                    if order != .custom {
-                        Image(systemName: sort.direction.isAscending ? "arrow.up" : "arrow.down")
-                            .foregroundStyle(.primary)
-                            .contentTransition(.symbolEffect(.replace))
-                    } else {
-                        AppIcon(systemName: "checkmark", size: 17, relativeTo: .body).foregroundStyle(.primary)
-                    }
+                    Image(systemName: sort.direction.isAscending ? "arrow.up" : "arrow.down")
+                        .foregroundStyle(.primary)
+                        .contentTransition(.symbolEffect(.replace))
                 }
             }
         }
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityValue(selected && order != .custom
+        .accessibilityValue(selected
             ? (sort.direction.isAscending
                 ? order.directionLabels.ascending : order.directionLabels.descending)
             : "")
@@ -229,25 +178,15 @@ struct LibraryOptionsSheet: View {
     // MARK: - Display
 
     private var displayList: some View {
-        DisplayOptionsList(
-            displayMode: $displayMode,
-            columnCount: $columnCount,
-            scopeName: scopeName,
-            defaultDisplayMode: defaultDisplayMode,
-            hasOverride: hasDisplayOverride
-        )
+        DisplayOptionsList(displayMode: $displayMode)
     }
 }
 
 /// Layout and items per row. Library and Browse both show this, so the two
-/// cannot drift. `scopeName == nil` means it edits the global default (Browse).
+/// cannot drift.
 struct DisplayOptionsList: View {
     @Binding var displayMode: DisplayMode
-    @Binding var columnCount: Int
-    /// Non-nil when this list edits one category's override.
-    var scopeName: String? = nil
-    var defaultDisplayMode: DisplayMode = .comfortable
-    var hasOverride = false
+    @AppStorage(LibraryGridColumns.key) private var columnCount = LibraryGridColumns.automatic
 
     var body: some View {
         List {
@@ -256,7 +195,10 @@ struct DisplayOptionsList: View {
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
             } header: {
-                SettingsSectionHeader(title: "Layout", info: scopeFooter)
+                SettingsSectionHeader(
+                    title: "Layout",
+                    info: "The default layout for the library and for every source in Browse."
+                )
             }
 
             if displayMode != .list {
@@ -274,25 +216,7 @@ struct DisplayOptionsList: View {
                     )
                 }
             }
-
-            if scopeName != nil {
-                Section {
-                    LabeledContent("Layout", value: hasOverride ? "Custom for this view" : "Using the default")
-                } header: {
-                    SettingsSectionHeader(
-                        title: "This view",
-                        info: "Picking a layout gives this view its own. Reset layout returns it to the default (\(defaultDisplayMode.displayName)) from Settings › General."
-                    )
-                }
-            }
         }
-    }
-
-    private var scopeFooter: String {
-        if scopeName != nil {
-            return "Layout is saved per category. Other categories follow the default (\(defaultDisplayMode.displayName)) from Settings › General."
-        }
-        return "The default layout for the library and for every source in Browse. A category can override it in Library options."
     }
 }
 

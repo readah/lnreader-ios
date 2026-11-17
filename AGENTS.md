@@ -97,8 +97,8 @@ the doc named in brackets has the reasoning. Start with `docs/V2_PROGRESS.md` fo
   chapters has to do the same, or the next "Updates still shows it" bug is yours. A copy of
   an already-read chapter is marked read by `ChapterTwins`, which also drops its `dateFetch`
   so it never enters Updates.
-- The schema is `SchemaV2`; `SchemaV1.swift` is frozen for the migration. Further model
-  changes add a `SchemaV3` and a stage.
+- The schema is `SchemaV4`; `SchemaV1.swift`–`SchemaV3.swift` are frozen for the migration.
+  Further model changes add a `SchemaV5` and a stage.
 - Per-series manga settings are optional overrides (`MangaReaderOverrides`) stored under
   `mangareader.<sourceKey>::<url>`, so a new setting never breaks saved data.
 - Opening an entry does not refetch. Only a browse result or an entry with no `lastUpdate`
@@ -141,9 +141,9 @@ the doc named in brackets has the reasoning. Start with `docs/V2_PROGRESS.md` fo
   than firing a burst. The source row is a button with a `LongPressGesture`, not a
   `NavigationLink` with a `.contextMenu`: the system menu lifts the row into a preview and fades
   that overlay out on dismissal, which reads as the screen sticking after you back out. Same
-  hold as `ChapterRow`. Library rows are the exception: they use a `.contextMenu` with their
-  own compact preview and manual navigation, so nothing is pushed from the menu. Holding a
-  library book shows quick actions; "Arrange books" is the only path into manual reorder.
+  hold as `ChapterRow`. Library rows are the exception: they are a `Menu` with a
+  `primaryAction` (tap opens, hold shows quick actions), so the system's hold-slide-release
+  picks an action in one gesture; a `.contextMenu` cannot do that. There is no manual ordering: custom mode is gone.
 - Settings screens use `.settingsScreen(_:)` for their sentence-case title.
 - **Grey means secondary, never tappable.** The `AccentColor` asset is primary, so buttons and
   links read as primary text; only metadata is `.secondary`. Switches get the `controlFill`

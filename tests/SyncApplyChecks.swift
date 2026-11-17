@@ -14,7 +14,7 @@ import SwiftData
 struct SyncApplyChecks {
 
     static func main() throws {
-        let schema = Schema(versionedSchema: SchemaV3.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         let container = try ModelContainer(
             for: schema,
             migrationPlan: LNReaderSchemaMigrationPlan.self,
@@ -57,7 +57,6 @@ struct SyncApplyChecks {
             genres: "Eastern, Action",
             inLibrary: inLibrary,
             totalPages: 0,
-            libraryPosition: 0,
             chapters: (1...chapters).map { index in
                 SyncChapterPayload(
                     path: "\(path)/chapter-\(index)",

@@ -1,15 +1,5 @@
 import Foundation
 
-enum LibraryReordering {
-    static func move<ID: Hashable>(_ item: ID, to target: ID, in order: [ID]) -> [ID] {
-        guard let from = order.firstIndex(of: item), let to = order.firstIndex(of: target), from != to else { return order }
-        var result = order
-        result.remove(at: from)
-        result.insert(item, at: to)
-        return result
-    }
-}
-
 /// A drag is not a cover tap, even if it is too short to change pages or hits
 /// the first/last page. Keep release-time button callbacks suppressed briefly.
 final class LibrarySwipeInteraction {

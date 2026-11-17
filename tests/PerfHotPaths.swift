@@ -43,7 +43,7 @@ struct PerfHotPaths {
     // MARK: - Store
 
     static func makeContainer() throws -> ModelContainer {
-        let schema = Schema(versionedSchema: SchemaV2.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         let url = FileManager.default.temporaryDirectory
             .appending(path: "lnreader-perf-\(UUID().uuidString).store")
         // On disk, not in memory: relationship faults and COUNT queries are

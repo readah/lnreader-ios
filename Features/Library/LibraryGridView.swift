@@ -3,17 +3,12 @@
 
 import SwiftData
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct LibraryGridView: View {
     var transitionNamespace: Namespace.ID? = nil
     let novels: [Entry]
     let displayMode: DisplayMode
-    let isEditing: Bool
-    @Binding var draggedItem: Entry?
-    var onReorder: (Entry, Entry) -> Void
     var onDelete: (Entry) -> Void
-    var onArrange: () -> Void
     var onSelect: (Entry) -> Void
 
     /// Items per row; 0 picks as many as fit (`LibraryGridColumns`).
@@ -24,36 +19,13 @@ struct LibraryGridView: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 16) {
             ForEach(novels) { novel in
-                if isEditing {
-                    EditableGridCell(
-                        novel: novel,
-                        displayMode: displayMode,
-                        isDragging: draggedItem == novel,
-                        onDelete: { onDelete(novel) }
-                    )
-                    .onDrag {
-                        draggedItem = novel
-                        return NSItemProvider(
-                            object: (novel.url + "|" + novel.sourceKey) as NSString)
-                    }
-                    .onDrop(
-                        of: [UTType.text],
-                        delegate: NovelDropDelegate(
-                            item: novel,
-                            novels: novels,
-                            draggedItem: $draggedItem,
-                            onReorder: onReorder
-                        ))
-                } else {
-                    InteractiveGridCell(
-                        transitionNamespace: transitionNamespace,
-                        novel: novel,
-                        displayMode: displayMode,
-                        onSelect: onSelect,
-                        onArrange: onArrange,
-                        onRemove: { onDelete(novel) }
-                    )
-                }
+                InteractiveGridCell(
+                    transitionNamespace: transitionNamespace,
+                    novel: novel,
+                    displayMode: displayMode,
+                    onSelect: onSelect,
+                    onRemove: { onDelete(novel) }
+                )
             }
         }
         .padding(.horizontal)
@@ -75,31 +47,6 @@ enum LibraryGridColumns {
     }
 }
 
-// MARK: - Editable Grid Cell (edit mode wrapper)
-
-/// Separates the delete badge from the drag surface so taps on the badge
-/// aren't swallowed by the drag gesture.
-struct EditableGridCell: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let novel: Entry
-    let displayMode: DisplayMode
-    let isDragging: Bool
-    var onDelete: () -> Void
-
-    var body: some View {
-        NovelGridCell(
-            novel: novel,
-            displayMode: displayMode,
-            isEditing: true,
-            onDelete: onDelete
-        )
-        .contentShape(Rectangle())
-        .wiggle(when: true)
-        .opacity(isDragging ? 0.4 : 1.0)
-        .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: isDragging)
-    }
-}
-
 // MARK: - Interactive Grid Cell Wrapper
 
 struct InteractiveGridCell: View {
@@ -107,31 +54,30 @@ struct InteractiveGridCell: View {
     let novel: Entry
     let displayMode: DisplayMode
     var onSelect: (Entry) -> Void
-    var onArrange: () -> Void
     var onRemove: () -> Void
 
     var body: some View {
-        Button(action: { onSelect(novel) }) {
-            NovelGridCell(
-                transitionNamespace: transitionNamespace,
-                novel: novel,
-                displayMode: displayMode,
-                isEditing: false,
-                onDelete: {}
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .appContextMenu {
+        // A `Menu` with a primary action, not `.contextMenu`: tap opens, hold
+        // shows the actions, and sliding onto one and lifting picks it — the
+        // system's press-drag-release, which a context menu does not offer.
+        Menu {
             LibraryEntryQuickActions(
                 entry: novel,
                 onOpen: { onSelect(novel) },
-                onArrange: onArrange,
                 onRemove: onRemove
             )
-        } preview: {
-            LibraryEntryPreview(entry: novel)
+        } label: {
+            NovelGridCell(
+                transitionNamespace: transitionNamespace,
+                novel: novel,
+                displayMode: displayMode
+            )
+            .contentShape(Rectangle())
+        } primaryAction: {
+            onSelect(novel)
         }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuOrder(.fixed)
     }
 }
@@ -145,8 +91,6 @@ struct NovelGridCell: View {
     @Environment(SourceManager.self) private var sourceManager
     let novel: Entry
     let displayMode: DisplayMode
-    var isEditing: Bool = false
-    var onDelete: () -> Void = {}
 
     /// Counts come from a cached `fetchCount`, never from walking the entry's
     /// chapter array — see `LibraryChapterCounts`.
@@ -157,23 +101,14 @@ struct NovelGridCell: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .topLeading) {
-                EntryCoverView(
-                    url: novel.displayThumbnailURL,
-                    aspectRatio: LayoutConstants.coverAspectRatio
-                )
-                .bookTransitionSource(novel.persistentModelID, in: transitionNamespace)
-
-                if isEditing {
-                    DeleteBadge(action: onDelete)
-                        .offset(x: -6, y: -6)
-                        .transition(.scale.combined(with: .opacity))
-                        .zIndex(10)
-                }
-            }
+            EntryCoverView(
+                url: novel.displayThumbnailURL,
+                aspectRatio: LayoutConstants.coverAspectRatio
+            )
+            .bookTransitionSource(novel.persistentModelID, in: transitionNamespace)
             // An overlay, not a sibling: it takes exactly the cover's size.
             .overlay {
-                if !isEditing, let badges = badges, !badges.isEmpty {
+                if let badges = badges, !badges.isEmpty {
                     LibraryCoverBadges(badges: badges)
                 }
             }
