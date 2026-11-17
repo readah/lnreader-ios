@@ -83,6 +83,30 @@ private struct AppRevealModifier<Trigger: Hashable>: ViewModifier {
     }
 }
 
+struct AppearanceMotionPreview: View {
+    @State private var replay = 0
+    var body: some View {
+        Button { replay += 1 } label: {
+            HStack(spacing: 12) {
+                AppIcon(systemName: "sparkles", size: 22)
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: .rect(cornerRadius: 14))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("A softer arrival").font(Typography.headline)
+                    Text("Tap to replay").font(Typography.caption)
+                }
+                Spacer()
+                AppIcon(systemName: "arrow.clockwise", size: 16)
+            }
+            .foregroundStyle(.primary)
+            .padding(.vertical, 8)
+            .appReveal(trigger: replay)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Replay spring and unblur preview")
+    }
+}
+
 private struct UnblurVisibilityModifier: ViewModifier {
     @Environment(\.springUnblurMotion) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

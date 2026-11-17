@@ -87,11 +87,11 @@ struct ChapterListView: View {
                 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease",
             label: "Sort and filter chapters"
         ) {
-            Picker("Order", selection: $ascending) {
+            AppPicker("Order", selection: $ascending) {
                 AppLabel("Newest first", systemName: "arrow.down", size: 17, relativeTo: .body).tag(false)
                 AppLabel("Oldest first", systemName: "arrow.up", size: 17, relativeTo: .body).tag(true)
             }
-            Picker("Filter chapters", selection: $selectedFilter) {
+            AppPicker("Filter chapters", selection: $selectedFilter) {
                 ForEach(ChapterFilter.allCases) { Text($0.rawValue).tag($0) }
             }
             if scanlatorSettings != nil, !scanlators.isEmpty {
@@ -162,7 +162,7 @@ struct ChapterListView: View {
         .padding(.horizontal)
         .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: showSearchField)
         .onAppear { showSearchField = !searchText.isEmpty }
-        .sheet(isPresented: $showScanlators) {
+        .appSheet(isPresented: $showScanlators) {
             if let scanlatorSettings {
                 ScanlatorSettingsView(
                     settings: scanlatorSettings,
@@ -421,12 +421,12 @@ struct ChapterDirectoryView: View {
         return "\(ends.min()! + 1)–\(ends.max()! + 1)"
     }
 
-    private func pagerItems(_ items: [ChapterDisplay], pageCount: Int, page: Int) -> some ToolbarContent {
+    private func pagerItems(_ items: [ChapterDisplay], pageCount: Int, page: Int) -> some AppToolbarContent {
         AppToolbarItemGroup(placement: .bottomBar) {
             Button { self.page = max(0, page - 1) } label: { AppLabel("Previous 50 chapters", systemName: "chevron.left", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
                 .disabled(page == 0)
             Spacer()
-            Menu {
+            AppMenu {
                 ForEach(0..<pageCount, id: \.self) { index in
                     Button(label(for: index, in: items)) { self.page = index }
                 }
@@ -511,12 +511,12 @@ struct ChapterDirectoryView: View {
                 }
             }
             .id("\(search.isEmpty ? page : -1)-\(selectedFilter.rawValue)")
-            .searchable(text: $search, prompt: "Search every chapter")
+            .appSearchable(text: $search, prompt: "Search every chapter")
             .appNavigationTitle("Chapters").navigationBarTitleDisplayMode(.large)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        Picker("Filter", selection: Binding(get: { selectedFilter }, set: { selectedFilter = $0; self.page = 0 })) {
+                    AppMenu {
+                        AppPicker("Filter", selection: Binding(get: { selectedFilter }, set: { selectedFilter = $0; self.page = 0 })) {
                             ForEach(ChapterFilter.allCases) { Text($0.rawValue).tag($0) }
                         }
                     } label: {
@@ -526,7 +526,7 @@ struct ChapterDirectoryView: View {
                 }
                 AppToolbarItem(placement: .confirmationAction) { Button("Done") { if let onClose { onClose() } else { dismiss() } } }
             }
-            .toolbar { if showsPager { pagerItems(items, pageCount: pageCount, page: page) } }
+            .appToolbar { if showsPager { pagerItems(items, pageCount: pageCount, page: page) } }
             .toolbar(showsPager ? .visible : .hidden, for: .bottomBar)
             .chapterSelectionToolbar(
                 selection: selection, entry: entry, ordered: items,

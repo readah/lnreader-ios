@@ -162,6 +162,7 @@ struct LiquidGlassOnboardingView: View {
             }
         }
         .foregroundStyle(OnboardingPalette.ink)
+        .environment(\.noLiquidGlass, false)
         .preferredColorScheme(.dark)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notification in
             guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }

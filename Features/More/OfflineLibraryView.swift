@@ -42,14 +42,14 @@ struct OfflineLibraryView: View {
         }
         .settingsScreen("Downloads")
         .environment(\.editMode, $editMode)
-        .toolbar { toolbarItems }
+        .appToolbar { toolbarItems }
         .task(id: completed.count) {
             storageBytes = await Task.detached(priority: .utility) { ChapterDownloadManager.storageBytes() }.value
         }
-        .confirmationDialog("Cancel every pending download?", isPresented: $confirmCancelAll, titleVisibility: .visible) {
+        .appConfirmationDialog("Cancel every pending download?", isPresented: $confirmCancelAll, titleVisibility: .visible) {
             Button("Cancel \(pending.count) downloads", role: .destructive) { downloads.cancelAll() }
         }
-        .confirmationDialog("Delete every downloaded chapter?", isPresented: $confirmClearAll, titleVisibility: .visible) {
+        .appConfirmationDialog("Delete every downloaded chapter?", isPresented: $confirmClearAll, titleVisibility: .visible) {
             Button("Delete all downloads", role: .destructive) { downloads.clearAll() }
         } message: {
             Text("Chapters stay in your library and can be downloaded again.")
@@ -76,11 +76,11 @@ struct OfflineLibraryView: View {
 
     private var automationSection: some View {
         Section {
-            Picker("Download ahead", selection: $aheadCount) {
+            AppPicker("Download ahead", selection: $aheadCount) {
                 Text("Off").tag(0)
                 ForEach([1, 2, 3, 5, 10], id: \.self) { Text("\($0) chapters").tag($0) }
             }
-            Picker("Delete after reading", selection: $deleteAfterRead) {
+            AppPicker("Delete after reading", selection: $deleteAfterRead) {
                 Text("Never").tag(0)
                 Text("Chapter just read").tag(1)
                 Text("Second to last read").tag(2)
@@ -114,7 +114,7 @@ struct OfflineLibraryView: View {
         }.sorted { $0.entry.displayTitle.localizedStandardCompare($1.entry.displayTitle) == .orderedAscending }
         return Section("Downloaded") {
             ForEach(rows, id: \.entry.persistentModelID) { row in
-                NavigationLink {
+                AppNavigationLink {
                     EntryDetailView(entry: row.entry)
                 } label: {
                     LabeledContent(row.entry.displayTitle, value: "\(row.items.count)")
@@ -126,10 +126,10 @@ struct OfflineLibraryView: View {
         }
     }
 
-    @ToolbarContentBuilder private var toolbarItems: some ToolbarContent {
+    @AppToolbarBuilder private var toolbarItems: some AppToolbarContent {
         if !isEmpty {
             AppToolbarItem(placement: .topBarTrailing) {
-                Menu {
+                AppMenu {
                     if pending.count > 1 {
                         Button(editMode.isEditing ? "Done reordering" : "Reorder queue", systemImage: "arrow.up.arrow.down") {
                             withAnimation { editMode = editMode.isEditing ? .inactive : .active }
@@ -164,7 +164,7 @@ private struct DownloadQueueRow: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(isActive ? "Pause download" : "Resume download")
             if let entry = item.chapter?.entry {
-                NavigationLink { EntryDetailView(entry: entry) } label: { details }
+                AppNavigationLink { EntryDetailView(entry: entry) } label: { details }
             } else {
                 details
             }
@@ -229,7 +229,7 @@ struct LibraryUpdateSettingsView: View {
             }
             Section {
                 Toggle("Check for new chapters", isOn: $enabled)
-                Stepper("Requested interval: \(Int(hours)) hours", value: $hours, in: 1...72, step: 1)
+                AppStepper("Requested interval: \(Int(hours)) hours", value: $hours, in: 1...72, step: 1)
                 Toggle("Wi-Fi only", isOn: $wifiOnly)
                 Toggle("Only titles without unread chapters", isOn: $skipUnread)
                 Toggle("Skip completed titles", isOn: $skipCompleted)
@@ -244,7 +244,7 @@ struct LibraryUpdateSettingsView: View {
                 if !schedulingError.isEmpty { Text(schedulingError) }
             }
             Section {
-                NavigationLink {
+                AppNavigationLink {
                     PerTitleUpdatesView(entries: entries)
                 } label: {
                     LabeledContent("Per-title updates", value: perTitleSummary)
@@ -305,15 +305,15 @@ private struct PerTitleUpdatesView: View {
             }
         }
         .settingsScreen("Per-title updates")
-        .searchable(text: $search, prompt: "Search titles")
-        .toolbar {
+        .appSearchable(text: $search, prompt: "Search titles")
+        .appToolbar {
             AppToolbarItem(placement: .topBarTrailing) { filterMenu }
         }
     }
 
     private var filterMenu: some View {
-        Menu {
-            Picker("Show", selection: $scope) {
+        AppMenu {
+            AppPicker("Show", selection: $scope) {
                 Text("All titles").tag(UpdateStrategy?.none)
                 ForEach(UpdateStrategy.allCases, id: \.self) { Text($0.displayName).tag(UpdateStrategy?.some($0)) }
             }
@@ -347,8 +347,8 @@ private struct PerTitleUpdateRow: View {
                 .font(Typography.body)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Menu {
-                Picker("Update", selection: Binding(get: { entry.updateStrategy }, set: onChange)) {
+            AppMenu {
+                AppPicker("Update", selection: Binding(get: { entry.updateStrategy }, set: onChange)) {
                     ForEach(UpdateStrategy.allCases, id: \.self) { Text($0.displayName).tag($0) }
                 }
             } label: {
@@ -838,7 +838,7 @@ struct LNReaderBackupPreviewSheet: View {
             }
             .appNavigationTitle("Restore backup")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
@@ -864,7 +864,7 @@ struct LNReaderBackupPreviewSheet: View {
                 .background(.bar)
             }
         }
-        .presentationDetents([.medium, .large])
+        .appPresentationDetents([.medium, .large])
     }
 }
 
@@ -940,7 +940,7 @@ struct MihonBackupPreviewSheet: View {
             }
             .appNavigationTitle("Import backup")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
@@ -966,7 +966,7 @@ struct MihonBackupPreviewSheet: View {
                 .background(.bar)
             }
         }
-        .presentationDetents([.medium, .large])
+        .appPresentationDetents([.medium, .large])
     }
 }
 
@@ -1039,7 +1039,7 @@ struct BackupProgressSheet: View {
             }
             .appNavigationTitle("Backup & restore")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .topBarLeading) {
                     if manager.isRunning {
                         Button("Stop", role: .destructive) { manager.cancel() }
@@ -1353,14 +1353,14 @@ struct LibraryBackupView: View {
                 readErrorMessage = "Export failed: \(error.localizedDescription)"
             }
         }
-        .sheet(isPresented: $importing, onDismiss: openPicked) {
+        .appSheet(isPresented: $importing, onDismiss: openPicked) {
             BackupDocumentPicker(types: [.lnreaderBackup, .tachibkBackup, .data]) { url in
                 picked = url
                 importing = false
             }
             .ignoresSafeArea()
         }
-        .sheet(item: Binding(get: {
+        .appSheet(item: Binding(get: {
             pendingSnapshot.map { SnapshotWrapper(snapshot: $0) }
         }, set: {
             pendingSnapshot = $0?.snapshot
@@ -1370,7 +1370,7 @@ struct LibraryBackupView: View {
                 backupManager.restoreLN(wrapper.snapshot, container: container)
             }
         }
-        .sheet(item: Binding(get: {
+        .appSheet(item: Binding(get: {
             pendingMihon.map { MihonWrapper(backup: $0) }
         }, set: {
             pendingMihon = $0?.backup
@@ -1380,7 +1380,7 @@ struct LibraryBackupView: View {
                 backupManager.restoreMihon(wrapper.backup, container: container)
             }
         }
-        .alert("Could Not Open Backup", isPresented: Binding(get: { readErrorMessage != nil }, set: { if !$0 { readErrorMessage = nil } })) {
+        .appAlert("Could Not Open Backup", isPresented: Binding(get: { readErrorMessage != nil }, set: { if !$0 { readErrorMessage = nil } })) {
             Button("OK") { readErrorMessage = nil }
         } message: {
             if let readErrorMessage { Text(readErrorMessage) }

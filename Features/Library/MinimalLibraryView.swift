@@ -71,6 +71,7 @@ struct MinimalLibraryView: View {
                         headerBar
                         if showSearch {
                             searchField
+                                .appReveal(edge: .top)
                                 .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                         Spacer()
@@ -91,7 +92,7 @@ struct MinimalLibraryView: View {
                     }
                 }
             }
-            .navigationDestination(for: Entry.self) { novel in
+            .appNavigationDestination(for: Entry.self) { novel in
                 // A migrated entry takes the place of the one that left the
                 // library, so Back goes here rather than to a dead page.
                 EntryDetailView(entry: novel) { replacement in
@@ -102,7 +103,7 @@ struct MinimalLibraryView: View {
                 .bookZoom(from: novel.persistentModelID, in: bookTransitions)
             }
             // A linked entry that is not in the library: nothing stored to push.
-            .navigationDestination(for: SourceEntry.self) { entry in
+            .appNavigationDestination(for: SourceEntry.self) { entry in
                 EntryDetailView(sourceEntry: entry)
             }
             // A link can arrive before or after this screen appears; one path,
@@ -150,7 +151,7 @@ struct MinimalLibraryView: View {
                     showImportError = true
                 }
             }
-            .alert("Import Error", isPresented: $showImportError, presenting: importError) { _ in
+            .appAlert("Import Error", isPresented: $showImportError, presenting: importError) { _ in
                 Button("OK", role: .cancel) {}
             } message: { error in
                 Text(error)
@@ -286,7 +287,7 @@ struct MinimalLibraryView: View {
     /// Several actions, so the `…` menu earns its place; leaving Minimal Mode is
     /// the one that matters most, since the tab bar is the only other way out.
     private var overflowMenu: some View {
-        Menu {
+        AppMenu {
             Button {
                 showFileImporter = true
             } label: {

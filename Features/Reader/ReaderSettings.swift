@@ -44,7 +44,7 @@ struct ReaderSettings: View {
     @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = false
     @ObservedObject private var focusManager = FocusModeManager.shared
 
-    static let compactDetent: PresentationDetent = .height(420)
+    static let compactDetent: AppPresentationDetent = .height(420)
 
     /// The full settings sheet, opened by Customize.
     @State private var showCustomize = false
@@ -68,7 +68,7 @@ struct ReaderSettings: View {
         wordSpacing: Binding<Double>,
         grainIntensity: Binding<Double>,
         isEmbedded: Bool = false,
-        detent: Binding<PresentationDetent> = .constant(.large)
+        detent: Binding<AppPresentationDetent> = .constant(.large)
     ) {
         self._fontSize = fontSize
         self._lineHeight = lineHeight
@@ -160,7 +160,7 @@ struct ReaderSettings: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onDisappear { commitChanges() }
-            .sheet(isPresented: $showCustomize) { customizeSheet }
+            .appSheet(isPresented: $showCustomize) { customizeSheet }
         }
     }
 
@@ -273,7 +273,7 @@ struct ReaderSettings: View {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
-            Slider(value: Binding(get: { 1 - dimLevel }, set: { dimLevel = 1 - $0 }), in: 0...1)
+            AppSlider(value: Binding(get: { 1 - dimLevel }, set: { dimLevel = 1 - $0 }), in: 0...1)
                 .tint(.primary)
                 .accessibilityLabel("Brightness")
 
@@ -340,9 +340,9 @@ struct ReaderSettings: View {
         // Swiping the sheet away keeps what you changed, like the check does.
         // Only the ✕ puts it back.
         .onDisappear { commitChanges() }
-        .presentationDetents([.large])
+        .appPresentationDetents([.large])
         .presentationDragIndicator(.hidden)
-        .presentationCornerRadius(28)
+        .appPresentationCornerRadius(28)
     }
 
     /// What the sheet looked like when Customize opened.
@@ -431,8 +431,8 @@ struct ReaderSettings: View {
             themesGrid
                 .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
 
-            ColorPicker("Custom background", selection: customBgColorBinding)
-            ColorPicker("Custom text color", selection: customTextColorBinding)
+            AppColorPicker("Custom background", selection: customBgColorBinding)
+            AppColorPicker("Custom text color", selection: customTextColorBinding)
 
             if !localBackgroundColorHex.isEmpty || !localTextColorHex.isEmpty {
                 Button("Reset to theme colors") {
@@ -460,7 +460,7 @@ struct ReaderSettings: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            ColorPicker("Word highlight", selection: Binding(
+            AppColorPicker("Word highlight", selection: Binding(
                 get: { Color(hex: ReaderAppearance.highlightHex(background: localBackgroundColorHex, custom: highlightColorHex)) ?? .green },
                 set: { if let hex = $0.toHex() { highlightColorHex = hex } }
             ), supportsOpacity: false)
@@ -505,7 +505,7 @@ struct ReaderSettings: View {
 
     private var typographySection: some View {
         Section("Typography & Reading") {
-            Picker("Font family", selection: $localFontFamily) {
+            AppPicker("Font family", selection: $localFontFamily) {
                 ForEach(fontFamilies, id: \.self) { font in
                     Text(font)
                         .font(font == "System" ? .body : .custom(font, size: 15))
@@ -588,33 +588,33 @@ struct ReaderSettings: View {
                 .tint(AppTheme.controlFill)
 
             if localLineFocusEnabled {
-                Picker("Focused lines", selection: $localLineFocusLines) {
+                AppPicker("Focused lines", selection: $localLineFocusLines) {
                     Text("1 Line").tag(1)
                     Text("2 Lines").tag(2)
                     Text("3 Lines").tag(3)
                 }
-                .pickerStyle(.segmented)
+                .appPickerStyle(.segmented)
 
-                Picker("Background dimming", selection: $localLineFocusDulling) {
+                AppPicker("Background dimming", selection: $localLineFocusDulling) {
                     Text("Low").tag("low")
                     Text("Medium").tag("mid")
                     Text("High").tag("high")
                 }
-                .pickerStyle(.segmented)
+                .appPickerStyle(.segmented)
             }
         }
     }
 
     private var focusSection: some View {
         Section("Focus Integration") {
-            Picker("Active Focus display", selection: $localFocusOverride) {
+            AppPicker("Active Focus display", selection: $localFocusOverride) {
                 Text("Off").tag("none")
                 Text("System auto").tag("auto")
                 Text("Do Not Disturb").tag("dnd")
                 Text("Work Focus").tag("work")
                 Text("Sleep Focus").tag("sleep")
             }
-            .pickerStyle(.menu)
+            .appPickerStyle(.menu)
 
             if localFocusOverride == "auto" {
                 FocusStatusRow(focusManager: focusManager)
@@ -642,7 +642,7 @@ struct ReaderSettings: View {
             Button("Reset novel defaults", role: .destructive) {
                 showResetNovelDialog = true
             }
-            .confirmationDialog(
+            .appConfirmationDialog(
                 "Reset novel settings?",
                 isPresented: $showResetNovelDialog,
                 titleVisibility: .visible
@@ -671,7 +671,7 @@ struct ReaderSettings: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Slider(value: value, in: range, step: step)
+            AppSlider(value: value, in: range, step: step)
                 .tint(AppTheme.controlFill)
                 .accessibilityLabel(title)
                 .accessibilityValue(valueText)

@@ -305,7 +305,7 @@ enum WebViewCapture {
                 })
             challengeController = controller
             let presenter = WebViewCapture.topViewController()
-            presenter?.present(UINavigationController(rootViewController: controller), animated: true)
+            presenter?.present(controller.presentationContainer, animated: true)
             if presenter == nil {
                 finish(.failure(CaptureError.blocked("The page needs verification, but nothing could show it.")))
             }
@@ -342,7 +342,7 @@ enum WebViewCapture {
             }
             #if canImport(UIKit)
             if let challengeController {
-                challengeController.navigationController?.dismiss(animated: true)
+                (challengeController.navigationController ?? challengeController).dismiss(animated: true)
                 self.challengeController = nil
             }
             webView?.removeFromSuperview()
@@ -407,6 +407,15 @@ extension WebViewCapture {
 final class ChallengeController: UIViewController {
     private let webView: WKWebView
     private let onCancel: () -> Void
+    private let classicChrome = UserDefaults.standard.bool(forKey: ChromeAppearance.noLiquidGlassKey)
+
+    var presentationContainer: UIViewController {
+        if classicChrome {
+            modalPresentationStyle = .fullScreen
+            return self
+        }
+        return UINavigationController(rootViewController: self)
+    }
 
     init(webView: WKWebView, title: String, onCancel: @escaping () -> Void) {
         self.webView = webView
@@ -420,14 +429,65 @@ final class ChallengeController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-        navigationItem.leftBarButtonItem = UIBarButtonItem(
-            systemItem: .cancel, primaryAction: UIAction { [weak self] _ in self?.onCancel() })
+        if !classicChrome {
+            navigationItem.leftBarButtonItem = UIBarButtonItem(
+                systemItem: .cancel, primaryAction: UIAction { [weak self] _ in self?.onCancel() })
+        }
         webView.removeFromSuperview()
         webView.alpha = 1
         webView.isUserInteractionEnabled = true
         webView.frame = view.bounds
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(webView)
+        if classicChrome { installClassicHeader() }
+    }
+
+    private func installClassicHeader() {
+        let header = UIVisualEffectView(effect: UIAccessibility.isReduceTransparencyEnabled
+            ? nil : UIBlurEffect(style: .systemUltraThinMaterial))
+        if UIAccessibility.isReduceTransparencyEnabled { header.backgroundColor = .systemBackground }
+        let cancel = UIButton(type: .system)
+        cancel.setTitle("Cancel", for: .normal)
+        cancel.setTitleColor(.label, for: .normal)
+        cancel.titleLabel?.font = .preferredFont(forTextStyle: .body)
+        cancel.backgroundColor = .secondarySystemFill
+        cancel.layer.cornerRadius = 16
+        cancel.addAction(UIAction { [weak self] _ in self?.onCancel() }, for: .touchUpInside)
+        let label = UILabel()
+        label.text = title
+        label.font = .preferredFont(forTextStyle: .headline)
+        label.adjustsFontForContentSizeCategory = true
+        label.lineBreakMode = .byTruncatingTail
+        view.addSubview(header)
+        let edgeSwipe = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(cancelFromEdge(_:)))
+        edgeSwipe.edges = .left
+        view.addGestureRecognizer(edgeSwipe)
+        header.contentView.addSubview(cancel)
+        header.contentView.addSubview(label)
+        [header, cancel, label, webView].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+        NSLayoutConstraint.activate([
+            header.topAnchor.constraint(equalTo: view.topAnchor),
+            header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            header.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 62),
+            cancel.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 12),
+            cancel.bottomAnchor.constraint(equalTo: header.bottomAnchor, constant: -9),
+            cancel.heightAnchor.constraint(equalToConstant: 44),
+            cancel.widthAnchor.constraint(greaterThanOrEqualToConstant: 76),
+            label.leadingAnchor.constraint(equalTo: cancel.trailingAnchor, constant: 14),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: header.trailingAnchor, constant: -12),
+            label.centerYAnchor.constraint(equalTo: cancel.centerYAnchor),
+            webView.topAnchor.constraint(equalTo: header.bottomAnchor),
+            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+    }
+
+    @objc private func cancelFromEdge(_ gesture: UIScreenEdgePanGestureRecognizer) {
+        guard gesture.state == .ended,
+              gesture.translation(in: view).x > 40 || gesture.velocity(in: view).x > 300 else { return }
+        onCancel()
     }
 
     override func viewDidDisappear(_ animated: Bool) {

@@ -29,6 +29,7 @@ struct ContentView: View {
         Group {
             if minimalMode {
                 MinimalLibraryView(openedEntry: $openedEntry)
+                    .appReveal()
             } else {
                 tabRoot
             }
@@ -76,6 +77,7 @@ struct ContentView: View {
                 highlightParagraph: request.paragraphIndex
             )
             .environment(readerRouter)
+            .appReveal()
         }
         .onChange(of: ObjectIdentifier(modelContext)) { _, _ in
             readerRouter.close()
@@ -158,7 +160,7 @@ struct ContentView: View {
         // edges instead of sitting around an opaque card.
         .scrollContentBackground(.hidden)
         .modifier(UpdateBannerHost(isActive: libraryManager.updateProgress != nil || BackupManager.shared.progress != nil))
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .overlay(alignment: .bottom) {
             if noLiquidGlass && !classicTabBarHidden {
                 ClassicTabBar(selected: selectedTab) { tab in
                     if tab == .history, selectedTab == .history { historyResume += 1 }
@@ -212,6 +214,7 @@ private struct SyncProgressToast: View {
                 .padding(16)
                 .frame(maxWidth: 420)
                 .appGlassEffect(.regular, in: .rect(cornerRadius: 24))
+                .appReveal(edge: .top)
                 .transition(.move(edge: .top))
             }
         }

@@ -16,14 +16,14 @@ struct LibraryUpdateBanner: View {
         if let progress = libraryManager.updateProgress {
             Button { showDetail = true } label: { bannerLabel(progress) }
                 .buttonStyle(.plain)
-                .sheet(isPresented: $showDetail) {
-                    LibraryUpdateSheet().presentationDetents([.medium, .large])
+                .appSheet(isPresented: $showDetail) {
+                    LibraryUpdateSheet().appPresentationDetents([.medium, .large])
                 }
         } else if let progress = backupManager.progress {
             Button { showBackupDetail = true } label: { backupBannerLabel(progress) }
                 .buttonStyle(.plain)
-                .sheet(isPresented: $showBackupDetail) {
-                    BackupProgressSheet(manager: backupManager).presentationDetents([.medium, .large])
+                .appSheet(isPresented: $showBackupDetail) {
+                    BackupProgressSheet(manager: backupManager).appPresentationDetents([.medium, .large])
                 }
         }
     }
@@ -150,7 +150,7 @@ struct LibraryUpdateSheet: View {
             }
             .appNavigationTitle("Library update")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .topBarLeading) {
                     if libraryManager.isUpdating {
                         Button("Stop", role: .destructive) { libraryManager.cancelUpdate() }

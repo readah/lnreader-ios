@@ -44,7 +44,7 @@ struct SourceDetailView: View {
 
     @ViewBuilder
     private func entryLink(_ entry: SourceEntry) -> some View {
-        NavigationLink {
+        AppNavigationLink {
             EntryDetailView(sourceEntry: entry)
                 .bookZoom(from: entry.url, in: bookTransitions)
         } label: {
@@ -84,7 +84,7 @@ struct SourceDetailView: View {
             entriesLayout
         }
         .appNavigationTitle(title)
-        .searchable(text: $searchText, prompt: "Search \(title)")
+        .appSearchable(text: $searchText, prompt: "Search \(title)")
         .onSubmit(of: .search) {
             Task { await search() }
         }
@@ -120,7 +120,7 @@ struct SourceDetailView: View {
         }
         .task { await loadPopular() }
         .task { await loadFilterDefinitions() }
-        .sheet(isPresented: $showFilters) {
+        .appSheet(isPresented: $showFilters) {
             Group {
                 if filtersLoaded {
                     SourceFilterSheet(
@@ -143,9 +143,9 @@ struct SourceDetailView: View {
                     LoadingView(message: "Loading filters...")
                 }
             }
-            .presentationDetents([.medium, .large])
+            .appPresentationDetents([.medium, .large])
         }
-        .toolbar {
+        .appToolbar {
             if hasFilters {
                 AppToolbarItem(placement: .primaryAction) {
                     Button { showFilters = true } label: {
@@ -158,7 +158,7 @@ struct SourceDetailView: View {
             }
             if let site = CommentSite.site(for: SourceKey.identifier(from: sourceKey)) {
                 AppToolbarItem(placement: .primaryAction) {
-                    NavigationLink(destination: NovelFireLoginView(onLoginSuccess: {
+                    AppNavigationLink(destination: NovelFireLoginView(onLoginSuccess: {
                         Task { await loadPopular() }
                     }, site: site)) {
                         AppLabel("Login", systemName: "person.badge.key", size: 17, relativeTo: .body)

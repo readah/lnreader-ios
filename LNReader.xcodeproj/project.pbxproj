@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A0C4A000000000000000000B /* AppDialogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C4A000000000000000000C /* AppDialogs.swift */; };
+		A0C4A0000000000000000009 /* AppControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C4A000000000000000000A /* AppControls.swift */; };
+		A0C4A0000000000000000007 /* AppPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C4A0000000000000000008 /* AppPresentation.swift */; };
+		A0C4A0000000000000000005 /* AppNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C4A0000000000000000006 /* AppNavigation.swift */; };
 		A0C4A0000000000000000003 /* AppRevealMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C4A0000000000000000004 /* AppRevealMotion.swift */; };
 		A0C4A0000000000000000001 /* AppChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C4A0000000000000000002 /* AppChrome.swift */; };
 		B171C0000000000000000001 /* SyncFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B171C0000000000000000002 /* SyncFiles.swift */; };
@@ -225,6 +229,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A0C4A000000000000000000C /* AppDialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDialogs.swift; sourceTree = "<group>"; };
+		A0C4A000000000000000000A /* AppControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppControls.swift; sourceTree = "<group>"; };
+		A0C4A0000000000000000008 /* AppPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPresentation.swift; sourceTree = "<group>"; };
+		A0C4A0000000000000000006 /* AppNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigation.swift; sourceTree = "<group>"; };
 		A0C4A0000000000000000004 /* AppRevealMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRevealMotion.swift; sourceTree = "<group>"; };
 		A0C4A0000000000000000002 /* AppChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppChrome.swift; sourceTree = "<group>"; };
 		B171C0000000000000000002 /* SyncFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncFiles.swift; sourceTree = "<group>"; };
@@ -461,6 +469,10 @@
 				9D2FA6695A9361D47858CC38 /* FlexibleHeader.swift */,
 				A1B2C3D4E5F600112233AA02 /* GlassControls.swift */,
 				A0C4A0000000000000000002 /* AppChrome.swift */,
+				A0C4A000000000000000000C /* AppDialogs.swift */,
+				A0C4A000000000000000000A /* AppControls.swift */,
+				A0C4A0000000000000000008 /* AppPresentation.swift */,
+				A0C4A0000000000000000006 /* AppNavigation.swift */,
 				A0C4A0000000000000000004 /* AppRevealMotion.swift */,
 				A9F0C0DE0000000000000011 /* VoiceGlow.swift */,
 				A9F0C0DE0000000000000012 /* VoiceGlow.metal */,
@@ -1050,6 +1062,10 @@
 				5E1A7C0D2B4F48A1900000C1 /* ReaderSheetChrome.swift in Sources */,
 				A1B2C3D4E5F600112233AA01 /* GlassControls.swift in Sources */,
 				A0C4A0000000000000000001 /* AppChrome.swift in Sources */,
+				A0C4A000000000000000000B /* AppDialogs.swift in Sources */,
+				A0C4A0000000000000000009 /* AppControls.swift in Sources */,
+				A0C4A0000000000000000007 /* AppPresentation.swift in Sources */,
+				A0C4A0000000000000000005 /* AppNavigation.swift in Sources */,
 				A0C4A0000000000000000003 /* AppRevealMotion.swift in Sources */,
 				A9F0C0DE0000000000000001 /* VoiceGlow.swift in Sources */,
 				A9F0C0DE0000000000000002 /* VoiceGlow.metal in Sources */,

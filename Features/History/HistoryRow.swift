@@ -95,7 +95,7 @@ private struct RunToggle: View {
                     .rotationEffect(.degrees(isExpanded ? -180 : 0))
             }
         }
-        .toggleStyle(.button)
+        .toggleStyle(AppButtonToggleStyle())
         .buttonBorderShape(.capsule)
         .controlSize(.small)
         .tint(AppTheme.primaryFill)

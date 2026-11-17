@@ -303,14 +303,14 @@ struct MigrateSourceSheet: View {
             .appNavigationTitle("Migrate source")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) { footerBar }
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
-            .sheet(isPresented: $showSources) {
+            .appSheet(isPresented: $showSources) {
                 AppNavigationStack { MigrationSourcesView(kind: kind, current: sourceKey) }
-                    .presentationDetents([.medium, .large])
+                    .appPresentationDetents([.medium, .large])
             }
-            .navigationDestination(isPresented: $isReviewing) {
+            .appNavigationDestination(isPresented: $isReviewing) {
                 BulkMigrateReviewView(
                     entries: entries, kind: kind, sourceKey: sourceKey, options: options,
                     onFinished: onFinished)
@@ -389,13 +389,13 @@ struct BulkMigrateReviewView: View {
         .appNavigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { footer }
-        .sheet(item: $changing) { entry in
+        .appSheet(item: $changing) { entry in
             AppNavigationStack {
                 MigrationCandidatePicker(entry: entry) { candidate in
                     model.choose(candidate, for: entry.persistentModelID)
                     changing = nil
                 }
-                .toolbar { AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { changing = nil } } }
+                .appToolbar { AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { changing = nil } } }
             }
         }
         .task {

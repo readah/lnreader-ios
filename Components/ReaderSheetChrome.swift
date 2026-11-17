@@ -67,6 +67,7 @@ struct ReaderSheetHeader: View {
             }
         }
         .frame(height: GlassMetrics.side)
+        .appReveal(edge: .top)
     }
 
     private var closeButton: some View {
@@ -165,7 +166,7 @@ struct InfoButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("More about this setting")
-        .popover(isPresented: $isShowing) {
+        .appPopover(isPresented: $isShowing) {
             Text(text)
                 .font(.callout)
                 .foregroundStyle(.primary)

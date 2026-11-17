@@ -17,6 +17,17 @@ extension EnvironmentValues {
     }
 }
 
+struct FrostedBackdrop: View {
+    var dense = false
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    var body: some View {
+        Rectangle()
+            .fill(reduceTransparency ? AnyShapeStyle(AppTheme.surface) : AnyShapeStyle(dense ? Material.thin : Material.ultraThin))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
 /// Classic, non-refracting material. Decorations never intercept the control.
 struct FrostedSurface<S: Shape>: View {
     let shape: S
@@ -110,7 +121,7 @@ struct FrostedButtonStyle: ButtonStyle {
                     FrostedSurface(shape: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
             }
-            .foregroundStyle(configuration.role == .destructive ? AppTheme.destructive : (prominent ? AppTheme.onPrimaryFill : AppTheme.accent))
+            .foregroundStyle(prominent ? (configuration.role == .destructive ? Color.white : AppTheme.onPrimaryFill) : (configuration.role == .destructive ? AppTheme.destructive : AppTheme.accent))
             .opacity(isEnabled ? (configuration.isPressed ? 0.72 : 1) : 0.4)
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
             .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: configuration.isPressed)
@@ -123,9 +134,12 @@ struct AppGlassEffectContainer<Content: View>: View {
     var spacing: CGFloat? = nil
     @ViewBuilder var content: () -> Content
 
-    @ViewBuilder var body: some View {
-        if classic { content() }
-        else { GlassEffectContainer(spacing: spacing, content: content) }
+    var body: some View {
+        Group {
+            if classic { content() }
+            else { GlassEffectContainer(spacing: spacing, content: content) }
+        }
+        .appReveal()
     }
 }
 
@@ -173,11 +187,12 @@ struct ClassicTabBar: View {
                 .accessibilityAddTraits(selected == tab ? .isSelected : [])
             }
         }
-        .padding(6)
-        .background { FrostedSurface(shape: RoundedRectangle(cornerRadius: 28, style: .continuous), dense: true) }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.horizontal, 10)
+        .frame(height: 64)
+        .background {
+            FrostedBackdrop(dense: true).ignoresSafeArea(edges: .bottom)
+                .overlay(alignment: .top) { Rectangle().fill(AppTheme.hairline).frame(height: 0.5) }
+        }
         .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: selected)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Tab bar")
@@ -189,9 +204,20 @@ struct ClassicTabBarHiddenKey: PreferenceKey {
     static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
 }
 
+private struct ClassicTabBarHeightKey: EnvironmentKey { static let defaultValue: CGFloat = 0 }
+extension EnvironmentValues {
+    var classicTabBarHeight: CGFloat {
+        get { self[ClassicTabBarHeightKey.self] }
+        set { self[ClassicTabBarHeightKey.self] = newValue }
+    }
+}
+
 struct AppTabChrome: ViewModifier {
     @Environment(\.noLiquidGlass) private var classic
     func body(content: Content) -> some View {
-        content.toolbarVisibility(classic ? .hidden : .automatic, for: .tabBar)
+        content
+            .toolbarVisibility(classic ? .hidden : .automatic, for: .tabBar)
+            .environment(\.classicTabBarHeight, classic ? 64 : 0)
+            .appReveal()
     }
 }

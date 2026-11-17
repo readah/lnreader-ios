@@ -25,8 +25,8 @@ struct CategoriesSettingsView: View {
             categoriesSection
         }
         .settingsScreen("Categories")
-        .toolbar { toolbar }
-        .sheet(item: $editor) { item in
+        .appToolbar { toolbar }
+        .appSheet(item: $editor) { item in
             CategoryEditorSheet(
                 category: item.category,
                 initialName: item.name,
@@ -40,7 +40,7 @@ struct CategoriesSettingsView: View {
                 onTitlesChanged: { Task { await self.loadTitleCounts() } }
             )
         }
-        .confirmationDialog(
+        .appConfirmationDialog(
             "Delete category?",
             isPresented: deleteDialogPresented,
             titleVisibility: .visible
@@ -132,8 +132,8 @@ struct CategoriesSettingsView: View {
         return count == 1 ? "1 title" : "\(count) titles"
     }
 
-    @ToolbarContentBuilder
-    private var toolbar: some ToolbarContent {
+    @AppToolbarBuilder
+    private var toolbar: some AppToolbarContent {
         if categories.count > 1 {
             AppToolbarItem(placement: .topBarLeading) { EditButton() }
         }
@@ -350,7 +350,7 @@ private struct CategoryEditorSheet: View {
 
                 if let category {
                     Section {
-                        NavigationLink {
+                        AppNavigationLink {
                             CategoryTitlesPickerView(category: category, onDismiss: onTitlesChanged)
                         } label: {
                             LabeledContent("Titles", value: "\(titleCount)")
@@ -365,7 +365,7 @@ private struct CategoryEditorSheet: View {
             }
             .appNavigationTitle(isNew ? "New category" : "Edit category")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
@@ -378,7 +378,7 @@ private struct CategoryEditorSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .appPresentationDetents([.medium, .large])
     }
 }
 
@@ -450,7 +450,7 @@ private struct CategoryTitlesPickerView: View {
         }
         .appNavigationTitle("Titles")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchText, prompt: "Search titles")
+        .appSearchable(text: $searchText, prompt: "Search titles")
         .task(id: category.persistentModelID) { await loadMembers() }
         .onDisappear(perform: onDismiss)
     }

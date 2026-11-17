@@ -32,7 +32,7 @@ struct GlobalSearchView: View {
             }
         }
         .appNavigationTitle("Global Search")
-        .searchable(text: $searchText, prompt: "Search all sources")
+        .appSearchable(text: $searchText, prompt: "Search all sources")
         .onSubmit(of: .search) {
             Task { await performSearch() }
         }
@@ -96,7 +96,7 @@ struct SourceResultSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
                     ForEach(result.entries.prefix(10)) { entry in
-                        NavigationLink {
+                        AppNavigationLink {
                             EntryDetailView(sourceEntry: entry)
                                 .bookZoom(from: entry.url, in: bookTransitions)
                         } label: {

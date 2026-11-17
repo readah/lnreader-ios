@@ -94,17 +94,17 @@ struct MigrationCandidatePicker: View {
         .listStyle(.plain)
         .appNavigationTitle("Migrate")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, prompt: "Search by title")
+        .appSearchable(text: $query, prompt: "Search by title")
         .autocorrectionDisabled()
         .onSubmit(of: .search) { Task { await search() } }
-        .toolbar {
+        .appToolbar {
             AppToolbarItem(placement: .topBarTrailing) {
                 Button { showSources = true } label: { AppLabel("Sources", systemName: "slider.horizontal.3", size: 17, relativeTo: .body) }
             }
         }
-        .sheet(isPresented: $showSources, onDismiss: { Task { await search() } }) {
+        .appSheet(isPresented: $showSources, onDismiss: { Task { await search() } }) {
             AppNavigationStack { MigrationSourcesView(kind: entry.kind, current: entry.sourceKey) }
-                .presentationDetents([.medium, .large])
+                .appPresentationDetents([.medium, .large])
         }
         .task {
             guard !didSearch else { return }
@@ -238,7 +238,7 @@ struct MigrationSourcesView: View {
         }
         .appNavigationTitle("Migration sources")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
+        .appToolbar {
             AppToolbarItem(placement: .topBarLeading) {
                 if enabled.count > 1 { EditButton() }
             }
@@ -473,10 +473,10 @@ struct MigrateEntrySheet: View {
     var body: some View {
         AppPathNavigationStack(path: $path) {
             MigrationCandidatePicker(entry: entry) { path.append($0) }
-                .navigationDestination(for: MigrationCandidate.self) { candidate in
+                .appNavigationDestination(for: MigrationCandidate.self) { candidate in
                     MigrateConfirmView(old: entry, candidate: candidate, onFinished: onFinished)
                 }
-                .toolbar {
+                .appToolbar {
                     AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 }
         }

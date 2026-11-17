@@ -23,21 +23,21 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Sort order", selection: defaultSortOrder) {
+                AppPicker("Sort order", selection: defaultSortOrder) {
                     ForEach(SortOrder.allCases) { order in
                         Text(order.displayName).tag(order)
                     }
                 }
                 .tint(AppTheme.accent)
 
-                Picker("Sort direction", selection: defaultSortDirection) {
+                AppPicker("Sort direction", selection: defaultSortDirection) {
                     ForEach(SortDirection.allCases, id: \.self) { direction in
                         Text(direction.rawValue).tag(direction)
                     }
                 }
                 .tint(AppTheme.accent)
 
-                Picker("Display mode", selection: defaultDisplayMode) {
+                AppPicker("Display mode", selection: defaultDisplayMode) {
                     ForEach(DisplayMode.allCases) { mode in
                         Text(mode.displayName).tag(mode)
                     }
@@ -92,7 +92,7 @@ struct GeneralSettingsView: View {
                     Text("\(Int((hapticStrength * 100).rounded()))%")
                         .monospacedDigit()
                 }
-                Slider(value: $hapticStrength, in: Haptics.strengthRange) { editing in
+                AppSlider(value: $hapticStrength, in: Haptics.strengthRange) { editing in
                     // Let go to feel the new strength.
                     if !editing { Haptics.shared.scroll(ScrollFeel.detent(speed: 800)) }
                 }

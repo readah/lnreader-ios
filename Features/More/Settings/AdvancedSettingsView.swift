@@ -23,7 +23,7 @@ struct AdvancedSettingsView: View {
                     }
                 }
                 .disabled(isCleaning)
-                .confirmationDialog(
+                .appConfirmationDialog(
                     "Clean up books not in your library?",
                     isPresented: $showCleanupDialog,
                     titleVisibility: .visible
@@ -42,7 +42,7 @@ struct AdvancedSettingsView: View {
                 Button("Reset reader settings", role: .destructive) {
                     showResetReaderDialog = true
                 }
-                .confirmationDialog(
+                .appConfirmationDialog(
                     "Reset reader settings?",
                     isPresented: $showResetReaderDialog,
                     titleVisibility: .visible
@@ -54,7 +54,7 @@ struct AdvancedSettingsView: View {
             }
         }
         .settingsScreen("Advanced")
-        .alert("Cleanup finished", isPresented: Binding(
+        .appAlert("Cleanup finished", isPresented: Binding(
             get: { cleanupMessage != nil }, set: { if !$0 { cleanupMessage = nil } }
         )) {
             Button("OK", role: .cancel) {}

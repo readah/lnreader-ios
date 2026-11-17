@@ -5,7 +5,7 @@
 
 import SwiftUI
 
-struct LibraryToolbar: ToolbarContent {
+struct LibraryToolbar: AppToolbarContent {
     /// Filters on, or a per-category sort / layout override: the options
     /// button reads as "something is shaping this list".
     var isCustomised = false
@@ -17,7 +17,10 @@ struct LibraryToolbar: ToolbarContent {
     var onImport: () -> Void
     var onOpenRandom: () -> Void
 
-    var body: some ToolbarContent {
+    var native: some ToolbarContent { content.native }
+    var classic: some View { content.classic }
+
+    private var content: some AppToolbarContent {
         AppToolbarItemGroup(placement: .primaryAction) {
             Button(action: onImport) {
                 AppIcon(systemName: "square.and.arrow.down", size: 17, relativeTo: .body)

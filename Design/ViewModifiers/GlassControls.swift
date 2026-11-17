@@ -71,7 +71,7 @@ struct GlassMenuButton<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        Menu {
+        AppMenu {
             content()
         } label: {
             AppIcon(systemName: symbol, size: 17)

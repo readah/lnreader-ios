@@ -231,14 +231,14 @@ struct EntryDetailView: View {
         .task(id: titleCopied) { await retireCopyToast() }
         .onDisappear { chapterSelection.end() }
         .toolbar(removing: .title)
-        .toolbar {
+        .appToolbar {
             AppToolbarItem(placement: .topBarTrailing) { moreMenu }
         }
         // The sheet reports the new entry; this screen closes it, and only once the
         // sheet is gone does it ask the stack to show that entry in its place. The
         // entry on screen is no longer in the library, so it is not worth going
         // back to.
-        .sheet(isPresented: $showMigrate, onDismiss: {
+        .appSheet(isPresented: $showMigrate, onDismiss: {
             guard let newEntry = migratedInto else { return }
             migratedInto = nil
             if let onReplace { onReplace(newEntry) } else { dismiss() }
@@ -250,13 +250,13 @@ struct EntryDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showWebView) {
+        .appSheet(isPresented: $showWebView) {
             if let webURL { EntryWebView(url: webURL, title: displayTitle) }
         }
-        .sheet(isPresented: $showTracker) {
+        .appSheet(isPresented: $showTracker) {
             if let localEntry { TrackerSheet(entry: localEntry) }
         }
-        .sheet(isPresented: $showAudioDownloads) {
+        .appSheet(isPresented: $showAudioDownloads) {
             BookAudioDownloadsView(
                 bookId: TTSBookIdentity.make(pluginId: sourceKey, novelPath: bookPath),
                 bookTitle: displayTitle,
@@ -272,14 +272,14 @@ struct EntryDetailView: View {
             // the `.environment(\.coverTint,…)` above, so it does not inherit it.
             .environment(\.coverTint, coverTint)
         }
-        .sheet(isPresented: $showCoverPicker) {
+        .appSheet(isPresented: $showCoverPicker) {
             CoverPickerSheet(
                 title: displayTitle,
                 isNovel: !isManga,
                 currentCover: displayCover,
                 sourceCover: sourceCover,
                 onChoose: pickCover)
-                .presentationDetents([.medium, .large])
+                .appPresentationDetents([.medium, .large])
         }
         // The reader is a full-screen window of its own; this screen only
         // decides which chapter to open.
@@ -307,7 +307,7 @@ struct EntryDetailView: View {
         // has to be rebuilt — it is no longer a computed property.
         .onChange(of: scanlatorSettings.value) { rebuildOrderedChapters() }
         .task { await fetchDetails() }
-        .alert("Couldn't refresh", isPresented: Binding(
+        .appAlert("Couldn't refresh", isPresented: Binding(
             get: { refetchError != nil },
             set: { if !$0 { refetchError = nil } }
         )) {
@@ -335,7 +335,7 @@ struct EntryDetailView: View {
     /// The screen's actions behind one `…`. Five separate buttons crowded the
     /// bar; an overflow menu earns its place once it holds several.
     private var moreMenu: some View {
-        Menu {
+        AppMenu {
             coverButton
             if let localEntry, localEntry.inLibrary, !localEntry.isLocal {
                 migrateButton

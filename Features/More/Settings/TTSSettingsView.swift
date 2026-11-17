@@ -16,7 +16,7 @@ struct TTSSettingsView: View {
                 if let engine = library.engineState, engine.needsAttention {
                     AppLabel(engine.message, systemName: "exclamationmark.triangle", size: 12, relativeTo: .caption).font(.caption).foregroundStyle(.secondary)
                 }
-                NavigationLink("Manage downloaded audio") {
+                AppNavigationLink("Manage downloaded audio") {
                     List {
                         ForEach(library.records.filter { !$0.isPreview }) { record in
                             HStack {

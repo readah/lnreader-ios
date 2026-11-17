@@ -70,15 +70,15 @@ struct BrowseView: View {
             content
                 .appNavigationTitle("Browse")
                 .navigationBarTitleDisplayMode(.large)
-                .searchable(
+                .appSearchable(
                     text: $searchText,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: searchPrompt
                 )
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .toolbar { toolbarContent }
-                .sheet(isPresented: $showDisplay) {
+                .appToolbar { toolbarContent }
+                .appSheet(isPresented: $showDisplay) {
                     AppNavigationStack {
                         DisplayOptionsList(
                             displayMode: $displayMode,
@@ -86,17 +86,17 @@ struct BrowseView: View {
                         )
                         .appNavigationTitle("Display")
                         .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
+                        .appToolbar {
                             AppToolbarItem(placement: .confirmationAction) {
                                 Button("Done") { showDisplay = false }.bold()
                             }
                         }
                     }
-                    .presentationDetents([.medium, .large])
+                    .appPresentationDetents([.medium, .large])
                 }
                 // Holding a source with entries offers to move all of them, which
                 // is the only bulk migration there is: the source is the unit.
-                .sheet(item: $migratingSource) { source in
+                .appSheet(item: $migratingSource) { source in
                     MigrateSourceSheet(sourceKey: source.key) { migratingSource = nil }
                 }
         }
@@ -104,8 +104,8 @@ struct BrowseView: View {
 
     // MARK: - Toolbar
 
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
+    @AppToolbarBuilder
+    private var toolbarContent: some AppToolbarContent {
         AppToolbarItem(placement: .topBarTrailing) {
             Button { showDisplay = true } label: {
                 AppIcon(systemName: "rectangle.grid.2x2", size: 17, relativeTo: .body)
@@ -114,7 +114,7 @@ struct BrowseView: View {
         }
         if kind == .novels {
             AppToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
+                AppNavigationLink {
                     GlobalSearchView()
                 } label: {
                     AppIcon(systemName: "text.magnifyingglass", size: 17, relativeTo: .body)
@@ -163,7 +163,7 @@ struct BrowseView: View {
         .simultaneousGesture(kindSwipe)
         // Rows are buttons, not links: the hold needs to own the touch (see
         // `SourceRow`), so navigation goes through a destination instead.
-        .navigationDestination(item: $openSource) { target in
+        .appNavigationDestination(item: $openSource) { target in
             SourceDetailView(sourceKey: target.key, title: target.name)
         }
     }
@@ -239,11 +239,11 @@ private struct SourceTarget: Identifiable, Hashable {
 
 /// One source: tap opens its catalogue, hold moves its library entries elsewhere.
 ///
-/// Deliberately not a `NavigationLink` with a `.contextMenu`: the system menu
+/// Deliberately not a `NavigationLink` with a `.appContextMenu`: the system menu
 /// lifts the row into a preview and fades that whole overlay out on dismissal,
 /// which reads as the screen sticking for a beat after you back out of it. A hold
 /// that opens the sheet directly has nothing to fade. The library rows do use a
-/// `.contextMenu`, but they are buttons with manual navigation and supply their
+/// `.appContextMenu`, but they are buttons with manual navigation and supply their
 /// own compact preview — nothing is pushed from the menu, so there is no screen
 /// to stick on the way back.
 private struct SourceRow: View {

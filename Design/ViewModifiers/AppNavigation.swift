@@ -16,7 +16,6 @@ struct AppNavigationStack<Root: View>: View {
     var body: some View {
         makeStack()
             .environment(\.classicNavigation, navigation)
-            .modifier(ClassicStackChrome(navigation: navigation))
     }
 }
 
@@ -27,7 +26,25 @@ struct AppPathNavigationStack<Data: MutableCollection & RandomAccessCollection &
     var body: some View {
         NavigationStack(path: $path) { root() }
             .environment(\.classicNavigation, navigation)
-            .modifier(ClassicStackChrome(navigation: navigation))
+    }
+}
+
+struct AppNavigationLink<Destination: View, Label: View>: View {
+    @ViewBuilder var destination: () -> Destination
+    @ViewBuilder var label: () -> Label
+    var body: some View {
+        NavigationLink { destination().appNavigationScreen().appReveal() } label: { label() }
+    }
+    init(@ViewBuilder destination: @escaping () -> Destination, @ViewBuilder label: @escaping () -> Label) {
+        self.destination = destination; self.label = label
+    }
+    init(destination: Destination, @ViewBuilder label: @escaping () -> Label) {
+        self.destination = { destination }; self.label = label
+    }
+}
+extension AppNavigationLink where Label == Text {
+    init(_ title: String, @ViewBuilder destination: @escaping () -> Destination) {
+        self.destination = destination; self.label = { Text(title) }
     }
 }
 
@@ -56,6 +73,10 @@ private struct AppToolbarKey: PreferenceKey {
     static func reduce(value: inout [ClassicToolbarElement], nextValue: () -> [ClassicToolbarElement]) { value += nextValue() }
 }
 private struct AppToolbarPresenceKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
+}
+private struct AppBottomToolbarKey: PreferenceKey {
     static let defaultValue = false
     static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
 }
@@ -91,13 +112,13 @@ protocol AppToolbarContent {
 struct AppToolbarItem<Content: View>: AppToolbarContent {
     var placement: AppToolbarPlacement = .automatic
     @ViewBuilder var content: () -> Content
-    var native: some ToolbarContent { ToolbarItem(placement: placement, content: content) }
+    var native: some ToolbarContent { ToolbarItem(placement: placement.native, content: content) }
     var classic: some View { ClassicToolbarEmitter(placement: placement, content: content) }
 }
 struct AppToolbarItemGroup<Content: View>: AppToolbarContent {
     var placement: AppToolbarPlacement = .automatic
     @ViewBuilder var content: () -> Content
-    var native: some ToolbarContent { ToolbarItemGroup(placement: placement, content: content) }
+    var native: some ToolbarContent { ToolbarItemGroup(placement: placement.native, content: content) }
     var classic: some View { ClassicToolbarEmitter(placement: placement) { HStack(spacing: 8, content: content) } }
 }
 private struct ClassicToolbarEmitter<Content: View>: View {
@@ -108,6 +129,7 @@ private struct ClassicToolbarEmitter<Content: View>: View {
         Color.clear.frame(width: 0, height: 0)
             .preference(key: AppToolbarKey.self, value: [.init(id: id, placement: placement, content: AnyView(content()))])
             .preference(key: AppToolbarPresenceKey.self, value: true)
+            .preference(key: AppBottomToolbarKey.self, value: placement == .bottomBar)
     }
 }
 struct AppToolbarPair<A: AppToolbarContent, B: AppToolbarContent>: AppToolbarContent {
@@ -136,6 +158,18 @@ struct AppToolbarEither<A: AppToolbarContent, B: AppToolbarContent>: AppToolbarC
     static func buildEither<A: AppToolbarContent, B: AppToolbarContent>(second: B) -> AppToolbarEither<A, B> { .init(first: nil, second: second) }
 }
 extension View {
+    func appNavigationScreen() -> some View { environment(\.classicChromeHosted, false) }
+
+    func appNavigationDestination<Value: Hashable, Destination: View>(for type: Value.Type, @ViewBuilder destination: @escaping (Value) -> Destination) -> some View {
+        navigationDestination(for: type) { destination($0).appNavigationScreen().appReveal() }
+    }
+    func appNavigationDestination<Destination: View>(isPresented: Binding<Bool>, @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        navigationDestination(isPresented: isPresented) { destination().appNavigationScreen().appReveal() }
+    }
+    func appNavigationDestination<Item: Hashable, Destination: View>(item: Binding<Item?>, @ViewBuilder destination: @escaping (Item) -> Destination) -> some View {
+        navigationDestination(item: item) { destination($0).appNavigationScreen().appReveal() }
+    }
+
     func appToolbar<T: AppToolbarContent>(@AppToolbarBuilder content: () -> T) -> some View {
         modifier(AppToolbarModifier(items: content()))
     }
@@ -151,12 +185,24 @@ private struct AppToolbarModifier<T: AppToolbarContent>: ViewModifier {
     }
 }
 
+private struct ClassicChromeHostedKey: EnvironmentKey { static let defaultValue = false }
+private extension EnvironmentValues {
+    var classicChromeHosted: Bool {
+        get { self[ClassicChromeHostedKey.self] }
+        set { self[ClassicChromeHostedKey.self] = newValue }
+    }
+}
+
 struct AppNavigationChrome: ViewModifier {
     @Environment(\.noLiquidGlass) private var enabled
     @Environment(\.classicNavigation) private var navigation
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.classicChromeHosted) private var hosted
+    @State private var fallbackNavigation = ClassicNavigationState()
     func body(content: Content) -> some View {
         content
+            .environment(\.classicChromeHosted, enabled || hosted)
+            .modifier(ClassicStackChrome(navigation: navigation ?? fallbackNavigation, isHost: !hosted && navigation != nil))
             .toolbarVisibility(enabled ? .hidden : .automatic, for: .navigationBar)
             .toolbarVisibility(enabled ? .hidden : .automatic, for: .bottomBar)
             .background {
@@ -169,14 +215,23 @@ struct AppNavigationChrome: ViewModifier {
 }
 
 private struct ClassicStackChrome: ViewModifier {
-    @Environment(\.noLiquidGlass) private var enabled
+    @Environment(\.noLiquidGlass) private var classic
     let navigation: ClassicNavigationState
-    @State private var hasTitle = false
+    let isHost: Bool
+    private var enabled: Bool { classic && isHost }
+    @Environment(\.classicTabBarHeight) private var tabBarHeight
+    @State private var title: Text?
     @State private var hasToolbar = false
-    private var showsHeader: Bool { enabled && (hasTitle || hasToolbar || navigation.canGoBack) }
+    @State private var hasBottomToolbar = false
+    private var showsHeader: Bool { enabled && (title != nil || hasToolbar || navigation.canGoBack) }
 
     func body(content: Content) -> some View {
         content
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if enabled && (tabBarHeight > 0 || hasBottomToolbar) {
+                    Color.clear.frame(height: tabBarHeight + (hasBottomToolbar ? 62 : 0)).accessibilityHidden(true)
+                }
+            }
             .safeAreaInset(edge: .top, spacing: 0) {
                 if showsHeader { Color.clear.frame(height: 62).accessibilityHidden(true) }
             }
@@ -195,15 +250,19 @@ private struct ClassicStackChrome: ViewModifier {
                                     .buttonStyle(ClassicChromeButtonStyle())
                                     .padding(8)
                                     .background { FrostedSurface(shape: RoundedRectangle(cornerRadius: 24)) }
-                                    .padding(.horizontal, 16).padding(.bottom, 8)
+                                    .padding(.horizontal, 16).padding(.bottom, tabBarHeight + 8)
                                     .appReveal()
                             }
                         }
                     }
                 }
             }
-            .onPreferenceChange(AppScreenTitleKey.self) { hasTitle = $0 != nil }
+            .onPreferenceChange(AppScreenTitleKey.self) { title = $0 }
             .onPreferenceChange(AppToolbarPresenceKey.self) { hasToolbar = $0 }
+            .onPreferenceChange(AppBottomToolbarKey.self) { hasBottomToolbar = $0 }
+            .background {
+                if enabled && navigation.canGoBack { EdgeSwipeDismiss { navigation.back() } }
+            }
     }
 
     private func header(_ items: [ClassicToolbarElement]) -> some View {
@@ -215,10 +274,9 @@ private struct ClassicStackChrome: ViewModifier {
                 .accessibilityLabel("Back")
             }
             ForEach(items.filter { $0.placement.leading }) { $0.content }
-            Color.clear.overlayPreferenceValue(AppScreenTitleKey.self) { title in
-                title?.font(Typography.headline).lineLimit(1).minimumScaleFactor(0.75)
-            }
-            .frame(maxWidth: .infinity, minHeight: 44)
+            title?.font(Typography.headline).lineLimit(1).minimumScaleFactor(0.75)
+                .frame(maxWidth: .infinity, minHeight: 44)
+            if title == nil { Spacer(minLength: 0) }
             ForEach(items.filter { !$0.placement.leading && $0.placement != .bottomBar }) { $0.content }
         }
         .buttonStyle(ClassicChromeButtonStyle())
@@ -226,7 +284,7 @@ private struct ClassicStackChrome: ViewModifier {
         .padding(.vertical, 6)
         .frame(height: 62)
         .background {
-            Rectangle().fill(.ultraThinMaterial)
+            FrostedBackdrop()
                 .mask(LinearGradient(colors: [.black, .black, .clear], startPoint: .top, endPoint: .bottom))
                 .ignoresSafeArea(edges: .top).allowsHitTesting(false)
         }

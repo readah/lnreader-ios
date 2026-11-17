@@ -103,10 +103,10 @@ struct CoverPickerSheet: View {
             }
             .scrollContentBackground(.hidden)
                         .appBackdrop()
-                        .searchable(text: $search, prompt: "Search AniList")
+                        .appSearchable(text: $search, prompt: "Search AniList")
             .appNavigationTitle("Cover")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
             .task(id: search) { await searchAniList() }

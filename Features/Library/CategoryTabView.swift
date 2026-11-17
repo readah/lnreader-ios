@@ -33,7 +33,7 @@ struct CategoryTabView: View {
                     ) {
                         selectedCategory = category
                     }
-                    .contextMenu { actionsMenu(for: category) }
+                    .appContextMenu { actionsMenu(for: category) }
                     .glassEffectID(category.id, in: namespace)
                 }
               }

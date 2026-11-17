@@ -32,10 +32,10 @@ struct ConnectionsSettingsView: View {
         }
         .settingsScreen("Connections")
         .onAppear(perform: refreshSessions)
-        .sheet(item: $signingIn) { site in
+        .appSheet(item: $signingIn) { site in
             NovelFireLoginView(onLoginSuccess: { refreshSessions() }, site: site)
         }
-        .alert("Couldn't connect", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+        .appAlert("Couldn't connect", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(error ?? "")

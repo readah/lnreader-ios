@@ -164,7 +164,7 @@ struct MangaReaderView: View {
                 )
 
             if chrome.isControl {
-                controls
+                controls.appReveal()
             }
 
             scrollOverlays
@@ -192,17 +192,17 @@ struct MangaReaderView: View {
             coverTint = tintDetails ? await CoverTint.color(for: displayCover) : nil
         }
         .environment(\.coverTint, coverTint)
-        .sheet(isPresented: $showChapterSheet) { chapterSheet }
-        .sheet(isPresented: $showReaderSettings) {
+        .appSheet(isPresented: $showChapterSheet) { chapterSheet }
+        .appSheet(isPresented: $showReaderSettings) {
             MangaReaderSettingsSheet(
                 series: seriesSettings,
                 controls: $inputSettings
             )
             // One height: More settings opens its own sheet. Deliberately no
             // cover tint here — the settings should not borrow the artwork.
-            .presentationDetents([MangaReaderSettingsSheet.compactDetent])
+            .appPresentationDetents([MangaReaderSettingsSheet.compactDetent])
             .presentationDragIndicator(.hidden)
-            .presentationCornerRadius(28)
+            .appPresentationCornerRadius(28)
         }
         .onAppear {
             setScreenAwake(true)
@@ -329,7 +329,7 @@ struct MangaReaderView: View {
             Button("Try again") {
                 Task { await loadChapter() }
             }
-            .buttonStyle(.bordered)
+            .appBorderedButtonStyle()
             .tint(.white)
         }
         .padding(32)
@@ -1078,7 +1078,7 @@ struct MangaReaderView: View {
                             }
                         }
                     }
-                    .toolbar {
+                    .appToolbar {
                         AppToolbarItem(placement: .confirmationAction) {
                             Button("Done") { showChapterSheet = false }
                         }

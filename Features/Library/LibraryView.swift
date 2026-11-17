@@ -102,8 +102,8 @@ struct LibraryView: View {
             .onChange(of: isKindDragging) { _, dragging in
                 if !dragging { swipeInteraction.ended(at: ProcessInfo.processInfo.systemUptime) }
             }
-            .toolbar { libraryToolbar }
-            .sheet(isPresented: $showOptionsSheet, onDismiss: {
+            .appToolbar { libraryToolbar }
+            .appSheet(isPresented: $showOptionsSheet, onDismiss: {
                 guard arrangeAfterSheet else { return }
                 arrangeAfterSheet = false
                 startArranging()
@@ -123,7 +123,7 @@ struct LibraryView: View {
                         showOptionsSheet = false
                     }
                 )
-                .presentationDetents([.medium, .large])
+                .appPresentationDetents([.medium, .large])
             }
             .task(id: filterCountsKey) { await loadFilterCounts() }
             .onChange(of: categoryIDs) { _, _ in
@@ -160,7 +160,7 @@ struct LibraryView: View {
                     restoreSortAfterArranging()
                 }
             }
-            .alert("Remove from Library?", isPresented: $showDeleteConfirmation, presenting: novelToDelete) { novel in
+            .appAlert("Remove from Library?", isPresented: $showDeleteConfirmation, presenting: novelToDelete) { novel in
                 Button("Cancel", role: .cancel) {}
                 Button("Remove", role: .destructive) {
                     libraryManager.removeFromLibrary(entry: novel, context: modelContext)
@@ -168,12 +168,12 @@ struct LibraryView: View {
             } message: { novel in
                 Text("Are you sure you want to remove '\(novel.displayTitle)' from your library?")
             }
-            .alert("No unread manga", isPresented: $showNoUnreadManga) {
+            .appAlert("No unread manga", isPresented: $showNoUnreadManga) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("Every manga in your library is up to date.")
             }
-            .navigationDestination(for: Entry.self) { novel in
+            .appNavigationDestination(for: Entry.self) { novel in
                 // A migrated entry takes the place of the one that left the
                 // library, so Back goes here rather than to a dead page.
                 EntryDetailView(entry: novel) { replacement in
@@ -184,7 +184,7 @@ struct LibraryView: View {
                 .bookZoom(from: novel.persistentModelID, in: bookTransitions)
             }
             // A linked entry that is not in the library: nothing stored to push.
-            .navigationDestination(for: SourceEntry.self) { entry in
+            .appNavigationDestination(for: SourceEntry.self) { entry in
                 EntryDetailView(sourceEntry: entry)
             }
             // A link can arrive before or after this screen appears; one path,
@@ -225,7 +225,7 @@ struct LibraryView: View {
                     showImportError = true
                 }
             }
-            .alert("Import Error", isPresented: $showImportError, presenting: importError) { _ in
+            .appAlert("Import Error", isPresented: $showImportError, presenting: importError) { _ in
                 Button("OK", role: .cancel) {}
             } message: { error in
                 Text(error)
@@ -269,8 +269,8 @@ struct LibraryView: View {
 
     // MARK: - Toolbar
 
-    @ToolbarContentBuilder
-    private var libraryToolbar: some ToolbarContent {
+    @AppToolbarBuilder
+    private var libraryToolbar: some AppToolbarContent {
         if isEditingLibrary {
             AppToolbarItem(placement: .confirmationAction) {
                 Button("Done") {

@@ -120,7 +120,7 @@ private enum CloudflareWebView {
         let controller = ChallengeController(
             webView: webView, title: url.host ?? "Verify you are human"
         ) { cancelled.isSet = true }
-        let sheet = UINavigationController(rootViewController: controller)
+        let sheet = controller.presentationContainer
         presenter.present(sheet, animated: true)
         webView.load(URLRequest(url: url))
 

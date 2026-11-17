@@ -187,11 +187,11 @@ struct ReaderView: View {
                 dismiss()
             })
             .onChange(of: chrome) { _, state in ttsBridge.setControlsVisible(state.isControl) }
-            .sheet(isPresented: $showSettings) { settingsSheet }
+            .appSheet(isPresented: $showSettings) { settingsSheet }
             .fullScreenCover(isPresented: $showChapterList) { chapterListSheet }
-            .sheet(isPresented: $showLoginSheet) { loginSheet }
-            .sheet(isPresented: $showCommentsSheet) { commentsSheet }
-            .sheet(isPresented: $showAudioDownloads) { audioDownloadsSheet }
+            .appSheet(isPresented: $showLoginSheet) { loginSheet }
+            .appSheet(isPresented: $showCommentsSheet) { commentsSheet }
+            .appSheet(isPresented: $showAudioDownloads) { audioDownloadsSheet }
             .alert("Narration", isPresented: narrationAlert) {
                 Button("OK", role: .cancel) {
                     ttsErrorMessage = nil
@@ -215,12 +215,12 @@ struct ReaderView: View {
             .onReceive(ttsBridge.highlightRequestPublisher) { request in
                 saveHighlight(request)
             }
-            .confirmationDialog("Playback speed", isPresented: $showSpeedPicker) {
+            .appConfirmationDialog("Playback speed", isPresented: $showSpeedPicker) {
                 ForEach([0.75, 1, 1.25, 1.5, 1.75, 2, 2.5], id: \.self) { speed in
                     Button(String(format: "%.2gx", speed)) { updateSpeed(speed) }
                 }
             }
-            .confirmationDialog("Sleep timer", isPresented: $showSleepPicker) {
+            .appConfirmationDialog("Sleep timer", isPresented: $showSleepPicker) {
                 ForEach([15, 30, 60], id: \.self) { minutes in
                     Button("\(minutes) minutes") { ttsManager.setSleep(minutes: minutes) }
                 }
@@ -309,6 +309,7 @@ struct ReaderView: View {
                 onComments: commentSite != nil ? { showCommentsSheet = true } : nil,
                 isListening: isCurrentSpeech
             )
+            .appUnblurVisibility(chrome.isControl, edge: .top)
             .opacity(chrome.isControl ? 1.0 : 0.0)
             .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: chrome)
             .allowsHitTesting(chrome.isControl)
@@ -316,6 +317,7 @@ struct ReaderView: View {
 
             // TTS Controls Overlay (visible when isCurrentSpeech is true)
             ttsControlsOverlay
+                .appUnblurVisibility(isCurrentSpeech && chrome.isControl)
                 .opacity(isCurrentSpeech && chrome.isControl ? 1.0 : 0.0)
                 .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: chrome)
                 .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: isCurrentSpeech)
@@ -377,7 +379,7 @@ struct ReaderView: View {
             grainIntensity: $grainIntensity
         )
         // One height: Customize opens its own sheet for everything else.
-        .presentationDetents([ReaderSettings.compactDetent])
+        .appPresentationDetents([ReaderSettings.compactDetent])
         // The sheet draws its own close button and title, so the grabber would
         // only push that header down.
         .presentationDragIndicator(.hidden)

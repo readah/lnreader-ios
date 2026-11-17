@@ -11,7 +11,7 @@ struct MangaReaderSettingsSheet: View {
     /// Volume keys, auto scroll, hold to scroll: these follow the user.
     @Binding var controls: MangaControlSettings
 
-    static let compactDetent: PresentationDetent = .height(420)
+    static let compactDetent: AppPresentationDetent = .height(420)
 
     /// Everything the half sheet leaves out, on its own sheet.
     @State private var showAllSettings = false
@@ -34,7 +34,7 @@ struct MangaReaderSettingsSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
-        .sheet(isPresented: $showAllSettings) { allSettingsSheet }
+        .appSheet(isPresented: $showAllSettings) { allSettingsSheet }
     }
 
     /// The rest of the settings, on a sheet of their own rather than growing
@@ -49,9 +49,9 @@ struct MangaReaderSettingsSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
-        .presentationDetents([.large])
+        .appPresentationDetents([.large])
         .presentationDragIndicator(.hidden)
-        .presentationCornerRadius(28)
+        .appPresentationCornerRadius(28)
     }
 
     // MARK: - Half Sheet
@@ -87,12 +87,12 @@ struct MangaReaderSettingsSheet: View {
     /// underneath.
     private var tapZoneCard: some View {
         VStack(spacing: 12) {
-            Picker("Tap zones", selection: tapZoneBinding) {
+            AppPicker("Tap zones", selection: tapZoneBinding) {
                 ForEach(MangaTapZoneLayout.allCases) { layout in
                     Text(layout.shortName).tag(layout)
                 }
             }
-            .pickerStyle(.segmented)
+            .appPickerStyle(.segmented)
             .labelsHidden()
 
             Toggle(isOn: invertTapZones) {
@@ -147,8 +147,8 @@ struct MangaReaderSettingsSheet: View {
     /// reader reaches for while the strip is already moving.
     private var quickRows: some View {
         VStack(spacing: 0) {
-            Menu {
-                Picker("Scroll style", selection: $controls.autoScrollStyle) {
+            AppMenu {
+                AppPicker("Scroll style", selection: $controls.autoScrollStyle) {
                     ForEach(AutoScrollStyle.allCases) { style in
                         Text(style.displayName).tag(style)
                     }
@@ -448,12 +448,12 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
             .listRowSeparator(.hidden)
             .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: tapZones)
 
-            Picker("Tap zones", selection: $tapZones) {
+            AppPicker("Tap zones", selection: $tapZones) {
                 ForEach(MangaTapZoneLayout.allCases) { layout in
                     Text(layout.shortName).tag(layout)
                 }
             }
-            .pickerStyle(.segmented)
+            .appPickerStyle(.segmented)
             .labelsHidden()
 
             Toggle("Invert tap zones", isOn: $invertTapZones)
@@ -496,7 +496,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
                 valueText: "\(Int((controls.stripWidth * 100).rounded()))%"
             )
 
-            Picker("Scroll momentum", selection: $controls.momentum) {
+            AppPicker("Scroll momentum", selection: $controls.momentum) {
                 ForEach(WebtoonMomentum.allCases) { option in
                     Text(option.displayName).tag(option)
                 }
@@ -512,7 +512,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
 
     private var autoScrollSection: some View {
         Section {
-            Picker("Scroll style", selection: $controls.autoScrollStyle) {
+            AppPicker("Scroll style", selection: $controls.autoScrollStyle) {
                 ForEach(AutoScrollStyle.allCases) { style in
                     Text(style.displayName).tag(style)
                 }
@@ -577,7 +577,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
                     valueText: String(format: "%.1f pt/s per pt", controls.hold.speedPerPoint)
                 )
 
-                Picker("Faster when swiping", selection: $controls.hold.upIncreases) {
+                AppPicker("Faster when swiping", selection: $controls.hold.upIncreases) {
                     Text("Swipe Up").tag(true)
                     Text("Swipe Down").tag(false)
                 }
@@ -600,14 +600,14 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
                     if on { Haptics.shared.scroll(ScrollFeel.detent(speed: 800)) }
                 }
 
-            Picker("Active Focus display", selection: focusOverride) {
+            AppPicker("Active Focus display", selection: focusOverride) {
                 Text("Off").tag("none")
                 Text("System auto").tag("auto")
                 Text("Do Not Disturb").tag("dnd")
                 Text("Work Focus").tag("work")
                 Text("Sleep Focus").tag("sleep")
             }
-            .pickerStyle(.menu)
+            .appPickerStyle(.menu)
 
             if focusManager.overrideType == "auto" {
                 FocusStatusRow(focusManager: focusManager)
@@ -651,7 +651,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
                         .foregroundStyle(.secondary)
                 }
             }
-            Slider(value: value, in: range, step: step)
+            AppSlider(value: value, in: range, step: step)
                 .tint(AppTheme.controlFill)
                 .accessibilityLabel(title)
                 .accessibilityValue(valueText)

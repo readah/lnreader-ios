@@ -37,19 +37,19 @@ struct TrackerSheet: View {
             }
             .appNavigationTitle("AniList")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 if draft != nil {
                     AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { draft = nil } }
                 }
                 AppToolbarItem(placement: .confirmationAction) { Button("Done") { finish() }.bold() }
             }
             .overlay { if isBusy { ProgressView().controlSize(.large).padding(24).appGlassEffect(.regular, in: .rect(cornerRadius: 16)) } }
-            .alert("Couldn't reach AniList", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+            .appAlert("Couldn't reach AniList", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: { Text(error ?? "") }
         }
-        .presentationDetents([.large])
-        .interactiveDismissDisabled(draft != nil)
+        .appPresentationDetents([.large])
+        .appInteractiveDismissDisabled(draft != nil)
         .onAppear { if query.isEmpty { query = entry.displayTitle } }
     }
 
@@ -162,12 +162,12 @@ struct TrackerSheet: View {
                 }
             }
             Section {
-                Picker("Status", selection: Binding(get: { status }, set: { new in
+                AppPicker("Status", selection: Binding(get: { status }, set: { new in
                     run { try await tracking.update(track, status: new, context: modelContext) }
                 })) {
                     ForEach(TrackStatus.allCases) { Text($0.title).tag($0) }
                 }
-                Stepper(value: Binding(get: { Int(track.lastChapterRead) }, set: { new in
+                AppStepper(value: Binding(get: { Int(track.lastChapterRead) }, set: { new in
                     run { try await tracking.update(track, progress: new, context: modelContext) }
                 }), in: 0...(track.totalChapters > 0 ? track.totalChapters : 10_000)) {
                     LabeledContent("Chapters", value: track.totalChapters > 0
@@ -176,7 +176,7 @@ struct TrackerSheet: View {
                 Toggle("Private", isOn: Binding(get: { track.isPrivate }, set: { new in
                     run { try await tracking.update(track, isPrivate: new, context: modelContext) }
                 }))
-                Picker("Score", selection: Binding(get: { Int((track.score / 10).rounded()) }, set: { new in
+                AppPicker("Score", selection: Binding(get: { Int((track.score / 10).rounded()) }, set: { new in
                     run { try await tracking.update(track, score: Double(new) * 10, context: modelContext) }
                 })) {
                     Text("—").tag(0)
@@ -193,7 +193,7 @@ struct TrackerSheet: View {
             }
             Section {
                 Button("Stop tracking", role: .destructive) { confirmRemove = true }
-                    .confirmationDialog("Stop tracking?", isPresented: $confirmRemove, titleVisibility: .visible) {
+                    .appConfirmationDialog("Stop tracking?", isPresented: $confirmRemove, titleVisibility: .visible) {
                         Button("Remove from AniList too", role: .destructive) { remove(track, remote: true) }
                         Button("Only stop tracking here") { remove(track, remote: false) }
                         Button("Cancel", role: .cancel) {}
@@ -205,7 +205,7 @@ struct TrackerSheet: View {
     private func dateRow(_ title: String, date: Date?, set: @escaping (Date?) -> Void) -> some View {
         HStack {
             if let date {
-                DatePicker(title, selection: Binding(get: { date }, set: { set($0) }), displayedComponents: .date)
+                AppDatePicker(title, selection: Binding(get: { date }, set: { set($0) }), displayedComponents: .date)
                 Button { set(nil) } label: { AppLabel("Clear \(title.lowercased()) date", systemName: "xmark.circle.fill", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
                     .buttonStyle(.borderless).foregroundStyle(.secondary)
             } else {

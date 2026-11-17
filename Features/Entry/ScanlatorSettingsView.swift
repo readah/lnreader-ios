@@ -73,7 +73,7 @@ struct ScanlatorSettingsView: View {
             .environment(\.editMode, .constant(isPriorityOn ? .active : .inactive))
             .appNavigationTitle("Scanlators")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }

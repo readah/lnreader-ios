@@ -48,7 +48,7 @@ struct SourceFilterSheet: View {
             }
             .appNavigationTitle("Filters")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) {
                     Button("Reset") { draft = FilterState() }
                         .disabled(!draft.isModified(for: filters))
@@ -144,13 +144,13 @@ private struct SourceFilterRow: View {
         case .select(_, let name, let options, _):
             if options.count > Self.menuLimit {
                 // A Picker builds every option up front; a List only builds what is on screen.
-                NavigationLink {
+                AppNavigationLink {
                     FilterChoiceList(title: name, options: options, selection: optionBinding)
                 } label: {
                     LabeledContent(name, value: options.first { $0.id == optionBinding.wrappedValue }?.name ?? "")
                 }
             } else {
-                Picker(name, selection: optionBinding) {
+                AppPicker(name, selection: optionBinding) {
                     ForEach(options) { Text($0.name).tag($0.id) }
                 }
             }
@@ -172,14 +172,14 @@ private struct SourceFilterRow: View {
             }
 
         case .multiSelect(_, let name, let options, _):
-            NavigationLink {
+            AppNavigationLink {
                 FilterOptionList(title: name, options: options, state: optionsBinding)
             } label: {
                 LabeledContent(name, value: summary(selectedCount))
             }
 
         case .excludable(_, let name, let options, _, _):
-            NavigationLink {
+            AppNavigationLink {
                 FilterExcludableList(title: name, options: options, state: excludeBinding)
             } label: {
                 LabeledContent(name, value: summary(excludeCount))
@@ -310,7 +310,7 @@ private struct SortRow: View {
     @Binding var selection: (index: Int, ascending: Bool)
 
     var body: some View {
-        Picker(name, selection: Binding(
+        AppPicker(name, selection: Binding(
             get: { selection.index },
             set: { selection = ($0, selection.ascending) }
         )) {
@@ -318,14 +318,14 @@ private struct SortRow: View {
                 Text(option.name).tag(index)
             }
         }
-        Picker("Direction", selection: Binding(
+        AppPicker("Direction", selection: Binding(
             get: { selection.ascending },
             set: { selection = (selection.index, $0) }
         )) {
             Text("Descending").tag(false)
             Text("Ascending").tag(true)
         }
-        .pickerStyle(.segmented)
+        .appPickerStyle(.segmented)
     }
 }
 
@@ -357,7 +357,7 @@ private struct FilterChoiceList: View {
         }
         .appNavigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
+        .appSearchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
     }
 
     private var visible: [FilterOption] {
@@ -390,8 +390,8 @@ private struct FilterOptionList: View {
         }
         .appNavigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
-        .toolbar {
+        .appSearchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
+        .appToolbar {
             if !state.isEmpty {
                 AppToolbarItem(placement: .primaryAction) { Button("Clear") { state = [] } }
             }
@@ -431,8 +431,8 @@ private struct FilterExcludableList: View {
         }
         .appNavigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
-        .toolbar {
+        .appSearchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
+        .appToolbar {
             if !state.included.isEmpty || !state.excluded.isEmpty {
                 AppToolbarItem(placement: .primaryAction) { Button("Clear") { state = ([], []) } }
             }

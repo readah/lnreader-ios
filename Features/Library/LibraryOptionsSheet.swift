@@ -33,10 +33,10 @@ struct LibraryOptionsSheet: View {
     var body: some View {
         AppNavigationStack {
             VStack(spacing: 0) {
-                Picker("Options", selection: $tab) {
+                AppPicker("Options", selection: $tab) {
                     ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
                 }
-                .pickerStyle(.segmented)
+                .appPickerStyle(.segmented)
                 .padding(.horizontal)
                 .padding(.top, 8)
 
@@ -50,7 +50,7 @@ struct LibraryOptionsSheet: View {
             }
             .appNavigationTitle("Library options")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) {
                     Button(resetLabel, action: resetCurrentTab)
                         .disabled(!canResetCurrentTab)
@@ -133,14 +133,14 @@ struct LibraryOptionsSheet: View {
     /// A tri-state filter as a menu picker. The choices are full sentences so
     /// "Only" and "Hide" say what they refer to without guessing.
     private func filterRow(_ title: String, noun: String, systemImage: String, state: Binding<TriState>) -> some View {
-        Picker(selection: state) {
+        AppPicker(selection: state) {
             Text("Any").tag(TriState.off)
             Text("Only \(noun)").tag(TriState.include)
             Text("Hide \(noun)").tag(TriState.exclude)
         } label: {
             AppLabel(title, systemName: systemImage, size: 17, relativeTo: .body)
         }
-        .pickerStyle(.menu)
+        .appPickerStyle(.menu)
         .tint(AppTheme.accent)
     }
 
@@ -161,11 +161,11 @@ struct LibraryOptionsSheet: View {
 
             if sort.order != .custom {
                 Section {
-                    Picker("Direction", selection: $sort.direction) {
+                    AppPicker("Direction", selection: $sort.direction) {
                         Text(sort.order.directionLabels.ascending).tag(SortDirection.ascending)
                         Text(sort.order.directionLabels.descending).tag(SortDirection.descending)
                     }
-                    .pickerStyle(.segmented)
+                    .appPickerStyle(.segmented)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 } header: {
                     Text("Direction")
@@ -261,11 +261,11 @@ struct DisplayOptionsList: View {
 
             if displayMode != .list {
                 Section {
-                    Picker("Items per row", selection: $columnCount) {
+                    AppPicker("Items per row", selection: $columnCount) {
                         Text("Auto").tag(LibraryGridColumns.automatic)
                         ForEach(LibraryGridColumns.range, id: \.self) { Text("\($0)").tag($0) }
                     }
-                    .pickerStyle(.menu)
+                    .appPickerStyle(.menu)
                     .tint(AppTheme.accent)
                 } header: {
                     SettingsSectionHeader(

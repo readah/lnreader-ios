@@ -30,7 +30,7 @@ struct EntryWebView: View {
                 .overlay(alignment: .top) { progressBar }
                 .appNavigationTitle(page.title.isEmpty ? title : page.title)
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { toolbar }
+                .appToolbar { toolbar }
         }
         .task {
             await CookieJar.exportToWebKit()
@@ -53,8 +53,8 @@ struct EntryWebView: View {
     /// The address the page is on now, falling back to the one it was opened with.
     private var currentURL: URL { page.url ?? url }
 
-    @ToolbarContentBuilder
-    private var toolbar: some ToolbarContent {
+    @AppToolbarBuilder
+    private var toolbar: some AppToolbarContent {
         AppToolbarItem(placement: .cancellationAction) {
             Button("Done") { dismiss() }
         }

@@ -57,7 +57,7 @@ struct NovelFireLoginView: View {
             }
           }
           .appNavigationTitle("Sign In to \(site.displayName)")
-        .toolbar { AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+        .appToolbar { AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         #if os(iOS)
           .navigationBarTitleDisplayMode(.inline)
           #endif

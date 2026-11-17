@@ -122,7 +122,7 @@ struct InteractiveGridCell: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .contextMenu {
+        .appContextMenu {
             LibraryEntryQuickActions(
                 entry: novel,
                 onOpen: { onSelect(novel) },

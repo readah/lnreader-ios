@@ -50,7 +50,7 @@ struct BookmarksView: View {
             } else {
                 List {
                     ForEach(books) { book in
-                        NavigationLink {
+                        AppNavigationLink {
                             BookmarkedBookView(
                                 sourceKey: book.sourceKey,
                                 entryURL: book.entryURL,

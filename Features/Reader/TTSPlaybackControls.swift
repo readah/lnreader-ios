@@ -72,7 +72,7 @@ struct TTSPlaybackControls: View {
 
     private var scrubberSection: some View {
         VStack(spacing: 0) {
-            Slider(
+            AppSlider(
                 value: scrubberBinding,
                 in: 0...safeRangeUpper,
                 onEditingChanged: handleScrubEditing

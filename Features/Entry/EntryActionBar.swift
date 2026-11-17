@@ -82,7 +82,7 @@ struct EntryActionBar: View {
 
     /// Mihon's download menu: the next few unread chapters, all unread, or all.
     private func downloadTile(_ entry: Entry) -> some View {
-        Menu {
+        AppMenu {
             Button("Next chapter") { ChapterDownloadManager.shared.enqueueUnread(1, in: entry) }
             Button("Next 5 chapters") { ChapterDownloadManager.shared.enqueueUnread(5, in: entry) }
             Button("Next 10 chapters") { ChapterDownloadManager.shared.enqueueUnread(10, in: entry) }
@@ -97,7 +97,7 @@ struct EntryActionBar: View {
         }
         .entryActionStyle()
         .accessibilityLabel("Download chapters")
-        .confirmationDialog(
+        .appConfirmationDialog(
             "Delete every downloaded chapter of this title?",
             isPresented: $confirmDeleteDownloads, titleVisibility: .visible
         ) {

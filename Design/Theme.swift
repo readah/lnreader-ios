@@ -86,10 +86,13 @@ enum AppTheme {
 /// toggle without a root `.tint`, so buttons keep the primary accent and their
 /// roles. Toggles inside menus still draw as checkmarks.
 struct AppToggleStyle: ToggleStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Toggle(configuration)
-            .toggleStyle(.switch)
-            .tint(AppTheme.controlFill)
+    @Environment(\.noLiquidGlass) private var classic
+    @ViewBuilder func makeBody(configuration: Configuration) -> some View {
+        if classic {
+            Toggle(configuration).toggleStyle(ClassicToggleStyle())
+        } else {
+            Toggle(configuration).toggleStyle(.switch).tint(AppTheme.controlFill)
+        }
     }
 }
 
@@ -213,8 +216,8 @@ extension View {
             .appBackdrop()
             .accentColor(AppTheme.accent)
             .navigationTitle(title)
+            .preference(key: AppScreenTitleKey.self, value: title)
             .appNavigationChrome()
-            .appReveal()
             .background {
                 NavigationTitleFontBridge(onTitleVerticalSwipe: onTitleVerticalSwipe)
                     .frame(width: 0, height: 0)

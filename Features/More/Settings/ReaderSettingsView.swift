@@ -68,12 +68,12 @@ struct ReaderSettingsView: View {
     }
 
     private var tabSwitcher: some View {
-        Picker("Reader", selection: $selectedTab) {
+        AppPicker("Reader", selection: $selectedTab) {
             ForEach(Tab.allCases) { tab in
                 Text(tab.title).tag(tab)
             }
         }
-        .pickerStyle(.segmented)
+        .appPickerStyle(.segmented)
         .hapticFeedback(.selection, trigger: selectedTab)
     }
 
@@ -124,7 +124,7 @@ struct ReaderSettingsView: View {
                     Button("Reset manga defaults", role: .destructive) {
                         showResetMangaDialog = true
                     }
-                    .confirmationDialog(
+                    .appConfirmationDialog(
                         "Reset manga defaults?",
                         isPresented: $showResetMangaDialog,
                         titleVisibility: .visible

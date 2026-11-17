@@ -54,7 +54,7 @@ struct HistoryView: View {
                     .scrollContentBackground(.hidden)
                 }
             }
-            .navigationDestination(for: Entry.self) { entry in
+            .appNavigationDestination(for: Entry.self) { entry in
                 // A migrated entry takes the place of the one that left the library.
                 EntryDetailView(entry: entry) { replacement in
                     if !path.isEmpty { path.removeLast() }
@@ -64,8 +64,8 @@ struct HistoryView: View {
             }
             .appNavigationTitle("History")
             .onChange(of: resumeTrigger) { resumeLatest() }
-            .searchable(text: $searchText, prompt: "Search history")
-            .toolbar {
+            .appSearchable(text: $searchText, prompt: "Search history")
+            .appToolbar {
                 AppToolbarItemGroup(placement: .primaryAction) {
                     incognitoButton
 
@@ -81,7 +81,7 @@ struct HistoryView: View {
             // Attached here rather than inside the toolbar item: a dialog owned
             // by a toolbar button does not reliably present, which is why the
             // trash button appeared to do nothing.
-            .confirmationDialog(
+            .appConfirmationDialog(
                 "Clear all reading history?",
                 isPresented: $showClearConfirmation,
                 titleVisibility: .visible

@@ -37,7 +37,7 @@ struct MangaPageView: View {
                     Button("Retry") {
                         attempt += 1
                     }
-                    .buttonStyle(.bordered)
+                    .appBorderedButtonStyle()
                     .tint(.white)
                 }
                 .frame(maxWidth: .infinity, minHeight: 220)

@@ -68,17 +68,17 @@ struct NarrationVoicePicker: View {
                     ProgressView().accessibilityLabel("Preview is being prepared")
                 }
             }
-            .contextMenu {
+            .appContextMenu {
                 if voice.isCustom {
                     Button("Delete voice", systemImage: "trash", role: .destructive) { deletingVoice = voice }
                 }
             }
         }
         Button { showCreateVoice = true } label: { AppLabel("Add your own voice", systemName: "waveform.badge.plus", size: 17, relativeTo: .body) }
-            .sheet(isPresented: $showCreateVoice) {
+            .appSheet(isPresented: $showCreateVoice) {
                 CustomVoiceCreationView { voice in selected = [voice.id] }
             }
-            .confirmationDialog("Delete \(deletingVoice?.name ?? "voice")?", isPresented: Binding(get: { deletingVoice != nil }, set: { if !$0 { deletingVoice = nil } }), titleVisibility: .visible) {
+            .appConfirmationDialog("Delete \(deletingVoice?.name ?? "voice")?", isPresented: Binding(get: { deletingVoice != nil }, set: { if !$0 { deletingVoice = nil } }), titleVisibility: .visible) {
                 Button("Delete voice", role: .destructive) {
                     guard let voice = deletingVoice else { return }
                     Task {
@@ -88,7 +88,7 @@ struct NarrationVoicePicker: View {
                     deletingVoice = nil
                 }
             } message: { Text("This removes the reference and cancels unfinished preparations in this voice. Downloaded book chapters stay on your phone.") }
-        NavigationLink {
+        AppNavigationLink {
             VoiceReferencePassageView()
         } label: {
             AppLabel("Voice recording passage", systemName: "text.quote", size: 17, relativeTo: .body)
@@ -101,7 +101,7 @@ struct NarrationComputePicker: View {
     @State private var providers: [TTSComputeProvider] = []
     @State private var error: String?
     var body: some View {
-        Picker("Prepare audio with", selection: $provider) {
+        AppPicker("Prepare audio with", selection: $provider) {
             Text("Kaggle").tag("kaggle")
             Text(providers.first(where: { $0.id == "colab" })?.available == true ? "Google Colab" : "Google Colab · not connected").tag("colab")
         }
@@ -279,11 +279,11 @@ struct BookAudioDownloadsView: View {
                             .textCase(nil)
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Menu {
-                            Picker("Status", selection: $stateFilter) {
+                        AppMenu {
+                            AppPicker("Status", selection: $stateFilter) {
                                 ForEach(["All", "Downloaded", "Preparing", "Issues"], id: \.self) { Text($0).tag($0) }
                             }
-                            Picker("Voice", selection: $voiceFilter) {
+                            AppPicker("Voice", selection: $voiceFilter) {
                                 Text("All voices").tag("all")
                                 ForEach(library.voices) { Text($0.name).tag($0.id) }
                             }
@@ -302,11 +302,11 @@ struct BookAudioDownloadsView: View {
             .background { CoverBackdrop(url: coverURL, tint: coverTint) }
             .appNavigationTitle("Audio")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .topBarLeading) {
-                    Menu {
+                    AppMenu {
                         Toggle("Wi-Fi downloads only", isOn: $wifiOnly)
-                        Picker("Prepare with", selection: $computeProvider) {
+                        AppPicker("Prepare with", selection: $computeProvider) {
                             Text("Kaggle").tag("kaggle")
                             Text("Colab").tag("colab")
                         }
@@ -319,7 +319,7 @@ struct BookAudioDownloadsView: View {
                 AppToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .toolbar(pageCount > 1 ? .visible : .hidden, for: .bottomBar)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItemGroup(placement: .bottomBar) {
                     Button { chapterPage = max(0, currentPage - 1) } label: { AppLabel("Previous chapters", systemName: "chevron.left", size: 12, relativeTo: .caption).labelStyle(.iconOnly) }
                         .disabled(currentPage == 0)
@@ -332,24 +332,24 @@ struct BookAudioDownloadsView: View {
             }
             // Pinned exactly like Browse: the drawer sits under the title and
             // stays while the list scrolls.
-            .searchable(
+            .appSearchable(
                 text: $search,
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: "Chapter number or title"
             )
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
-            .sheet(isPresented: $showVoices) {
+            .appSheet(isPresented: $showVoices) {
                 AppNavigationStack {
                     List { Section { NarrationComputePicker() }; Section("Narrator") { NarrationVoicePicker(selected: $selectedVoices) } }
                         .appNavigationTitle("Choose voices").navigationBarTitleDisplayMode(.large)
-                        .toolbar { AppToolbarItem(placement: .confirmationAction) { Button("Done") {
+                        .appToolbar { AppToolbarItem(placement: .confirmationAction) { Button("Done") {
                             if let voice = selectedVoices.sorted().first { library.setBookVoice(voice, bookId: bookId) }
                             showVoices = false
                         } } }
                 }
             }
-            .sheet(isPresented: $showRange) { rangePicker }
+            .appSheet(isPresented: $showRange) { rangePicker }
             .task {
                 if !initialized {
                     let index = chapters.firstIndex { $0.path == initialChapter } ?? 0
@@ -367,10 +367,10 @@ struct BookAudioDownloadsView: View {
             .onChange(of: search) { _, _ in chapterPage = 0 }
             .onChange(of: stateFilter) { _, _ in chapterPage = 0 }
             .onChange(of: voiceFilter) { _, _ in chapterPage = 0 }
-            .confirmationDialog("Delete this chapter audio everywhere?", isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })) {
+            .appConfirmationDialog("Delete this chapter audio everywhere?", isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })) {
                 if let record = deleteTarget { Button("Delete \(voiceName(record))", role: .destructive) { Task { await library.delete(record.id) }; deleteTarget = nil } }
             } message: { Text("Other voices and chapter text remain available.") }
-            .confirmationDialog("Delete \(deleteIDs.count) chapter voice downloads everywhere?", isPresented: Binding(get: { !deleteIDs.isEmpty }, set: { if !$0 { deleteIDs = [] } })) {
+            .appConfirmationDialog("Delete \(deleteIDs.count) chapter voice downloads everywhere?", isPresented: Binding(get: { !deleteIDs.isEmpty }, set: { if !$0 { deleteIDs = [] } })) {
                 Button("Delete selected audio everywhere", role: .destructive) {
                     let ids = deleteIDs; deleteIDs = []
                     Task { await library.deleteMany(ids) }
@@ -605,7 +605,7 @@ struct BookAudioDownloadsView: View {
             }
             .appNavigationTitle("Range")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { showRange = false } }
             }
             .safeAreaInset(edge: .bottom) {
@@ -619,12 +619,12 @@ struct BookAudioDownloadsView: View {
                 .background(.bar)
             }
         }
-        .presentationDetents([.medium, .large])
+        .appPresentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 
     private func rangeStepperRow(_ title: String, value: Binding<Int>) -> some View {
-        Stepper(value: value, in: 1...max(chapters.count, 1)) {
+        AppStepper(value: value, in: 1...max(chapters.count, 1)) {
             HStack {
                 Text(title)
                 Spacer()
@@ -701,7 +701,7 @@ struct BookAudioDownloadsView: View {
                     Circle().fill(AppTheme.surface)
                     Text("\(chapter.position + 1)").font(.caption.monospacedDigit().weight(.semibold)).foregroundStyle(.primary)
                 }.frame(width: 36, height: 36)
-                NavigationLink {
+                AppNavigationLink {
                     TTSChapterAudioDetailView(chapter: chapter, bookId: bookId, bookTitle: bookTitle, coverURL: coverURL,
                                               onPlay: { playAudio($0) }, onAddVoice: { showVoices = true })
                 } label: {
@@ -1074,7 +1074,7 @@ private struct CustomVoiceCreationView: View {
                     )
                 }
                 Section {
-                    NavigationLink { VoiceReferencePassageView() } label: { AppLabel("Read or copy the sample passage", systemName: "text.quote", size: 17, relativeTo: .body) }
+                    AppNavigationLink { VoiceReferencePassageView() } label: { AppLabel("Read or copy the sample passage", systemName: "text.quote", size: 17, relativeTo: .body) }
                     Button("I read the full passage exactly") { transcript = VoiceReferencePassageView.passage }
                         .disabled(sample.recording || sample.file == nil)
                 }
@@ -1112,7 +1112,7 @@ private struct CustomVoiceCreationView: View {
             .disabled(saving)
             .appNavigationTitle("Your voice")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar { AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(saving) } }
+            .appToolbar { AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(saving) } }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.audio]) { result in
                 switch result {
                 case .success(let url): Task { await sample.importSample(url) }
@@ -1122,7 +1122,7 @@ private struct CustomVoiceCreationView: View {
             .onChange(of: sample.file) { _, _ in transcript = "" }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in if sample.recording { sample.stopRecording() } }
         }
-        .interactiveDismissDisabled(saving || sample.recording || sample.requestingPermission)
+        .appInteractiveDismissDisabled(saving || sample.recording || sample.requestingPermission)
         .onDisappear { sample.cleanUp() }
     }
 }
@@ -1164,7 +1164,7 @@ struct TTSChapterAudioDetailView: View {
         }
         .appNavigationTitle("Chapter \(chapter.position + 1)")
         .navigationBarTitleDisplayMode(.large)
-        .confirmationDialog("Delete this voice's audio everywhere?", isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })) {
+        .appConfirmationDialog("Delete this voice's audio everywhere?", isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })) {
             if let record = deleteTarget {
                 Button("Delete \(voiceName(record))", role: .destructive) {
                     Task { await library.delete(record.id) }
@@ -1270,7 +1270,7 @@ struct TTSChapterAudioDetailView: View {
                 Button(role: .destructive) { deleteTarget = record } label: {
                     AppLabel("Delete \(voiceName(record))", systemName: "trash", size: 17, relativeTo: .body).labelStyle(.iconOnly)
                 }
-                .buttonStyle(.bordered)
+                .appBorderedButtonStyle()
                 .buttonBorderShape(.circle)
             }
             .controlSize(.small)
@@ -1328,12 +1328,12 @@ private struct RowActionStyle: ViewModifier {
             // Same pairing as `primaryActionStyle`, for the non-glass bordered
             // style: a bare prominent fill is white-on-white in dark mode.
             content
-                .buttonStyle(.borderedProminent)
+                .appBorderedButtonStyle(prominent: true)
                 .tint(AppTheme.primaryFill)
                 .foregroundStyle(AppTheme.onPrimaryFill)
                 .buttonBorderShape(.capsule)
         } else {
-            content.buttonStyle(.bordered).buttonBorderShape(.capsule)
+            content.appBorderedButtonStyle().buttonBorderShape(.capsule)
         }
     }
 }

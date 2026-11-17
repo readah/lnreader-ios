@@ -227,7 +227,7 @@ struct ChapterDownloadControl: View {
                     downloads.download(chapter.path, in: entry)
                 } label: { icon }
             } else {
-                Menu { menuItems } label: { icon }
+                AppMenu { menuItems } label: { icon }
             }
         }
         .frame(width: 44, height: 44)
@@ -371,6 +371,7 @@ extension Notification.Name {
 /// and leaving selection morphs the controls with the system glass animation.
 struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) private var modelContext
     @Environment(TrackingManager.self) private var tracking
+    @Environment(\.noLiquidGlass) private var noLiquidGlass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Passed on to the audio sheet by hand. The sheet is attached here, below
     /// the detail screen's `.environment(\.coverTint,…)`, so whether it inherits
@@ -406,13 +407,14 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
                 )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
+                .appUnblurVisibility(selection.isActive)
                 .opacity(selection.isActive ? 1 : 0)
                 .allowsHitTesting(selection.isActive)
                 .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: selection.isActive)
             }
-            .toolbarVisibility(selection.isActive ? .hidden : .automatic, for: .tabBar)
+            .toolbarVisibility(noLiquidGlass || selection.isActive ? .hidden : .automatic, for: .tabBar)
             .preference(key: ClassicTabBarHiddenKey.self, value: selection.isActive)
-            .sheet(isPresented: $showAudio) { audioSheet }
+            .appSheet(isPresented: $showAudio) { audioSheet }
     }
 
     @ViewBuilder private var moreMenuItems: some View {

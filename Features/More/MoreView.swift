@@ -31,10 +31,10 @@ struct MoreView: View {
                 infoSection
             }
             .appNavigationTitle("More")
-            .sheet(isPresented: $showingEditProfile) {
+            .appSheet(isPresented: $showingEditProfile) {
                 ProfileEditSheet(profile: userProfile)
             }
-            .navigationDestination(isPresented: $showingSignIn) {
+            .appNavigationDestination(isPresented: $showingSignIn) {
                 LiquidGlassOnboardingView(onComplete: {
                     showingSignIn = false
                 }, entryPoint: .signIn)
@@ -42,7 +42,7 @@ struct MoreView: View {
                 .toolbar(.hidden, for: .navigationBar)
                 .toolbar(.hidden, for: .tabBar)
             }
-            .confirmationDialog(
+            .appConfirmationDialog(
                 "Show the onboarding intro again?",
                 isPresented: $showingRestartOnboarding,
                 titleVisibility: .visible
@@ -87,7 +87,7 @@ struct MoreView: View {
                 } label: {
                     AppIcon(systemName: "pencil", size: 17, relativeTo: .body)
                 }
-                .buttonStyle(.bordered)
+                .appBorderedButtonStyle()
                 .buttonBorderShape(.circle)
                 .accessibilityLabel("Edit profile")
             }
@@ -173,7 +173,7 @@ struct MoreView: View {
                     AppLabel("Sync download", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
                 }
                 .disabled(syncManager.isWorking)
-                .confirmationDialog(
+                .appConfirmationDialog(
                     "Restore your library from the cloud?",
                     isPresented: $showingRestore,
                     titleVisibility: .visible
@@ -190,7 +190,7 @@ struct MoreView: View {
                     AppLabel("Sign out", systemName: "rectangle.portrait.and.arrow.right", size: 17, relativeTo: .body)
                 }
                 .disabled(syncManager.isWorking)
-                .confirmationDialog(
+                .appConfirmationDialog(
                     "Sign out of cloud sync?",
                     isPresented: $showingSignOut,
                     titleVisibility: .visible
@@ -289,7 +289,7 @@ struct MoreView: View {
         haptic: Haptics.Weight = .light,
         @ViewBuilder destination: @escaping () -> Destination
     ) -> some View {
-        NavigationLink {
+        AppNavigationLink {
             // Fired on push: a tap gesture on the link itself swallows touches
             // on the label, leaving only the empty part of the row tappable.
             destination()
@@ -352,7 +352,7 @@ struct ProfileEditSheet: View {
             }
             .appNavigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()

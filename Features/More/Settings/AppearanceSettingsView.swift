@@ -31,7 +31,7 @@ struct AppearanceSettingsView: View {
             }
 
             Section {
-                Picker("Icon Pack", selection: $iconPack) {
+                AppPicker("Icon Pack", selection: $iconPack) {
                     ForEach(IconPack.allCases) { pack in
                         Text(pack.displayName).tag(pack.rawValue)
                     }
@@ -48,7 +48,7 @@ struct AppearanceSettingsView: View {
                         Text("\(Int((strength * 100).rounded()))%")
                             .monospacedDigit()
                     }
-                    Slider(value: $strength, in: 0.1...1) {
+                    AppSlider(value: $strength, in: 0.1...1) {
                         Text("Tint strength")
                     }
                     .tint(AppTheme.accent)

@@ -102,7 +102,7 @@ struct UpdatesView: View {
                 }
             }
             .appNavigationTitle("Updates")
-            .navigationDestination(for: Entry.self) { entry in
+            .appNavigationDestination(for: Entry.self) { entry in
                 // A migrated entry takes the place of the one that left the library.
                 EntryDetailView(entry: entry) { replacement in
                     if !path.isEmpty { path.removeLast() }
@@ -110,7 +110,7 @@ struct UpdatesView: View {
                 }
                 .id(entry.persistentModelID)
             }
-            .toolbar {
+            .appToolbar {
                 AppToolbarItemGroup(placement: .primaryAction) {
                     if !recentChapters.isEmpty {
                         Button(role: .destructive) {
@@ -142,7 +142,7 @@ struct UpdatesView: View {
             // Owned by the screen, not the toolbar button: a dialog attached
             // inside a toolbar item does not reliably present, which is why the
             // trash button appeared to do nothing.
-            .confirmationDialog(
+            .appConfirmationDialog(
                 "Are you sure you want to clear all updates?",
                 isPresented: $showClearConfirmation,
                 titleVisibility: .visible

@@ -73,7 +73,7 @@ struct NovelFireCommentsView: View {
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .appBorderedButtonStyle()
                     .controlSize(.large)
                     .disabled(isLoading)
                     .listRowBackground(Color.clear)
@@ -85,10 +85,10 @@ struct NovelFireCommentsView: View {
             .foregroundStyle(Color(hex: textColorHex) ?? .primary)
             .appNavigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) { Button("Done", role: .close) { dismiss() } }
                 AppToolbarItem(placement: .primaryAction) {
-                    Menu {
+                    AppMenu {
                         Toggle("Hide spoilers", isOn: $hideSpoilers)
                         Toggle("With replies", isOn: $onlyReplies)
                         Divider()
@@ -107,7 +107,7 @@ struct NovelFireCommentsView: View {
                     do { comments = try await parse(initialHTML) } catch { errorMessage = error.localizedDescription }
                 } else { await loadFirstPage() }
             }
-            .sheet(isPresented: $showLoginSheet, onDismiss: { pendingVote = nil }) {
+            .appSheet(isPresented: $showLoginSheet, onDismiss: { pendingVote = nil }) {
                 NovelFireLoginView(onLoginSuccess: {
                     let action = pendingVote
                     pendingVote = nil

@@ -66,7 +66,7 @@ struct AuthView: View {
         .onChange(of: message) { _, value in
             if let value { AccessibilityNotification.Announcement(value).post() }
         }
-        .interactiveDismissDisabled(isSubmitting)
+        .appInteractiveDismissDisabled(isSubmitting)
         .background {
             if presentation == .onboarding {
                 EdgeSwipeDismiss(edges: [.left]) {
@@ -76,7 +76,7 @@ struct AuthView: View {
                 }
             }
         }
-        .sheet(isPresented: $showsServerSettings) { serverSettingsSheet }
+        .appSheet(isPresented: $showsServerSettings) { serverSettingsSheet }
     }
 
     private var settingsContent: some View {
@@ -422,7 +422,7 @@ struct AuthView: View {
             }
             .appNavigationTitle("Server settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .appToolbar {
                 AppToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         focused = nil
@@ -431,7 +431,7 @@ struct AuthView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .appPresentationDetents([.medium, .large])
         .preferredColorScheme(.dark)
     }
 
