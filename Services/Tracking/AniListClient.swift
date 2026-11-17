@@ -157,7 +157,12 @@ final class AniListClient: @unchecked Sendable {
             .init(name: "client_id", value: AniListConfig.clientID),
             .init(name: "response_type", value: "token"),
         ]
-        let anchor = WebAuthAnchor()
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive && $0.keyWindow != nil })
+            ?? scenes.first(where: { $0.activationState == .foregroundActive }) else {
+            throw AniListError.server("Open AniList sign-in from an active app window.")
+        }
+        let anchor = WebAuthAnchor(scene: scene)
         let url: URL = try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(
                 url: components.url!, callbackURLScheme: AniListConfig.callbackScheme
@@ -337,9 +342,14 @@ final class AniListClient: @unchecked Sendable {
 }
 
 private final class WebAuthAnchor: NSObject, ASWebAuthenticationPresentationContextProviding {
+    private let scene: UIWindowScene
+
+    init(scene: UIWindowScene) {
+        self.scene = scene
+        super.init()
+    }
+
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        UIApplication.shared.connectedScenes
-            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
-            .first ?? ASPresentationAnchor()
+        scene.keyWindow ?? ASPresentationAnchor(windowScene: scene)
     }
 }
