@@ -30,29 +30,38 @@ enum SyncFiles {
         return target
     }
 
-    static func snapshot(_ books: [SyncNovelPayload], root: URL = documents,
+    static func snapshot(_ books: [SyncNovelPayload], includeLocalBooks: Bool = true, root: URL = documents,
                          onProgress: (Int, Int) -> Void = { _, _ in }) throws -> [SyncFilePayload] {
         var paths = Set<String>()
         let fm = FileManager.default
         let resolvedRoot = root.resolvingSymlinksInPath().standardizedFileURL
-        let locals = books.filter { $0.sourceKey == SourceKey.local }
-        for (index, book) in locals.enumerated() {
-            let id = try localID(book)
-            let directory = resolvedRoot.appendingPathComponent("LocalNovels/\(id)")
-            var enumerationError: Error?
-            guard let enumerator = fm.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
-                errorHandler: { _, error in enumerationError = error; return false }) else { throw CocoaError(.fileNoSuchFile) }
-            for case let file as URL in enumerator {
-                let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-                guard values.isSymbolicLink != true else { throw CocoaError(.fileReadInvalidFileName) }
-                guard values.isRegularFile == true else { continue }
-                let resolved = file.resolvingSymlinksInPath().standardizedFileURL.path
-                guard resolved.hasPrefix(directory.path + "/") else { throw CocoaError(.fileReadInvalidFileName) }
-                paths.insert(String(resolved.dropFirst(resolvedRoot.path.count + 1)))
+        if includeLocalBooks {
+            let locals = books.filter { $0.sourceKey == SourceKey.local }
+            for (index, book) in locals.enumerated() {
+                let id = try localID(book)
+                let directory = resolvedRoot.appendingPathComponent("LocalNovels/\(id)")
+                var enumerationError: Error?
+                guard let enumerator = fm.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+                    errorHandler: { _, error in enumerationError = error; return false }) else { throw CocoaError(.fileNoSuchFile) }
+                for case let file as URL in enumerator {
+                    let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+                    guard values.isSymbolicLink != true else { throw CocoaError(.fileReadInvalidFileName) }
+                    guard values.isRegularFile == true else { continue }
+                    let resolved = file.resolvingSymlinksInPath().standardizedFileURL.path
+                    guard resolved.hasPrefix(directory.path + "/") else { throw CocoaError(.fileReadInvalidFileName) }
+                    paths.insert(String(resolved.dropFirst(resolvedRoot.path.count + 1)))
+                }
+                if let enumerationError { throw enumerationError }
+                onProgress(index + 1, locals.count)
             }
-            if let enumerationError { throw enumerationError }
-            if let cover = book.cover, cover.hasPrefix("local://Covers/") { paths.insert(String(cover.dropFirst(8))) }
-            onProgress(index + 1, locals.count)
+        }
+        for book in books {
+            if let cover = book.cover, cover.hasPrefix("local://Covers/") {
+                let relPath = String(cover.dropFirst(8))
+                if fm.fileExists(atPath: resolvedRoot.appendingPathComponent(relPath).path) {
+                    paths.insert(relPath)
+                }
+            }
         }
         var files: [SyncFilePayload] = []
         for path in paths.sorted() {
@@ -65,11 +74,11 @@ enum SyncFiles {
             while let bytes = try handle.read(upToCount: chunkSize), !bytes.isEmpty { chunks.append(hash(bytes)) }
             files.append(SyncFilePayload(path: path, size: size, chunks: chunks))
         }
-        try validate(files, books: books)
+        try validate(files, books: books, allowMissingLocalFiles: !includeLocalBooks)
         return files
     }
 
-    static func validate(_ files: [SyncFilePayload], books: [SyncNovelPayload]) throws {
+    static func validate(_ files: [SyncFilePayload], books: [SyncNovelPayload], allowMissingLocalFiles: Bool = false) throws {
         guard files.count <= 100_000, Set(files.map(\.path)).count == files.count else { throw CocoaError(.fileReadCorruptFile) }
         for file in files {
             _ = try fileURL(file.path, root: documents)
@@ -83,11 +92,16 @@ enum SyncFiles {
         for book in books where book.sourceKey == SourceKey.local {
             let id = try localID(book)
             guard !book.chapters.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
-            for chapter in book.chapters {
-                guard paths.contains("LocalNovels/\(id)/\(chapter.path)") else { throw CocoaError(.fileNoSuchFile) }
+            let hasAnyBookFiles = book.chapters.contains { paths.contains("LocalNovels/\(id)/\($0.path)") }
+            if !allowMissingLocalFiles || hasAnyBookFiles {
+                for chapter in book.chapters {
+                    guard paths.contains("LocalNovels/\(id)/\(chapter.path)") else { throw CocoaError(.fileNoSuchFile) }
+                }
             }
             if let cover = book.cover, cover.hasPrefix("local://Covers/") {
-                guard paths.contains(String(cover.dropFirst(8))) else { throw CocoaError(.fileNoSuchFile) }
+                if !allowMissingLocalFiles || paths.contains(String(cover.dropFirst(8))) {
+                    guard paths.contains(String(cover.dropFirst(8))) else { throw CocoaError(.fileNoSuchFile) }
+                }
             }
         }
     }

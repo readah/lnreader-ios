@@ -190,6 +190,9 @@ enum SyncApplier {
             novel.kind = remoteNovel.kind ?? novel.kind
             novel.title = remoteNovel.name
             novel.thumbnailURL = remoteNovel.cover
+            if remoteNovel.cover?.hasPrefix("local://Covers/") == true {
+                novel.customThumbnailURL = remoteNovel.cover
+            }
             novel.summary = remoteNovel.summary
             novel.author = remoteNovel.author
             novel.artist = remoteNovel.artist
@@ -248,7 +251,7 @@ extension SyncNovelPayload {
         path = entry.url
         pluginId = SourceKey.identifier(from: entry.sourceKey)
         name = entry.title
-        cover = entry.thumbnailURL
+        cover = entry.displayThumbnailURL ?? entry.thumbnailURL
         summary = entry.summary
         author = entry.author
         artist = entry.artist

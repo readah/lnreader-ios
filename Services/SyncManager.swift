@@ -163,7 +163,8 @@ final class SyncManager {
                 let library = entries.map { SyncNovelPayload(entry: $0) }
                 var payload = SyncPayload(profile: info, library: library, sources: sourcePayloads, clientUpdatedAt: nil)
                 payload.highlights = try background.fetch(FetchDescriptor<Highlight>()).map(SyncHighlightPayload.init)
-                payload.localFiles = try SyncFiles.snapshot(library)
+                let includeLocalBooks = UserDefaults.standard.bool(forKey: "backup.includeLocalBooks")
+                payload.localFiles = try SyncFiles.snapshot(library, includeLocalBooks: includeLocalBooks)
                 return payload
             }.value
 
@@ -201,7 +202,7 @@ final class SyncManager {
             let files = data.localFiles ?? []
             try await Task.detached {
                 try SyncApplier.validate(data)
-                try SyncFiles.validate(files, books: data.library)
+                try SyncFiles.validate(files, books: data.library, allowMissingLocalFiles: true)
             }.value
             currentUser = envelope.user
             let staging = FileManager.default.temporaryDirectory.appendingPathComponent("lnreader-sync-\(UUID().uuidString)")
