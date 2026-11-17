@@ -4,6 +4,7 @@ import UIKit
 /// Scoped to ContentView, deliberately not the onboarding host or UIAppearance.
 enum ChromeAppearance {
     static let noLiquidGlassKey = "appearance.noLiquidGlass"
+    static let systemFormsKey = "appearance.systemForms"
     static let classicTabBarHeight: CGFloat = 64
 }
 
