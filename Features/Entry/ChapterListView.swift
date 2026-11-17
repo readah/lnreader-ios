@@ -126,11 +126,7 @@ struct ChapterListView: View {
             .padding(.top, 8)
 
             if showSearchField {
-                TextField("Chapter name or number", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .focused($searchFocused)
+                GlassSearchField(prompt: "Chapter name or number", text: $searchText, focus: $searchFocused)
                     .transition(.opacity.combined(with: .offset(y: -4)))
             }
 

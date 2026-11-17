@@ -167,3 +167,40 @@ struct GlassIconGroup: View {
         .glassEffect(.regular.interactive(), in: .capsule)
     }
 }
+
+/// A search field in clear glass, the same height as every floating control.
+/// Clear rather than regular: the field sits over content it filters, so the
+/// list stays visible through it while typing.
+struct GlassSearchField: View {
+    let prompt: String
+    @Binding var text: String
+    var focus: FocusState<Bool>.Binding
+
+    var body: some View {
+        HStack(spacing: 10) {
+            AppIcon(systemName: "magnifyingglass", size: 15, relativeTo: .body)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField(prompt, text: $text)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused(focus)
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    AppIcon(systemName: "xmark.circle.fill", size: 15, relativeTo: .body)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                        .contentShape(.circle)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(height: GlassMetrics.side)
+        .glassEffect(.clear.interactive(), in: .capsule)
+    }
+}
