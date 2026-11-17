@@ -3,21 +3,17 @@ import SwiftUI
 /// Settings share the same cards in a full screen and in a classic sheet.
 /// Data-heavy lists keep List's reuse and editing behavior instead.
 struct AppForm<Content: View>: View {
-    @Environment(\.noLiquidGlass) private var classic
     @AppStorage(ChromeAppearance.systemFormsKey) private var systemForms = false
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        if classic && systemForms {
-            // Beta: hand every form to UIKit's own grouped Form. Row content,
-            // titles and buttons stay ours; insets, separators, section
-            // headers and backgrounds come from iOS.
+        if systemForms {
+            // Beta: a plain UIKit-backed grouped Form. No custom button style,
+            // row insets, cards, press scale or form-row environment — this is
+            // genuinely the system's form, not our rows in a different colour.
             Form { content() }
-                .formStyle(.grouped)
-                .scrollContentBackground(.hidden)
-                .scrollDismissesKeyboard(.interactively)
-                .buttonStyle(AppFormButtonStyle())
-                .environment(\.appFormRow, true)
+                .buttonStyle(.automatic)
+                .environment(\.appFormRow, false)
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {

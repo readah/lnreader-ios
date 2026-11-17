@@ -49,13 +49,12 @@ Use the adaptive components, not raw SwiftUI chrome:
   including More and the Browse catalogue's source list. Its structure stays
   stable when the material setting changes. Keep long result lists and
   editable/reorderable lists as `List`.
-- **Beta — Use iOS default forms** (`appearance.systemForms`, offered only
-  while No Liquid Glass is on): `AppForm` hands its `Section` content to a
-  native grouped `Form`, so every screen that uses `AppForm` — settings,
-  option sheets, filters, trackers, migration, Browse, reader and manga
-  settings — switches at once. Titles, buttons and row content stay ours;
-  insets, separators, section chrome and row backgrounds come from iOS. This
-  does not affect screens that already use a native `List`.
+- **Beta — Use iOS default forms** (`appearance.systemForms`, available in both
+  modes): `AppForm` renders a plain `Form { Section… }` with no custom button
+  style, row insets, cards or press scale, so every screen that uses `AppForm` —
+  settings, option sheets, filters, trackers, migration, Browse, reader and
+  manga settings — switches at once. Screens that already use a native `List`
+  are unaffected.
 - `.appRefreshable` draws the shared pull indicator on Library, Updates,
   History and other refreshable screens. The indicator is an overlay: it never
   pins a screen or changes its insets while an update publishes store changes.

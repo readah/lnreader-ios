@@ -22,14 +22,23 @@ struct AppearanceSettingsView: View {
                 Text("Use soft frosted materials, blurred navigation bars and a custom tab dock instead of Liquid Glass. Applies throughout the app; onboarding stays unchanged.")
             }
 
-            if noLiquidGlass {
-                Section {
-                    Toggle("Use iOS default forms", isOn: $systemForms)
-                } header: {
-                    Text("Beta")
-                } footer: {
-                    Text("Uses iOS's native grouped form layout for every settings screen and option sheet instead of the custom frosted cards. Titles, buttons and content stay ours.")
+            Section {
+                Toggle(isOn: $systemForms) {
+                    HStack(spacing: 8) {
+                        Text("Use iOS default forms")
+                        Text("Beta")
+                            .font(Typography.small.weight(.semibold))
+                            .foregroundStyle(AppTheme.accent)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(AppTheme.accent.opacity(0.14), in: .capsule)
+                            .accessibilityHidden(true)
+                    }
                 }
+            } header: {
+                Text("Beta")
+            } footer: {
+                Text("Uses iOS's native grouped form layout for every settings screen and option sheet instead of the custom frosted cards. Titles, buttons and content stay ours.")
             }
 
             Section {
