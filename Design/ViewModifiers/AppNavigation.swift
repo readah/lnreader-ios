@@ -60,7 +60,7 @@ extension AppNavigationLink where Label == Text {
 
 @Observable final class ClassicNavigationState {
     var canGoBack = false
-    var back: () -> Void = {}
+    var back: (() -> Void)?
 }
 private struct ClassicNavigationKey: EnvironmentKey {
     static let defaultValue: ClassicNavigationState? = nil
@@ -258,6 +258,18 @@ private struct AppPushedScreen: ViewModifier {
     }
 }
 
+/// Captures the destination's own dismiss action. Reading `dismiss` from the
+/// chrome modifier resolved to the root's action, so the back button did nothing.
+private struct BackActionReader: View {
+    @Environment(\.dismiss) private var dismiss
+    let onReady: (@escaping () -> Void) -> Void
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear { onReady { dismiss() } }
+    }
+}
+
 struct AppNavigationChrome: ViewModifier {
     func body(content: Content) -> some View {
         content.modifier(AdaptiveNavigationChrome(items: EmptyAppToolbar()))
@@ -294,6 +306,7 @@ private struct ClassicScreenChrome<Items: AppToolbarContent>: ViewModifier {
     @State private var title: Text?
     @State private var titleSwipe: AppTitleSwipeAction?
     @State private var headerScrolled = false
+    @State private var backAction: (() -> Void)?
 
     private var isPushed: Bool { depth > 0 }
     private var resolvedTitle: Text? { environmentTitle ?? title }
@@ -318,12 +331,20 @@ private struct ClassicScreenChrome<Items: AppToolbarContent>: ViewModifier {
                 }
             }
             .background {
-                if enabled {
-                    // Native interactive pop still needs UIKit's controller;
-                    // the back button itself now comes from SwiftUI depth.
-                    NavigationDepthBridge()
-                        .frame(width: 0, height: 0)
-                        .allowsHitTesting(false)
+                ZStack {
+                    if enabled {
+                        // Native interactive pop still needs UIKit's controller.
+                        NavigationDepthBridge(navigation: navigation)
+                            .frame(width: 0, height: 0)
+                            .allowsHitTesting(false)
+                    }
+                    if enabled, isPushed {
+                        BackActionReader { backAction = $0 }
+                            .allowsHitTesting(false)
+                        // Window-level edge swipe: independent of whether UIKit's
+                        // pop gesture is available under a hidden nav bar.
+                        EdgeSwipeDismiss(edges: [.left]) { goBack() }
+                    }
                 }
             }
             .onPreferenceChange(AppScreenTitleKey.self) { newTitle in
@@ -341,12 +362,22 @@ private struct ClassicScreenChrome<Items: AppToolbarContent>: ViewModifier {
             }
     }
 
+    private func goBack() {
+        if let native = navigation.back {
+            native()
+        } else if let backAction {
+            backAction()
+        } else {
+            dismiss()
+        }
+    }
+
     private var header: some View {
         HStack(spacing: 10) {
             if isPushed {
                 Button {
                     Haptics.shared.selection()
-                    dismiss()
+                    goBack()
                 } label: {
                     AppIcon(systemName: "chevron.left", size: 17)
                 }
@@ -428,11 +459,14 @@ struct ClassicChromeButtonStyle: ButtonStyle {
 /// hidden. Depth for the back button comes from SwiftUI's destination wrappers,
 /// not from this bridge: a SwiftUI stack reports a single view controller.
 private struct NavigationDepthBridge: UIViewControllerRepresentable {
+    let navigation: ClassicNavigationState
     func makeUIViewController(context: Context) -> Controller { Controller() }
     func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.navigation = navigation
         controller.refresh()
     }
     final class Controller: UIViewController, UIGestureRecognizerDelegate {
+        var navigation: ClassicNavigationState?
         override func loadView() { view = UIView(); view.isUserInteractionEnabled = false }
         override func didMove(toParent parent: UIViewController?) {
             super.didMove(toParent: parent)
@@ -444,6 +478,13 @@ private struct NavigationDepthBridge: UIViewControllerRepresentable {
         func refresh() {
             guard let nav = navigationController else { return }
             let pushed = nav.viewControllers.count > 1
+            if let navigation {
+                // Only offer the UIKit pop when the stack really has a screen
+                // to pop; otherwise the SwiftUI dismiss action is the fallback.
+                navigation.back = pushed
+                    ? { [weak nav] in nav?.popViewController(animated: true) }
+                    : nil
+            }
 
             // Restore native 1:1 interactive swipe-back when the nav bar is hidden
             if let popGesture = nav.interactivePopGestureRecognizer {
