@@ -25,12 +25,17 @@ struct LibraryOptionsSheet: View {
     var body: some View {
         AppNavigationStack {
             VStack(spacing: 0) {
-                AppPicker("Options", selection: $tab) {
-                    ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
+                AppSlidingPicker(
+                    title: "Options",
+                    selection: $tab,
+                    options: Tab.allCases,
+                    classicSelectionIndicator: true
+                ) { tab in
+                    tab.rawValue
                 }
-                .appPickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
 
                 switch tab {
                 case .filter: filterList
@@ -42,7 +47,7 @@ struct LibraryOptionsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .appToolbar {
                 AppToolbarItem(placement: .cancellationAction) {
-                    Button(resetLabel, action: resetCurrentTab)
+                    Button("Reset", role: .destructive, action: resetCurrentTab)
                         .disabled(!canResetCurrentTab)
                 }
                 AppToolbarItem(placement: .confirmationAction) {
@@ -60,13 +65,8 @@ struct LibraryOptionsSheet: View {
         }
     }
 
-    /// "Reset" alone never said what it would reset once the sheet had tabs.
     private var resetLabel: String {
-        switch tab {
-        case .filter: "Reset filters"
-        case .sort: "Reset sort"
-        case .display: "Reset layout"
-        }
+        "Reset"
     }
 
     private func resetCurrentTab() {

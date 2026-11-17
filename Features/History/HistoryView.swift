@@ -75,8 +75,12 @@ struct HistoryView: View {
                 .id(entry.persistentModelID)
             }
             .appNavigationTitle("History")
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                AppExpandableSearchBar(text: $searchText, prompt: "Search history")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+            }
             .onChange(of: resumeTrigger) { resumeLatest() }
-            .appSearchable(text: $searchText, prompt: "Search history")
             .appToolbar {
                 AppToolbarItemGroup(placement: .primaryAction) {
                     incognitoButton
@@ -116,7 +120,10 @@ struct HistoryView: View {
         } label: {
             AppLabel(on ? "Incognito on" : "Incognito off", systemName: on ? "eye.slash.fill" : "eye.slash", size: 17, relativeTo: .body)
         }
+        // Glass mode keeps the ordinary toolbar button: no bespoke pill, just
+        // the yellow icon. Only classic chrome needs its own button style.
         .tint(on ? AppTheme.warning : nil)
+        .modifier(ClassicIncognitoStyle(on: on))
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -245,6 +252,22 @@ struct HistoryView: View {
         for item in items { modelContext.delete(item) }
         try? modelContext.save()
         expandedRuns.removeAll()
+    }
+}
+
+/// Classic chrome gives the lit incognito state a yellow icon; glass mode
+/// inherits the normal toolbar button and only uses the tint.
+private struct ClassicIncognitoStyle: ViewModifier {
+    @Environment(\.noLiquidGlass) private var classic
+    let on: Bool
+    func body(content: Content) -> some View {
+        if classic {
+            content
+                .buttonStyle(ClassicChromeButtonStyle())
+                .foregroundStyle(on ? AppTheme.warning : AppTheme.accent)
+        } else {
+            content
+        }
     }
 }
 

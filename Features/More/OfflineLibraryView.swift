@@ -1045,13 +1045,16 @@ struct BackupProgressSheet: View {
                         Button("Stop", role: .destructive) { manager.cancel() }
                             .disabled(manager.progress?.isCancelling == true)
                     } else {
-                        Button("Dismiss") {
+                        Button {
                             manager.dismiss()
                             dismiss()
+                        } label: {
+                            AppIcon(systemName: "xmark", size: 15, relativeTo: .body)
                         }
+                        .accessibilityLabel("Dismiss")
                     }
                 }
-                AppToolbarItem(placement: .topBarTrailing) {
+                AppToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }

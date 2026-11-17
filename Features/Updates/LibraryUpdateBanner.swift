@@ -156,13 +156,16 @@ struct LibraryUpdateSheet: View {
                         Button("Stop", role: .destructive) { libraryManager.cancelUpdate() }
                             .disabled(libraryManager.updateProgress?.isCancelling == true)
                     } else {
-                        Button("Dismiss", role: .destructive) {
+                        Button {
                             libraryManager.dismissUpdateSummary()
                             dismiss()
+                        } label: {
+                            AppIcon(systemName: "xmark", size: 15, relativeTo: .body)
                         }
+                        .accessibilityLabel("Dismiss")
                     }
                 }
-                AppToolbarItem(placement: .topBarTrailing) {
+                AppToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
