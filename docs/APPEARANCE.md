@@ -4,10 +4,11 @@ Settings → Appearance has two independent preferences, both off by default:
 
 - **No Liquid Glass** (`appearance.noLiquidGlass`): custom app chrome using classic
   ultra-thin/thin materials. Onboarding keeps its glass design.
-- **Spring & unblur motion** (`appearance.springUnblurMotion`): one-shot arrival
-  animations for navigation, tabs, sheets, floating control groups and onboarding
-  steps. Reduce Motion disables the added blur and displacement. The preview in
-  Appearance can replay it without navigating away.
+- **Spring & unblur motion** (`appearance.springUnblurMotion`): motion for custom
+  popups, explicitly revealed controls, onboarding steps and switching library
+  modes. Never layer it over tab switches, navigation pushes/pops, native sheets
+  or the reader's native fullscreen transition. Reduce Motion disables added
+  blur and displacement. The Appearance preview plays only when tapped.
 
 ## Adding screens and controls
 
@@ -18,17 +19,39 @@ Use the adaptive components, not raw SwiftUI chrome:
   bars entirely and draws a compact header with its own back button and actions.
 - `.appToolbar`, `AppToolbarItem`, `AppToolbarItemGroup` and `@AppToolbarBuilder`
   describe actions once for both renderers. Computed toolbar properties return
-  `some AppToolbarContent`, not `some ToolbarContent`.
+  `some AppToolbarContent`, not `some ToolbarContent`. Keep one `.appToolbar`
+  per screen: the classic renderer places its typed actions directly in safe-area
+  insets, rather than collecting views through preferences. Secondary labels are
+  icon-only; confirmation actions use blue, compact buttons.
 - `AppMenu`, `.appContextMenu`, `.appConfirmationDialog`, `.appAlert` and
   `.appPopover` draw custom classic popups. Action activation is deferred until
   the popup has dismissed, so actions may safely open another presentation.
 - `.appSheet`, `.appPresentationDetents` and `AppPresentationDetent` draw classic
   panels in a transparent fullscreen presentation context, not a system sheet.
   `.appInteractiveDismissDisabled` also guards backdrop and drag dismissal.
+  Classic panels spring-pop and unblur on opening (when enabled), then reverse
+  on closing. The host stays alive until that exit finishes; item-backed sheets
+  retain their item during the exit. Use `@Environment(\.appDismiss)` in sheet
+  screens so Done/Close uses that exit too; a pushed destination still pops.
+  Dragging the handle/header moves a fixed-height panel instead of reflowing its
+  contents. Detent selection survives preference updates.
 - `AppPicker`, `.appPickerStyle`, `AppSlider`, `AppStepper`, `AppColorPicker` and
   `AppDatePicker` replace the corresponding system controls. `AppPicker` reads
   ordinary `.tag` values, including those inside `ForEach`.
-- `AppToggleStyle` selects the custom switch automatically.
+- `AppToggleStyle` selects the custom switch automatically; its thumb animates
+  an offset on a fixed track, including when the binding changes externally.
+- `AppForm` renders shared grouped settings cards in full screens and sheets,
+  including More and the Browse catalogue's source list. Its structure stays
+  stable when the material setting changes. Keep long result lists and
+  editable/reorderable lists as `List`.
+- `.appRefreshable` draws the shared pull indicator on Library, Updates,
+  History and other refreshable screens. The indicator is an overlay: it never
+  pins a screen or changes its insets while an update publishes store changes.
+- Press feedback comes from each control's native `ButtonStyle.isPressed`.
+  Never attach a gesture recognizer just to observe a touch: it competes with
+  the enclosing `ScrollView`'s pan and makes form rows unscrollable. Scrolling
+  and press feedback are not mutually exclusive, and Reduce Motion disables
+  the scale.
 - `.appGlassEffect`, `.appGlassButtonStyle` and `AppGlassEffectContainer` switch
   existing floating controls between renderers. Pass `frostTint` explicitly for
   tinted material; `Glass` doesn't expose its tint for conversion.
@@ -38,7 +61,21 @@ background extending under the home indicator. `AppTabChrome` propagates its
 height, and the per-screen chrome reserves that space *inside* the screen's
 layout. Do not replace this with padding outside `TabView`: nested forms can
 otherwise scroll their final rows behind the dock. Sheets reset that inset to
-zero. Bottom toolbars reserve their own space as well.
+zero. Bottom toolbars reserve their own space as well. Classic tabs, segmented
+pickers, category pills and display choices use primary selected text/icons and
+dim unselected ones, without a moving or filled selection highlight. Browse's
+Light Novels / Manga selector is an explicit exception: it keeps its grey sliding
+capsule in classic mode. Both catalogue selectors use non-interactive Liquid
+Glass in glass mode. Library's All / Novel / Manga selector is pinned below the
+navigation header; Browse keeps its selector directly below Search, above the
+`AppForm` source cards.
+
+The classic page title is left-aligned serif text. Its backdrop is clear at the
+top of a page and fades in after scrolling eight points; this changes only the
+backdrop opacity, never blurring the page itself. `.appNavigationTitle` forwards
+its optional vertical-swipe callback to the actual custom title, not just the
+hidden native bar. Library accepts either vertical direction to switch modes;
+the root mode transition supplies the matching arrival and departure blur/move.
 
 `FrostedSurface` and `FrostedBackdrop` use opaque surfaces under Reduce
 Transparency. New effects should use `AppMotion`, honor Reduce Motion, and be
