@@ -47,7 +47,7 @@ struct UpdatesView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        AppNavigationStack(path: $path) {
             Group {
                 if recentChapters.isEmpty {
                     EmptyStateView(
@@ -111,7 +111,7 @@ struct UpdatesView: View {
                 .id(entry.persistentModelID)
             }
             .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
+                AppToolbarItemGroup(placement: .primaryAction) {
                     if !recentChapters.isEmpty {
                         Button(role: .destructive) {
                             showClearConfirmation = true

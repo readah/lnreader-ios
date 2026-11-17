@@ -4,7 +4,7 @@
 //
 // Every control is drawn from `GlassMetrics`, so a round button, a stepper
 // segment and an icon-group segment are the same height and the same weight.
-// Mixing `.buttonStyle(.glass)` with a hand-built capsule used to leave the
+// Mixing `.appGlassButtonStyle()` with a hand-built capsule used to leave the
 // back button, the TTS button and the settings/comments pair at slightly
 // different sizes on the same screen.
 
@@ -38,7 +38,7 @@ struct GlassIconButton: View {
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: .circle)
+        .appGlassEffect(.regular.interactive(), in: .circle)
         .accessibilityLabel(label)
     }
 }
@@ -56,7 +56,7 @@ struct GlassPillButton<Label: View>: View {
                 .contentShape(.capsule)
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .appGlassEffect(.regular.interactive(), in: .capsule)
     }
 }
 
@@ -80,7 +80,7 @@ struct GlassMenuButton<Content: View>: View {
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: .circle)
+        .appGlassEffect(.regular.interactive(), in: .circle)
         .accessibilityLabel(label)
     }
 }
@@ -134,7 +134,7 @@ struct GlassStepper: View {
             GlassSegmentDivider()
             GlassSegment(symbol: "chevron.right", label: forwardLabel, enabled: canGoForward, action: forward)
         }
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .appGlassEffect(.regular.interactive(), in: .capsule)
     }
 }
 
@@ -164,7 +164,7 @@ struct GlassIconGroup: View {
             GlassSegmentDivider()
             GlassSegment(symbol: second.symbol, label: second.label, action: second.action)
         }
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .appGlassEffect(.regular.interactive(), in: .capsule)
     }
 }
 
@@ -201,6 +201,6 @@ struct GlassSearchField: View {
         }
         .padding(.horizontal, 16)
         .frame(height: GlassMetrics.side)
-        .glassEffect(.clear.interactive(), in: .capsule)
+        .appGlassEffect(.clear.interactive(), in: .capsule)
     }
 }

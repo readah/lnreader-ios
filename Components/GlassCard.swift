@@ -14,7 +14,7 @@ struct GlassCard<Content: View>: View {
     var body: some View {
         content()
             .padding()
-            .glassEffect(glass, in: .rect(cornerRadius: cornerRadius))
+            .appGlassEffect(glass, in: .rect(cornerRadius: cornerRadius), frostTint: tint?.opacity(0.18))
     }
 
     private var glass: Glass {

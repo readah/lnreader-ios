@@ -41,7 +41,7 @@ struct NovelFireCommentsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             List {
                 if comments.isEmpty && isLoading {
                     ProgressView("Loading comments…").frame(maxWidth: .infinity).listRowBackground(Color.clear)
@@ -86,8 +86,8 @@ struct NovelFireCommentsView: View {
             .appNavigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done", role: .close) { dismiss() } }
-                ToolbarItem(placement: .primaryAction) {
+                AppToolbarItem(placement: .cancellationAction) { Button("Done", role: .close) { dismiss() } }
+                AppToolbarItem(placement: .primaryAction) {
                     Menu {
                         Toggle("Hide spoilers", isOn: $hideSpoilers)
                         Toggle("With replies", isOn: $onlyReplies)

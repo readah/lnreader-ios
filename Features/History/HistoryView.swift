@@ -29,7 +29,7 @@ struct HistoryView: View {
     @State private var held = HeldHistory()
 
     var body: some View {
-        NavigationStack(path: $path) {
+        AppNavigationStack(path: $path) {
             Group {
                 if filteredHistory.isEmpty, !searchText.isEmpty {
                     ContentUnavailableView.search(text: searchText)
@@ -66,7 +66,7 @@ struct HistoryView: View {
             .onChange(of: resumeTrigger) { resumeLatest() }
             .searchable(text: $searchText, prompt: "Search history")
             .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
+                AppToolbarItemGroup(placement: .primaryAction) {
                     incognitoButton
 
                     if !history.isEmpty {

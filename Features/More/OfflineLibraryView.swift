@@ -128,7 +128,7 @@ struct OfflineLibraryView: View {
 
     @ToolbarContentBuilder private var toolbarItems: some ToolbarContent {
         if !isEmpty {
-            ToolbarItem(placement: .topBarTrailing) {
+            AppToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if pending.count > 1 {
                         Button(editMode.isEditing ? "Done reordering" : "Reorder queue", systemImage: "arrow.up.arrow.down") {
@@ -307,7 +307,7 @@ private struct PerTitleUpdatesView: View {
         .settingsScreen("Per-title updates")
         .searchable(text: $search, prompt: "Search titles")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { filterMenu }
+            AppToolbarItem(placement: .topBarTrailing) { filterMenu }
         }
     }
 
@@ -801,7 +801,7 @@ struct LNReaderBackupPreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             List {
                 Section {
                     HStack(spacing: 14) {
@@ -839,10 +839,10 @@ struct LNReaderBackupPreviewSheet: View {
             .appNavigationTitle("Restore backup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                AppToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                AppToolbarItem(placement: .confirmationAction) {
                     Button("Restore") {
                         dismiss()
                         onConfirm()
@@ -874,7 +874,7 @@ struct MihonBackupPreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             List {
                 Section {
                     HStack(spacing: 14) {
@@ -941,10 +941,10 @@ struct MihonBackupPreviewSheet: View {
             .appNavigationTitle("Import backup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                AppToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                AppToolbarItem(placement: .confirmationAction) {
                     Button("Import") {
                         dismiss()
                         onConfirm()
@@ -975,7 +975,7 @@ struct BackupProgressSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             List {
                 if let progress = manager.progress {
                     Section {
@@ -1040,7 +1040,7 @@ struct BackupProgressSheet: View {
             .appNavigationTitle("Backup & restore")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                AppToolbarItem(placement: .topBarLeading) {
                     if manager.isRunning {
                         Button("Stop", role: .destructive) { manager.cancel() }
                             .disabled(manager.progress?.isCancelling == true)
@@ -1051,7 +1051,7 @@ struct BackupProgressSheet: View {
                         }
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                AppToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }

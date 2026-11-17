@@ -63,7 +63,7 @@ struct TTSPlaybackControls: View {
                 .mask(LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom))
                 .clipShape(.rect(cornerRadius: 26))
         }
-        .glassEffect(.regular, in: .rect(cornerRadius: 26))
+        .appGlassEffect(.regular, in: .rect(cornerRadius: 26))
         .frame(maxWidth: 500)
         .padding(.horizontal, 10)
         .padding(.bottom, 2)

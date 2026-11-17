@@ -37,7 +37,7 @@ struct ChapterListView: View {
 
     private var isFiltered: Bool { selectedFilter != .all || !searchText.isEmpty }
     private var headerButtons: some View {
-        GlassEffectContainer(spacing: 8) {
+        AppGlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
                 searchButton.foregroundStyle(AppTheme.primaryFill)
                 filterMenu.foregroundStyle(AppTheme.primaryFill)
@@ -422,7 +422,7 @@ struct ChapterDirectoryView: View {
     }
 
     private func pagerItems(_ items: [ChapterDisplay], pageCount: Int, page: Int) -> some ToolbarContent {
-        ToolbarItemGroup(placement: .bottomBar) {
+        AppToolbarItemGroup(placement: .bottomBar) {
             Button { self.page = max(0, page - 1) } label: { AppLabel("Previous 50 chapters", systemName: "chevron.left", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
                 .disabled(page == 0)
             Spacer()
@@ -452,7 +452,7 @@ struct ChapterDirectoryView: View {
         let paths = items.map(\.path)
         let showsPager = !selection.isActive && search.isEmpty && pageCount > 1
 
-        return NavigationStack {
+        return AppNavigationStack {
             ScrollViewReader { proxy in
             List {
                 Section {
@@ -514,7 +514,7 @@ struct ChapterDirectoryView: View {
             .searchable(text: $search, prompt: "Search every chapter")
             .appNavigationTitle("Chapters").navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                AppToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Picker("Filter", selection: Binding(get: { selectedFilter }, set: { selectedFilter = $0; self.page = 0 })) {
                             ForEach(ChapterFilter.allCases) { Text($0.rawValue).tag($0) }
@@ -524,7 +524,7 @@ struct ChapterDirectoryView: View {
                             .foregroundStyle(selectedFilter != .all ? (coverTint ?? .primary) : .primary)
                     }
                 }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { if let onClose { onClose() } else { dismiss() } } }
+                AppToolbarItem(placement: .confirmationAction) { Button("Done") { if let onClose { onClose() } else { dismiss() } } }
             }
             .toolbar { if showsPager { pagerItems(items, pageCount: pageCount, page: page) } }
             .toolbar(showsPager ? .visible : .hidden, for: .bottomBar)

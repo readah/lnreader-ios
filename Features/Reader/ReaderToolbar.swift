@@ -32,7 +32,7 @@ struct ReaderToolbar: View {
     // MARK: - Top Bar
 
     private var topBar: some View {
-        GlassEffectContainer {
+        AppGlassEffectContainer {
             ZStack {
                 HStack {
                     GlassIconButton(symbol: "chevron.left", label: "Close reader", action: onDismiss)
@@ -68,7 +68,7 @@ struct ReaderToolbar: View {
             ProgressView()
                 .controlSize(.small)
                 .frame(width: GlassMetrics.side, height: GlassMetrics.side)
-                .glassEffect(.regular, in: .circle)
+                .appGlassEffect(.regular, in: .circle)
                 .glassEffectID("tts-trigger", in: topNamespace)
         } else {
             GlassIconButton(
@@ -83,7 +83,7 @@ struct ReaderToolbar: View {
     // MARK: - Bottom Bar
 
     private var bottomBar: some View {
-        GlassEffectContainer {
+        AppGlassEffectContainer {
             HStack(spacing: 8) {
                 if let onComments {
                     // Settings and comments act on the same page, so they share

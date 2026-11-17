@@ -14,6 +14,8 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage("general.autoUpdateOnLaunch") private var autoUpdateOnLaunch = false
     @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
+    @AppStorage(ChromeAppearance.noLiquidGlassKey) private var noLiquidGlass = false
+    @State private var classicTabBarHidden = false
     @State private var selectedTab: AppTab = .library
     @State private var readerRouter = ReaderRouter()
     /// Bumped when the History tab is tapped while already showing; resumes the top entry.
@@ -96,6 +98,7 @@ struct ContentView: View {
                 await libraryManager.updateLibrary(context: modelContext, sourceManager: sourceManager, automatic: true)
             }
         }
+        .environment(\.noLiquidGlass, noLiquidGlass)
     }
 
     /// The full app: five tabs on Liquid Glass. The tab-only chrome lives here
@@ -113,6 +116,7 @@ struct ContentView: View {
                     selectedTab = .browse
                 }
                 .appBackdrop()
+                .modifier(AppTabChrome())
             } label: {
                 AppTabLabel(title: AppTab.library.title, systemName: AppTab.library.icon)
             }
@@ -120,6 +124,7 @@ struct ContentView: View {
             Tab(value: .updates) {
                 UpdatesView()
                     .appBackdrop()
+                .modifier(AppTabChrome())
             } label: {
                 AppTabLabel(title: AppTab.updates.title, systemName: AppTab.updates.icon)
             }
@@ -127,6 +132,7 @@ struct ContentView: View {
             Tab(value: .history) {
                 HistoryView(resumeTrigger: historyResume)
                     .appBackdrop()
+                .modifier(AppTabChrome())
             } label: {
                 AppTabLabel(title: AppTab.history.title, systemName: AppTab.history.icon)
             }
@@ -134,6 +140,7 @@ struct ContentView: View {
             Tab(value: .browse) {
                 BrowseView()
                     .appBackdrop()
+                .modifier(AppTabChrome())
             } label: {
                 AppTabLabel(title: AppTab.browse.title, systemName: AppTab.browse.icon)
             }
@@ -141,15 +148,25 @@ struct ContentView: View {
             Tab(value: .more) {
                 MoreView()
                     .appBackdrop()
+                .modifier(AppTabChrome())
             } label: {
                 AppTabLabel(title: AppTab.more.title, systemName: AppTab.more.icon)
             }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabBarMinimizeBehavior(noLiquidGlass ? .never : .onScrollDown)
         // Lists and forms stay clear so each screen's `appBackdrop` reaches the
         // edges instead of sitting around an opaque card.
         .scrollContentBackground(.hidden)
         .modifier(UpdateBannerHost(isActive: libraryManager.updateProgress != nil || BackupManager.shared.progress != nil))
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if noLiquidGlass && !classicTabBarHidden {
+                ClassicTabBar(selected: selectedTab) { tab in
+                    if tab == .history, selectedTab == .history { historyResume += 1 }
+                    selectedTab = tab
+                }
+            }
+        }
+        .onPreferenceChange(ClassicTabBarHiddenKey.self) { classicTabBarHidden = $0 }
     }
 }
 
@@ -194,7 +211,7 @@ private struct SyncProgressToast: View {
                 }
                 .padding(16)
                 .frame(maxWidth: 420)
-                .glassEffect(.regular, in: .rect(cornerRadius: 24))
+                .appGlassEffect(.regular, in: .rect(cornerRadius: 24))
                 .transition(.move(edge: .top))
             }
         }
@@ -205,11 +222,20 @@ private struct SyncProgressToast: View {
 /// Puts the library update banner where the system provides a slot for it: the
 /// tab bar accessory on iOS 26.1+, a bottom inset before that.
 private struct UpdateBannerHost: ViewModifier {
+    @Environment(\.noLiquidGlass) private var classic
     let isActive: Bool
 
     func body(content: Content) -> some View {
         if #available(iOS 26.1, *) {
-            content.tabViewBottomAccessory(isEnabled: isActive) { LibraryUpdateBanner() }
+            content
+                .tabViewBottomAccessory(isEnabled: isActive && !classic) { LibraryUpdateBanner() }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if isActive && classic {
+                        LibraryUpdateBanner()
+                            .background(.thinMaterial, in: .rect(cornerRadius: 22))
+                            .padding(.horizontal, 16)
+                    }
+                }
         } else {
             content.safeAreaInset(edge: .bottom, spacing: 0) {
                 if isActive { LibraryUpdateBanner().background(.bar) }

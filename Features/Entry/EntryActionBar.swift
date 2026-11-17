@@ -138,7 +138,7 @@ private extension View {
     /// `.regular`, not `.large`: four tiles share one row, and the large
     /// control's side padding left "Download" too narrow to fit its label.
     func entryActionStyle() -> some View {
-        buttonStyle(.glass)
+        appGlassButtonStyle()
             .buttonBorderShape(.roundedRectangle(radius: 18))
             .controlSize(.regular)
             .foregroundStyle(.white)

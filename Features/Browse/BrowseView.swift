@@ -66,7 +66,7 @@ struct BrowseView: View {
     @State private var heldCounts = HeldCounts()
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             content
                 .appNavigationTitle("Browse")
                 .navigationBarTitleDisplayMode(.large)
@@ -79,7 +79,7 @@ struct BrowseView: View {
                 .autocorrectionDisabled()
                 .toolbar { toolbarContent }
                 .sheet(isPresented: $showDisplay) {
-                    NavigationStack {
+                    AppNavigationStack {
                         DisplayOptionsList(
                             displayMode: $displayMode,
                             columnCount: $columnCount
@@ -87,7 +87,7 @@ struct BrowseView: View {
                         .appNavigationTitle("Display")
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
+                            AppToolbarItem(placement: .confirmationAction) {
                                 Button("Done") { showDisplay = false }.bold()
                             }
                         }
@@ -106,14 +106,14 @@ struct BrowseView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
+        AppToolbarItem(placement: .topBarTrailing) {
             Button { showDisplay = true } label: {
                 AppIcon(systemName: "rectangle.grid.2x2", size: 17, relativeTo: .body)
             }
             .accessibilityLabel("Display")
         }
         if kind == .novels {
-            ToolbarItem(placement: .topBarTrailing) {
+            AppToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
                     GlobalSearchView()
                 } label: {

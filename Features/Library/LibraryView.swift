@@ -82,7 +82,7 @@ struct LibraryView: View {
     @State private var lastRandomEntryID: PersistentIdentifier?
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        AppNavigationStack(path: $navigationPath) {
             Group {
                 if libraryIsEmpty {
                     emptyLibraryState
@@ -260,7 +260,7 @@ struct LibraryView: View {
                     AppLabel("Import EPUB", systemName: "square.and.arrow.down", size: 17, relativeTo: .body)
                         .frame(maxWidth: 260)
                 }
-                .buttonStyle(.glass)
+                .appGlassButtonStyle()
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
             }
@@ -272,7 +272,7 @@ struct LibraryView: View {
     @ToolbarContentBuilder
     private var libraryToolbar: some ToolbarContent {
         if isEditingLibrary {
-            ToolbarItem(placement: .confirmationAction) {
+            AppToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
                     withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
                         isEditingLibrary = false
@@ -351,7 +351,7 @@ struct LibraryView: View {
         .foregroundStyle(.primary)
         .padding(.vertical, 4)
         .frame(maxWidth: isSearchExpanded ? .infinity : nil)
-        .glassEffect(.regular, in: .capsule)
+        .appGlassEffect(.regular, in: .capsule)
         .accessibilityAction(.escape, collapseSearch)
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.horizontal, 16)

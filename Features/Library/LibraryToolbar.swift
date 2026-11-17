@@ -18,7 +18,7 @@ struct LibraryToolbar: ToolbarContent {
     var onOpenRandom: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
+        AppToolbarItemGroup(placement: .primaryAction) {
             Button(action: onImport) {
                 AppIcon(systemName: "square.and.arrow.down", size: 17, relativeTo: .body)
             }

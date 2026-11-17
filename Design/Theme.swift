@@ -213,6 +213,8 @@ extension View {
             .appBackdrop()
             .accentColor(AppTheme.accent)
             .navigationTitle(title)
+            .appNavigationChrome()
+            .appReveal()
             .background {
                 NavigationTitleFontBridge(onTitleVerticalSwipe: onTitleVerticalSwipe)
                     .frame(width: 0, height: 0)
@@ -558,7 +560,7 @@ extension View {
     /// prominent glass capsule in the primary fill with contrasting text.
     func primaryActionStyle() -> some View {
         self
-            .buttonStyle(.glassProminent)
+            .appGlassButtonStyle(prominent: true)
             .tint(AppTheme.primaryFill)
             .foregroundStyle(AppTheme.onPrimaryFill)
     }

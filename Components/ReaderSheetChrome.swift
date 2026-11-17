@@ -75,7 +75,7 @@ struct ReaderSheetHeader: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(foreground)
                 .frame(width: 38, height: 38)
-                .glassEffect(.regular.interactive(), in: .circle)
+                .appGlassEffect(.regular.interactive(), in: .circle)
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)

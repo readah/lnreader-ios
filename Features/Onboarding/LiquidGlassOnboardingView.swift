@@ -158,6 +158,7 @@ struct LiquidGlassOnboardingView: View {
 
             GeometryReader { geometry in
                 controls(availableHeight: geometry.size.height)
+                    .appReveal()
             }
         }
         .foregroundStyle(OnboardingPalette.ink)
@@ -325,6 +326,7 @@ struct LiquidGlassOnboardingView: View {
             .frame(maxWidth: .infinity, minHeight: 60)
         }
         .primaryActionStyle()
+        .appUnblurVisibility(continueVisible)
         .padding(.horizontal, 16)
         .blur(radius: reduceMotion || continueVisible ? 0 : 12)
         .opacity(continueVisible ? 1 : 0)

@@ -32,7 +32,7 @@ struct EmptyStateView: View {
                 if prominent {
                     Button(actionTitle, action: action).primaryActionStyle()
                 } else {
-                    Button(actionTitle, action: action).buttonStyle(.glass)
+                    Button(actionTitle, action: action).appGlassButtonStyle()
                 }
             }
         }

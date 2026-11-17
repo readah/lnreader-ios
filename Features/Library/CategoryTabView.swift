@@ -14,7 +14,7 @@ struct CategoryTabView: View {
     @Namespace private var namespace
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            GlassEffectContainer(spacing: 8) {
+            AppGlassEffectContainer(spacing: 8) {
               // Without a stack the container lays its pills out vertically.
               HStack(spacing: 8) {
                 categoryPill(
@@ -81,9 +81,10 @@ struct CategoryTabView: View {
         }
         // A tinted glass pill reads as selected in any colour scheme; weight and
         // colour alone were too subtle against the other pills.
-        .glassEffect(
+        .appGlassEffect(
             isSelected ? .regular.tint(Color.primary.opacity(0.28)).interactive() : .regular.interactive(),
-            in: .capsule)
+            in: .capsule,
+            frostTint: isSelected ? Color.primary.opacity(0.14) : nil)
         .contentShape(.capsule)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

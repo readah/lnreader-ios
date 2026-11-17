@@ -98,12 +98,12 @@ struct MigrationCandidatePicker: View {
         .autocorrectionDisabled()
         .onSubmit(of: .search) { Task { await search() } }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            AppToolbarItem(placement: .topBarTrailing) {
                 Button { showSources = true } label: { AppLabel("Sources", systemName: "slider.horizontal.3", size: 17, relativeTo: .body) }
             }
         }
         .sheet(isPresented: $showSources, onDismiss: { Task { await search() } }) {
-            NavigationStack { MigrationSourcesView(kind: entry.kind, current: entry.sourceKey) }
+            AppNavigationStack { MigrationSourcesView(kind: entry.kind, current: entry.sourceKey) }
                 .presentationDetents([.medium, .large])
         }
         .task {
@@ -239,10 +239,10 @@ struct MigrationSourcesView: View {
         .appNavigationTitle("Migration sources")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            AppToolbarItem(placement: .topBarLeading) {
                 if enabled.count > 1 { EditButton() }
             }
-            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.bold() }
+            AppToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.bold() }
         }
         .onAppear {
             guard !loaded else { return }
@@ -471,13 +471,13 @@ struct MigrateEntrySheet: View {
     @State private var path: [MigrationCandidate] = []
 
     var body: some View {
-        NavigationStack(path: $path) {
+        AppPathNavigationStack(path: $path) {
             MigrationCandidatePicker(entry: entry) { path.append($0) }
                 .navigationDestination(for: MigrationCandidate.self) { candidate in
                     MigrateConfirmView(old: entry, candidate: candidate, onFinished: onFinished)
                 }
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 }
         }
     }

@@ -261,7 +261,7 @@ struct MigrateSourceSheet: View {
     private var kind: ContentKind { entries.first?.kind ?? source?.kind ?? .novel }
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             Form {
                 Section {
                     HStack(spacing: 12) {
@@ -304,10 +304,10 @@ struct MigrateSourceSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) { footerBar }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
             .sheet(isPresented: $showSources) {
-                NavigationStack { MigrationSourcesView(kind: kind, current: sourceKey) }
+                AppNavigationStack { MigrationSourcesView(kind: kind, current: sourceKey) }
                     .presentationDetents([.medium, .large])
             }
             .navigationDestination(isPresented: $isReviewing) {
@@ -390,12 +390,12 @@ struct BulkMigrateReviewView: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { footer }
         .sheet(item: $changing) { entry in
-            NavigationStack {
+            AppNavigationStack {
                 MigrationCandidatePicker(entry: entry) { candidate in
                     model.choose(candidate, for: entry.persistentModelID)
                     changing = nil
                 }
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { changing = nil } } }
+                .toolbar { AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { changing = nil } } }
             }
         }
         .task {

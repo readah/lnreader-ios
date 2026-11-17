@@ -41,7 +41,7 @@ struct LayoutConstants {
 
     // MARK: - Spacing
 
-    /// Standard spacing between glass elements inside a `GlassEffectContainer`.
+    /// Standard spacing between glass elements inside a `AppGlassEffectContainer`.
     static let glassSpacing: CGFloat = 16
 
     /// Default horizontal padding for screen-edge content.

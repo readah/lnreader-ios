@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A0C4A0000000000000000003 /* AppRevealMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C4A0000000000000000004 /* AppRevealMotion.swift */; };
+		A0C4A0000000000000000001 /* AppChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C4A0000000000000000002 /* AppChrome.swift */; };
 		B171C0000000000000000001 /* SyncFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B171C0000000000000000002 /* SyncFiles.swift */; };
 		A0B016000000000000000001 /* OnboardingSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B016000000000000000011 /* OnboardingSetup.swift */; };
 		A0B015000000000000000001 /* AccountAuroraBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B015000000000000000011 /* AccountAuroraBackground.swift */; };
@@ -223,6 +225,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A0C4A0000000000000000004 /* AppRevealMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRevealMotion.swift; sourceTree = "<group>"; };
+		A0C4A0000000000000000002 /* AppChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppChrome.swift; sourceTree = "<group>"; };
 		B171C0000000000000000002 /* SyncFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncFiles.swift; sourceTree = "<group>"; };
 		A0B016000000000000000011 /* OnboardingSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Onboarding/OnboardingSetup.swift; sourceTree = SOURCE_ROOT; };
 		A0B015000000000000000011 /* AccountAuroraBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Auth/AccountAuroraBackground.swift; sourceTree = SOURCE_ROOT; };
@@ -456,6 +460,8 @@
 			children = (
 				9D2FA6695A9361D47858CC38 /* FlexibleHeader.swift */,
 				A1B2C3D4E5F600112233AA02 /* GlassControls.swift */,
+				A0C4A0000000000000000002 /* AppChrome.swift */,
+				A0C4A0000000000000000004 /* AppRevealMotion.swift */,
 				A9F0C0DE0000000000000011 /* VoiceGlow.swift */,
 				A9F0C0DE0000000000000012 /* VoiceGlow.metal */,
 				FCDA490AB7000042D1AA6DAF /* GlassOverlay.swift */,
@@ -1043,6 +1049,8 @@
 				75995F2F5AE6494AC92E1C43 /* GlassCard.swift in Sources */,
 				5E1A7C0D2B4F48A1900000C1 /* ReaderSheetChrome.swift in Sources */,
 				A1B2C3D4E5F600112233AA01 /* GlassControls.swift in Sources */,
+				A0C4A0000000000000000001 /* AppChrome.swift in Sources */,
+				A0C4A0000000000000000003 /* AppRevealMotion.swift in Sources */,
 				A9F0C0DE0000000000000001 /* VoiceGlow.swift in Sources */,
 				A9F0C0DE0000000000000002 /* VoiceGlow.metal in Sources */,
 				3A7C1E0000000000000000B1 /* CoverTint.swift in Sources */,

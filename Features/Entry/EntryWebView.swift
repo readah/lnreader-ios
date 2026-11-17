@@ -23,7 +23,7 @@ struct EntryWebView: View {
     }()
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             WebView(page)
                 .webViewBackForwardNavigationGestures(.enabled)
                 .ignoresSafeArea(edges: .bottom)
@@ -55,10 +55,10 @@ struct EntryWebView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .cancellationAction) {
+        AppToolbarItem(placement: .cancellationAction) {
             Button("Done") { dismiss() }
         }
-        ToolbarItemGroup(placement: .bottomBar) {
+        AppToolbarItemGroup(placement: .bottomBar) {
             Button {
                 if let item = page.backForwardList.backList.last { page.load(item) }
             } label: {

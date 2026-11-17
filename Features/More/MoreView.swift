@@ -22,7 +22,7 @@ struct MoreView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             List {
                 profileSection
                 syncSection
@@ -311,7 +311,7 @@ struct ProfileEditSheet: View {
     @State private var currentAvatarData: Data? = nil
     
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             Form {
                 Section("Avatar") {
                     HStack {
@@ -353,12 +353,12 @@ struct ProfileEditSheet: View {
             .appNavigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                AppToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                AppToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         profile.name = nameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Reader" : nameInput
                         profile.avatarData = currentAvatarData

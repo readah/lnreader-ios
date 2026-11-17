@@ -33,7 +33,7 @@ struct SourceFilterSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             Form {
                 ForEach(Self.sections(from: filters)) { section in
                     Section {
@@ -49,11 +49,11 @@ struct SourceFilterSheet: View {
             .appNavigationTitle("Filters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                AppToolbarItem(placement: .cancellationAction) {
                     Button("Reset") { draft = FilterState() }
                         .disabled(!draft.isModified(for: filters))
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                AppToolbarItem(placement: .confirmationAction) {
                     Button("Apply") {
                         onApply(draft)
                         dismiss()
@@ -393,7 +393,7 @@ private struct FilterOptionList: View {
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
         .toolbar {
             if !state.isEmpty {
-                ToolbarItem(placement: .primaryAction) { Button("Clear") { state = [] } }
+                AppToolbarItem(placement: .primaryAction) { Button("Clear") { state = [] } }
             }
         }
     }
@@ -434,7 +434,7 @@ private struct FilterExcludableList: View {
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
         .toolbar {
             if !state.included.isEmpty || !state.excluded.isEmpty {
-                ToolbarItem(placement: .primaryAction) { Button("Clear") { state = ([], []) } }
+                AppToolbarItem(placement: .primaryAction) { Button("Clear") { state = ([], []) } }
             }
         }
     }

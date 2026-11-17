@@ -135,9 +135,9 @@ struct CategoriesSettingsView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         if categories.count > 1 {
-            ToolbarItem(placement: .topBarLeading) { EditButton() }
+            AppToolbarItem(placement: .topBarLeading) { EditButton() }
         }
-        ToolbarItem(placement: .topBarTrailing) {
+        AppToolbarItem(placement: .topBarTrailing) {
             Button("Add category", systemImage: "plus") {
                 editor = CategoryEditor()
             }
@@ -327,7 +327,7 @@ private struct CategoryEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             Form {
                 Section("Name") {
                     TextField("Category name", text: $name)
@@ -366,10 +366,10 @@ private struct CategoryEditorSheet: View {
             .appNavigationTitle(isNew ? "New category" : "Edit category")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                AppToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                AppToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         onSave(trimmedName, excluded)
                         dismiss()

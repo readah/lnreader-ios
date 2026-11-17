@@ -19,7 +19,7 @@ struct NovelFireLoginView: View {
     @State private var errorMessage: String? = nil
     
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
           ZStack {
             NovelFireWebViewWrapper(
                 url: site.googleAuthURL,
@@ -37,7 +37,7 @@ struct NovelFireLoginView: View {
             if isLoading {
                 ProgressView("Loading Google Sign-in...")
                     .padding()
-                    .glassEffect(.regular, in: .rect(cornerRadius: 16))
+                    .appGlassEffect(.regular, in: .rect(cornerRadius: 16))
             }
             
             if let error = errorMessage {
@@ -57,7 +57,7 @@ struct NovelFireLoginView: View {
             }
           }
           .appNavigationTitle("Sign In to \(site.displayName)")
-        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+        .toolbar { AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         #if os(iOS)
           .navigationBarTitleDisplayMode(.inline)
           #endif

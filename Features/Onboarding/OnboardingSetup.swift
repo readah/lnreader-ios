@@ -171,7 +171,7 @@ struct OnboardingSetupContent: View {
     @ScaledMetric(relativeTo: .title2) private var previewSize: CGFloat = 56
     @FocusState private var focusedField: OnboardingSetup.Step?
     @State private var showsPassword = false
-    @State private var revealed = false
+
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -194,12 +194,8 @@ struct OnboardingSetupContent: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .blur(radius: reduceMotion || revealed ? 0 : 12)
-        .opacity(revealed ? 1 : 0)
+        .appReveal(trigger: setup.step)
         .onChange(of: setup.step, initial: true) { _, step in
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) { revealed = reduceMotion }
             showsPassword = false
             switch step {
             case .icons, .signedIn:
@@ -208,19 +204,7 @@ struct OnboardingSetupContent: View {
                 focusedField = step
             }
         }
-        .task(id: setup.step) {
-            guard !reduceMotion else {
-                revealed = true
-                return
-            }
-            // Let the new step lay out while blurred. A cancellable task avoids
-            // a late reveal from a previous step when navigating quickly.
-            do { try await Task.sleep(for: .milliseconds(40)) }
-            catch { return }
-            withAnimation(AppMotion.onboardingControl(reduceMotion: reduceMotion)) {
-                revealed = true
-            }
-        }
+
         .onChange(of: setup.error) { _, error in
             if let error {
                 AccessibilityNotification.Announcement(error).post()

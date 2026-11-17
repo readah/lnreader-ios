@@ -232,7 +232,7 @@ struct BookAudioDownloadsView: View {
         }
     }
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             List {
                 Section {
                     dashboard
@@ -303,7 +303,7 @@ struct BookAudioDownloadsView: View {
             .appNavigationTitle("Audio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                AppToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Toggle("Wi-Fi downloads only", isOn: $wifiOnly)
                         Picker("Prepare with", selection: $computeProvider) {
@@ -316,11 +316,11 @@ struct BookAudioDownloadsView: View {
                         }.disabled(bookRecords.isEmpty)
                     } label: { AppLabel("Audio download options", systemName: "ellipsis.circle", size: 17, relativeTo: .body) }
                 }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                AppToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .toolbar(pageCount > 1 ? .visible : .hidden, for: .bottomBar)
             .toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
+                AppToolbarItemGroup(placement: .bottomBar) {
                     Button { chapterPage = max(0, currentPage - 1) } label: { AppLabel("Previous chapters", systemName: "chevron.left", size: 12, relativeTo: .caption).labelStyle(.iconOnly) }
                         .disabled(currentPage == 0)
                     Spacer()
@@ -340,10 +340,10 @@ struct BookAudioDownloadsView: View {
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .sheet(isPresented: $showVoices) {
-                NavigationStack {
+                AppNavigationStack {
                     List { Section { NarrationComputePicker() }; Section("Narrator") { NarrationVoicePicker(selected: $selectedVoices) } }
                         .appNavigationTitle("Choose voices").navigationBarTitleDisplayMode(.large)
-                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") {
+                        .toolbar { AppToolbarItem(placement: .confirmationAction) { Button("Done") {
                             if let voice = selectedVoices.sorted().first { library.setBookVoice(voice, bookId: bookId) }
                             showVoices = false
                         } } }
@@ -494,7 +494,7 @@ struct BookAudioDownloadsView: View {
                         .lineLimit(1)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glass)
+                .appGlassButtonStyle()
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
                 .disabled(downloadBlocked)
@@ -504,7 +504,7 @@ struct BookAudioDownloadsView: View {
                         .lineLimit(1)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glass)
+                .appGlassButtonStyle()
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
                 .disabled(chapters.isEmpty)
@@ -538,7 +538,7 @@ struct BookAudioDownloadsView: View {
             .lineLimit(1)
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.glass)
+        .appGlassButtonStyle()
         .buttonBorderShape(.capsule)
         .controlSize(.large)
         .disabled(preparing)
@@ -580,7 +580,7 @@ struct BookAudioDownloadsView: View {
     /// other with it, so a collapsed range at chapter 1 still grows whichever
     /// way the user pushes; the old version disabled the button they reached for.
     private var rangePicker: some View {
-        NavigationStack {
+        AppNavigationStack {
             Form {
                 Section {
                     VStack(spacing: 12) {
@@ -606,7 +606,7 @@ struct BookAudioDownloadsView: View {
             .appNavigationTitle("Range")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showRange = false } }
+                AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { showRange = false } }
             }
             .safeAreaInset(edge: .bottom) {
                 Button { commitRange() } label: {
@@ -1047,7 +1047,7 @@ private struct CustomVoiceCreationView: View {
     let onCreated: (TTSVoice) -> Void
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             Form {
                 Section { NarrationComputePicker() }
                 Section {
@@ -1112,7 +1112,7 @@ private struct CustomVoiceCreationView: View {
             .disabled(saving)
             .appNavigationTitle("Your voice")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(saving) } }
+            .toolbar { AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(saving) } }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.audio]) { result in
                 switch result {
                 case .success(let url): Task { await sample.importSample(url) }

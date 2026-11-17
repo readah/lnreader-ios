@@ -367,7 +367,7 @@ extension Notification.Name {
 /// Selection actions as a floating glass bar pinned to the bottom of the host:
 /// cancel, read state, download and a menu for the rest. Apply with
 /// `chapterSelectionToolbar`, so the host's own bottom items stay untouched
-/// while nothing is selected. The bar is a `GlassEffectContainer`, so entering
+/// while nothing is selected. The bar is a `AppGlassEffectContainer`, so entering
 /// and leaving selection morphs the controls with the system glass animation.
 struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) private var modelContext
     @Environment(TrackingManager.self) private var tracking
@@ -411,6 +411,7 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
                 .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: selection.isActive)
             }
             .toolbarVisibility(selection.isActive ? .hidden : .automatic, for: .tabBar)
+            .preference(key: ClassicTabBarHiddenKey.self, value: selection.isActive)
             .sheet(isPresented: $showAudio) { audioSheet }
     }
 
@@ -513,7 +514,7 @@ private struct ChapterSelectionBar<MenuItems: View>: View {
     @Namespace private var glass
 
     var body: some View {
-        GlassEffectContainer(spacing: 8) {
+        AppGlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
                 cancelButton
                     .glassEffectID("cancel", in: glass)
@@ -544,7 +545,7 @@ private struct ChapterSelectionBar<MenuItems: View>: View {
             .contentShape(.capsule)
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.tint(.red).interactive(), in: .capsule)
+        .appGlassEffect(.regular.tint(.red).interactive(), in: .capsule, frostTint: AppTheme.destructive.opacity(0.18))
         .accessibilityLabel("Cancel selection")
         .accessibilityValue("\(selection.paths.count) selected")
     }

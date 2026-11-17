@@ -147,7 +147,7 @@ struct SourceDetailView: View {
         }
         .toolbar {
             if hasFilters {
-                ToolbarItem(placement: .primaryAction) {
+                AppToolbarItem(placement: .primaryAction) {
                     Button { showFilters = true } label: {
                         AppLabel("Filters", systemName: activeFilterCount > 0
                             ? "line.3.horizontal.decrease.circle.fill"
@@ -157,7 +157,7 @@ struct SourceDetailView: View {
                 }
             }
             if let site = CommentSite.site(for: SourceKey.identifier(from: sourceKey)) {
-                ToolbarItem(placement: .primaryAction) {
+                AppToolbarItem(placement: .primaryAction) {
                     NavigationLink(destination: NovelFireLoginView(onLoginSuccess: {
                         Task { await loadPopular() }
                     }, site: site)) {

@@ -360,7 +360,7 @@ struct MangaReaderView: View {
     }
 
     private var topBar: some View {
-        GlassEffectContainer {
+        AppGlassEffectContainer {
             ZStack(alignment: .top) {
                 HStack(alignment: .top) {
                     glassCircleButton("chevron.left", label: "Close reader") { dismiss() }
@@ -385,7 +385,7 @@ struct MangaReaderView: View {
                         .lineLimit(1)
                         .frame(height: 46)
                         .padding(.horizontal, 20)
-                        .glassEffect(.regular.interactive(), in: .capsule)
+                        .appGlassEffect(.regular.interactive(), in: .capsule)
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 60)
@@ -404,13 +404,13 @@ struct MangaReaderView: View {
             AppIcon(systemName: "slider.horizontal.3", size: 17, relativeTo: .body)
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
-                .glassEffect(.regular.interactive(), in: .circle)
+                .appGlassEffect(.regular.interactive(), in: .circle)
         }
         .accessibilityLabel("Reader settings")
     }
 
     private var bottomBar: some View {
-        GlassEffectContainer {
+        AppGlassEffectContainer {
             HStack(spacing: 12) {
                 if pages.count > 1 {
                     MangaPageSlider(index: Binding(get: { currentIndex }, set: seekPage), pageCount: pages.count)
@@ -420,7 +420,7 @@ struct MangaReaderView: View {
                     Divider().frame(height: 24)
                     chapterButton(offset: 1, symbol: "chevron.right", label: "Next chapter")
                 }
-                .glassEffect(.regular.interactive(), in: .capsule)
+                .appGlassEffect(.regular.interactive(), in: .capsule)
             }
         }
         .foregroundStyle(.white)
@@ -437,7 +437,7 @@ struct MangaReaderView: View {
             AppIcon(systemName: symbol, size: 17)
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
-                .glassEffect(.regular.interactive(), in: .circle)
+                .appGlassEffect(.regular.interactive(), in: .circle)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -911,7 +911,7 @@ struct MangaReaderView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .frame(height: 36)
-                    .glassEffect(.regular, in: .capsule)
+                    .appGlassEffect(.regular, in: .capsule)
                     .padding(.top, 60)
                     .transition(.opacity)
             }
@@ -923,7 +923,7 @@ struct MangaReaderView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 18)
                         .frame(height: 44)
-                        .glassEffect(.regular.interactive(), in: .capsule)
+                        .appGlassEffect(.regular.interactive(), in: .capsule)
                 }
                 .buttonStyle(.plain)
                 .padding(.bottom, chrome.isControl ? 96 : 28)
@@ -1066,7 +1066,7 @@ struct MangaReaderView: View {
                     sourceEntry: chapterSourceEntry
                 )
             } else {
-                NavigationStack {
+                AppNavigationStack {
                     Group {
                         if isLoadingChapters {
                             ProgressView("Loading chapters…")
@@ -1079,7 +1079,7 @@ struct MangaReaderView: View {
                         }
                     }
                     .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
+                        AppToolbarItem(placement: .confirmationAction) {
                             Button("Done") { showChapterSheet = false }
                         }
                     }
@@ -1150,7 +1150,7 @@ private struct MangaPageSlider: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .glassEffect(.regular.interactive(), in: .capsule)
+            .appGlassEffect(.regular.interactive(), in: .capsule)
             .contentShape(Capsule())
             .highPriorityGesture(
                 DragGesture(minimumDistance: 0)

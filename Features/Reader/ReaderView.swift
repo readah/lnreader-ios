@@ -1031,7 +1031,7 @@ struct ReaderFocusIndicator: View {    @ObservedObject var focusManager = FocusM
                                 .labelStyle(.iconOnly)
                         }
                     }
-                    .buttonStyle(.glass)
+                    .appGlassButtonStyle()
                     .buttonBorderShape(.capsule)
                     .controlSize(.small)
                     .font(.caption2.weight(.bold))
@@ -1040,7 +1040,7 @@ struct ReaderFocusIndicator: View {    @ObservedObject var focusManager = FocusM
                     // If label is shown, offer a small manual override selector
                     if showLabel {
                         Button("Change Focus") { cycleOverride() }
-                            .buttonStyle(.glass)
+                            .appGlassButtonStyle()
                             .buttonBorderShape(.capsule)
                             .controlSize(.small)
                             .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -1098,7 +1098,7 @@ struct IncognitoIndicator: View {
                 .foregroundStyle(AppTheme.warning)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .glassEffect(.regular, in: .capsule)
+                .appGlassEffect(.regular, in: .capsule)
                 .accessibilityLabel("Incognito, nothing is being recorded")
         }
     }

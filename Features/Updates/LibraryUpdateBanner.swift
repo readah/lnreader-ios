@@ -106,7 +106,7 @@ struct LibraryUpdateSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             List {
                 if let progress = libraryManager.updateProgress {
                     Section {
@@ -151,7 +151,7 @@ struct LibraryUpdateSheet: View {
             .appNavigationTitle("Library update")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                AppToolbarItem(placement: .topBarLeading) {
                     if libraryManager.isUpdating {
                         Button("Stop", role: .destructive) { libraryManager.cancelUpdate() }
                             .disabled(libraryManager.updateProgress?.isCancelling == true)
@@ -162,7 +162,7 @@ struct LibraryUpdateSheet: View {
                         }
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                AppToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }

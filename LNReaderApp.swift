@@ -25,6 +25,7 @@ struct LNReaderApp: App {
     @State private var syncManager = SyncManager()
     @State private var sourceManager = SourceManager()
     @State private var trackingManager: TrackingManager
+    @AppStorage(RevealMotion.enabledKey) private var springUnblurMotion = false
 
     /// The app store.
     ///
@@ -52,6 +53,7 @@ struct LNReaderApp: App {
                 .environment(sourceManager)
                 .environment(trackingManager)
                 .environment(IncognitoMode.shared)
+                .environment(\.springUnblurMotion, springUnblurMotion)
                 .task {
                     libraryManager.tracking = trackingManager
                     LibraryMaintenance.reconcileTwinReads()

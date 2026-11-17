@@ -11,7 +11,7 @@ struct DeleteBadge: View {
             AppIcon(systemName: "minus", size: 17, relativeTo: .body)
                 .font(.body.weight(.bold))
         }
-        .buttonStyle(.glass)
+        .appGlassButtonStyle()
         .buttonBorderShape(.circle)
         .controlSize(.regular)
         .accessibilityLabel("Remove from library")

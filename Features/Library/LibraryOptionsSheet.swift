@@ -31,7 +31,7 @@ struct LibraryOptionsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             VStack(spacing: 0) {
                 Picker("Options", selection: $tab) {
                     ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
@@ -51,11 +51,11 @@ struct LibraryOptionsSheet: View {
             .appNavigationTitle("Library options")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                AppToolbarItem(placement: .cancellationAction) {
                     Button(resetLabel, action: resetCurrentTab)
                         .disabled(!canResetCurrentTab)
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                AppToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.bold()
                 }
             }

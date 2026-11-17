@@ -149,7 +149,7 @@ struct EntryHeaderView<Actions: View>: View {
                 .shadow(radius: 2)
             }
 
-            GlassEffectContainer(spacing: 10) {
+            AppGlassEffectContainer(spacing: 10) {
                 VStack(spacing: 10) {
                     continueButton
                     actions
@@ -184,7 +184,7 @@ struct EntryHeaderView<Actions: View>: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.glassProminent)
+        .appGlassButtonStyle(prominent: true)
         .tint(.white)
         .foregroundStyle(.black)
         .controlSize(.large)

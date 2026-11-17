@@ -51,7 +51,7 @@ struct MinimalLibraryView: View {
     private let topInset: CGFloat = 84
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        AppNavigationStack(path: $navigationPath) {
             GeometryReader { screenGeo in
                 // Rows measure themselves in global space, so the blur bands
                 // are worked out against the whole screen, safe areas included.
@@ -306,7 +306,7 @@ struct MinimalLibraryView: View {
                 .foregroundStyle(.white)
                 .frame(width: 40, height: 40)
                 .contentShape(.circle)
-                .glassEffect(.clear.interactive(), in: .circle)
+                .appGlassEffect(.clear.interactive(), in: .circle)
         }
         .accessibilityLabel("Library actions")
     }
@@ -321,7 +321,7 @@ struct MinimalLibraryView: View {
             .submitLabel(.search)
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
-            .glassEffect(.regular.tint(.white.opacity(0.12)).interactive(), in: .capsule)
+            .appGlassEffect(.regular.tint(.white.opacity(0.12)).interactive(), in: .capsule)
             .padding(.horizontal, 20)
     }
 
@@ -375,7 +375,7 @@ struct MinimalLibraryView: View {
                 AppLabel("Import EPUB", systemName: "square.and.arrow.down", size: 17, relativeTo: .body)
                     .frame(maxWidth: 240)
             }
-            .buttonStyle(.glass)
+            .appGlassButtonStyle()
             .buttonBorderShape(.capsule)
             .controlSize(.large)
 
@@ -386,7 +386,7 @@ struct MinimalLibraryView: View {
                 AppLabel("Turn off Minimal Mode", systemName: "square.grid.2x2", size: 17, relativeTo: .body)
                     .frame(maxWidth: 240)
             }
-            .buttonStyle(.glass)
+            .appGlassButtonStyle()
             .buttonBorderShape(.capsule)
             .controlSize(.large)
         }
@@ -619,7 +619,7 @@ private struct MinimalLibraryBar: View {
                 .contentShape(.capsule)
             }
             .buttonStyle(.plain)
-            .glassEffect(.clear.interactive(), in: .capsule)
+            .appGlassEffect(.clear.interactive(), in: .capsule)
             .disabled(!canResume)
             .opacity(canResume ? 1 : 0.5)
             .accessibilityLabel("Continue reading")
@@ -644,7 +644,7 @@ private struct MinimalLibraryBar: View {
             .frame(width: pillWidth, height: pillHeight)
         }
         .frame(width: pillWidth, height: pillHeight)
-        .glassEffect(.clear.interactive(), in: .capsule)
+        .appGlassEffect(.clear.interactive(), in: .capsule)
         .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 8)
     }
 

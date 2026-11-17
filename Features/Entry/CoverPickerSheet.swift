@@ -46,7 +46,7 @@ struct CoverPickerSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             List {
                 Section("In use") {
                     HStack(spacing: 14) {
@@ -107,7 +107,7 @@ struct CoverPickerSheet: View {
             .appNavigationTitle("Cover")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
             .task(id: search) { await searchAniList() }
         }

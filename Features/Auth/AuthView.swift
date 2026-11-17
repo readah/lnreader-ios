@@ -40,7 +40,7 @@ struct AuthView: View {
     var body: some View {
         Group {
             if presentation == .settings {
-                NavigationStack {
+                AppNavigationStack {
                     settingsContent
                         .toolbar(.hidden, for: .navigationBar)
                 }
@@ -392,7 +392,7 @@ struct AuthView: View {
     }
 
     private var serverSettingsSheet: some View {
-        NavigationStack {
+        AppNavigationStack {
             Form {
                 DisclosureGroup(isExpanded: $serverSettingsExpanded) {
                     TextField("Server URL", text: $backendURL)
@@ -423,7 +423,7 @@ struct AuthView: View {
             .appNavigationTitle("Server settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                AppToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         focused = nil
                         showsServerSettings = false

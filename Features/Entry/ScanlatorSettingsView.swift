@@ -36,7 +36,7 @@ struct ScanlatorSettingsView: View {
     private var isPriorityOn: Bool { settings.isPriorityEnabled }
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             List {
                 Section {
                     Toggle("Priority scanlator", isOn: priorityBinding)
@@ -74,7 +74,7 @@ struct ScanlatorSettingsView: View {
             .appNavigationTitle("Scanlators")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                AppToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }

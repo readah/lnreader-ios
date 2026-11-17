@@ -232,7 +232,7 @@ struct EntryDetailView: View {
         .onDisappear { chapterSelection.end() }
         .toolbar(removing: .title)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { moreMenu }
+            AppToolbarItem(placement: .topBarTrailing) { moreMenu }
         }
         // The sheet reports the new entry; this screen closes it, and only once the
         // sheet is gone does it ask the stack to show that entry in its place. The
@@ -672,7 +672,7 @@ struct EntryDetailView: View {
                 .font(Typography.caption)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .glassEffect(.regular, in: .capsule)
+                .appGlassEffect(.regular, in: .capsule)
                 .padding(.bottom, 24)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)

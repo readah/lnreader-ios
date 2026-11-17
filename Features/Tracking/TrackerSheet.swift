@@ -23,7 +23,7 @@ struct TrackerSheet: View {
     private var track: Track? { tracking.aniListTrack(for: entry) }
 
     var body: some View {
-        NavigationStack {
+        AppNavigationStack {
             Group {
                 if !tracking.isLoggedIn {
                     loggedOut
@@ -39,11 +39,11 @@ struct TrackerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if draft != nil {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { draft = nil } }
+                    AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { draft = nil } }
                 }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { finish() }.bold() }
+                AppToolbarItem(placement: .confirmationAction) { Button("Done") { finish() }.bold() }
             }
-            .overlay { if isBusy { ProgressView().controlSize(.large).padding(24).glassEffect(.regular, in: .rect(cornerRadius: 16)) } }
+            .overlay { if isBusy { ProgressView().controlSize(.large).padding(24).appGlassEffect(.regular, in: .rect(cornerRadius: 16)) } }
             .alert("Couldn't reach AniList", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: { Text(error ?? "") }
