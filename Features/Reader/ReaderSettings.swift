@@ -228,18 +228,22 @@ struct ReaderSettings: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: GlassMetrics.side)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .capsule)
+            .background(.ultraThinMaterial, in: .capsule)
 
             HStack(spacing: 0) {
                 GlassToggleSegment(symbol: "text.justify", label: "Justify text", isOn: justifyText) {
                     justifyText.toggle()
                 }
+                Rectangle()
+                    .fill(.separator)
+                    .frame(width: 1, height: 22)
+                    .accessibilityHidden(true)
                 GlassToggleSegment(symbol: "bold", label: "Bionic reading", isOn: localBionicReading) {
                     localBionicReading.toggle()
                     commitChanges()
                 }
             }
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: .capsule)
+            .background(.ultraThinMaterial, in: .capsule)
             .clipShape(.capsule)
         }
     }
@@ -416,6 +420,7 @@ struct ReaderSettings: View {
                 resetSection
             }
         }
+        .scrollContentBackground(isEmbedded ? .hidden : .automatic)
         .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: localLineFocusEnabled)
     }
 

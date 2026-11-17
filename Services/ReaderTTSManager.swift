@@ -384,7 +384,7 @@ final class ReaderTTSManager: ObservableObject {
         else { url = URL(fileURLWithPath: value) }
         guard let url else { return nil }
         #if os(iOS)
-        if !url.isFileURL, let cached = ImageCache.shared.object(forKey: url as NSURL) { return cached }
+        if !url.isFileURL, let cached = ImageCache.cached(url) { return cached }
         if url.isFileURL { return UIImage(contentsOfFile: url.path) }
         #elseif os(macOS)
         if url.isFileURL { return NSImage(contentsOf: url) }

@@ -18,6 +18,8 @@ struct GlobalSearchView: View {
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .appBackdrop()
         .overlay {
             if results.isEmpty && !isSearching {
                 ContentUnavailableView(
@@ -29,7 +31,7 @@ struct GlobalSearchView: View {
                 LoadingView(message: "Searching \(sourceManager.novelSources.count) sources...")
             }
         }
-        .navigationTitle("Global Search")
+        .appNavigationTitle("Global Search")
         .searchable(text: $searchText, prompt: "Search all sources")
         .onSubmit(of: .search) {
             Task { await performSearch() }

@@ -48,7 +48,7 @@ struct LibraryOptionsSheet: View {
                 case .display: displayList
                 }
             }
-            .navigationTitle("Library options")
+            .appNavigationTitle("Library options")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -141,6 +141,7 @@ struct LibraryOptionsSheet: View {
             AppLabel(title, systemName: systemImage, size: 17, relativeTo: .body)
         }
         .pickerStyle(.menu)
+        .tint(AppTheme.accent)
     }
 
     // MARK: - Sort
@@ -210,10 +211,10 @@ struct LibraryOptionsSheet: View {
                 if selected {
                     if order != .custom {
                         Image(systemName: sort.direction.isAscending ? "arrow.up" : "arrow.down")
-                            .foregroundStyle(.tint)
+                            .foregroundStyle(.primary)
                             .contentTransition(.symbolEffect(.replace))
                     } else {
-                        AppIcon(systemName: "checkmark", size: 17, relativeTo: .body).foregroundStyle(.tint)
+                        AppIcon(systemName: "checkmark", size: 17, relativeTo: .body).foregroundStyle(.primary)
                     }
                 }
             }
@@ -265,6 +266,7 @@ struct DisplayOptionsList: View {
                         ForEach(LibraryGridColumns.range, id: \.self) { Text("\($0)").tag($0) }
                     }
                     .pickerStyle(.menu)
+                    .tint(AppTheme.accent)
                 } header: {
                     SettingsSectionHeader(
                         title: "Grid",

@@ -39,15 +39,11 @@ struct ChapterListView: View {
     private var headerButtons: some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
-                searchButton.foregroundStyle(iconTint)
-                filterMenu.foregroundStyle(iconTint)
+                searchButton.foregroundStyle(AppTheme.primaryFill)
+                filterMenu.foregroundStyle(AppTheme.primaryFill)
             }
         }
     }
-
-    /// The glyph colour of the two header buttons: the cover's colour when
-    /// tinting is on, primary otherwise.
-    private var iconTint: Color { coverTint ?? AppTheme.primaryFill }
 
     /// The chapter card. Same surface as everywhere else, with the cover colour
     /// laid over it when tinting is on — a `Color` cannot be blended with
@@ -507,6 +503,8 @@ struct ChapterDirectoryView: View {
                 } header: { Text(search.isEmpty ? "Chapters \(label(for: page, in: items))" : "\(items.count) results") }
             }
             .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .appBackdrop()
             .background {
                 if let coverTint {
                     coverTint.opacity(0.10).ignoresSafeArea()
@@ -514,7 +512,7 @@ struct ChapterDirectoryView: View {
             }
             .id("\(search.isEmpty ? page : -1)-\(selectedFilter.rawValue)")
             .searchable(text: $search, prompt: "Search every chapter")
-            .navigationTitle("Chapters").navigationBarTitleDisplayMode(.large)
+            .appNavigationTitle("Chapters").navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {

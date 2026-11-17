@@ -363,7 +363,7 @@ private struct CategoryEditorSheet: View {
                     }
                 }
             }
-            .navigationTitle(isNew ? "New category" : "Edit category")
+            .appNavigationTitle(isNew ? "New category" : "Edit category")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -448,7 +448,7 @@ private struct CategoryTitlesPickerView: View {
                 )
             }
         }
-        .navigationTitle("Titles")
+        .appNavigationTitle("Titles")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search titles")
         .task(id: category.persistentModelID) { await loadMembers() }

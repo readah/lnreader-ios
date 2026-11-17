@@ -106,20 +106,25 @@ the doc named in brackets has the reasoning. Start with `docs/V2_PROGRESS.md` fo
 
 ## UI invariants [V2_PROGRESS]
 
+- **The app sits on the onboarding light field.** Every screen paints it itself with
+  `.appBackdrop()`: a background outside the `TabView` or `NavigationStack` is covered by the
+  container's own surface, and pushed destinations add another. Lists and forms call
+  `.scrollContentBackground(.hidden)` (`.settingsScreen` does both) so the field reaches the
+  edges. A new screen must not add an opaque background of its own (reader surfaces excepted).
 - **Behave consistently.** The same kind of surface acts the same everywhere. Novel and manga
   reader settings are sheets with `.medium` and `.large` detents, opening at `.large`;
   change one, change both. Other settings sheets stay partial-height.
 - **Swipe right from the left edge goes back.** Full-screen surfaces that hide the back button
   must add `EdgeSwipeDismiss` and ignore it while a sheet is open.
 - **On the detail screen a control lives with what it acts on.** Hero: one primary button.
-  `EntryActionBar`: up to four stateful entry tiles. Toolbar: visible Refresh and Migrate
-  buttons (no pull to refresh; pulling down goes back). Do not bury a real action in a
-  one-item `…` menu; an overflow menu earns its place once it holds several.
-  Chapter header: search and one sort/filter menu. [DETAIL_SCREEN]
+  `EntryActionBar`: up to four stateful entry tiles. Toolbar: one `…` menu holding Change
+  cover, Migrate, the web view, Share and Refresh (no pull to refresh; pulling down goes
+  back). The menu earns its place by holding several actions; never put one action in a `…`
+  menu. Chapter header: search and one sort/filter menu. [DETAIL_SCREEN]
 - **Toolbar actions run least to most likely used, left to right.** The right end of the bar is
-  the easiest corner for a right thumb, so the routine action takes it. On the detail screen
-  Refresh is rightmost, then Share, then the web view, and Migrate — once per broken source —
-  is furthest left.
+  the easiest corner for a right thumb, so the routine action takes it. This applies where a
+  screen still has several toolbar buttons; the detail screen keeps its actions in one `…`
+  menu instead.
 - **A migrated entry replaces the screen it came from.** After a single migration
   `EntryDetailView(entry:onReplace:)` calls `onReplace` with the new entry; the stacks that push
   it (Library, Updates, History) swap the top of their `NavigationPath`, so Back goes to the

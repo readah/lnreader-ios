@@ -35,7 +35,7 @@ struct TrackerSheet: View {
                     search
                 }
             }
-            .navigationTitle("AniList")
+            .appNavigationTitle("AniList")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if draft != nil {

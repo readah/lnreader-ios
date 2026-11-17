@@ -836,7 +836,7 @@ struct LNReaderBackupPreviewSheet: View {
                     )
                 }
             }
-            .navigationTitle("Restore backup")
+            .appNavigationTitle("Restore backup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -938,7 +938,7 @@ struct MihonBackupPreviewSheet: View {
                     }
                 }
             }
-            .navigationTitle("Import backup")
+            .appNavigationTitle("Import backup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1037,7 +1037,7 @@ struct BackupProgressSheet: View {
                     }
                 }
             }
-            .navigationTitle("Backup & restore")
+            .appNavigationTitle("Backup & restore")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

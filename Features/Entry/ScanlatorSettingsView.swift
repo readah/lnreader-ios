@@ -71,7 +71,7 @@ struct ScanlatorSettingsView: View {
             // Dragging only means something when priority merging is on, so edit
             // mode follows that toggle — visibility does not.
             .environment(\.editMode, .constant(isPriorityOn ? .active : .inactive))
-            .navigationTitle("Scanlators")
+            .appNavigationTitle("Scanlators")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

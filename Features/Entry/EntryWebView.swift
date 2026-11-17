@@ -28,7 +28,7 @@ struct EntryWebView: View {
                 .webViewBackForwardNavigationGestures(.enabled)
                 .ignoresSafeArea(edges: .bottom)
                 .overlay(alignment: .top) { progressBar }
-                .navigationTitle(page.title.isEmpty ? title : page.title)
+                .appNavigationTitle(page.title.isEmpty ? title : page.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }
         }

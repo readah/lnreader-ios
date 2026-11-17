@@ -2,7 +2,7 @@
 // Sources, split by kind: light novels and manga are separate catalogues.
 //
 // Every source is built into the app, so each catalogue is just the registry filtered by kind.
-// A native segmented control in a glass top bar switches between them in place.
+// A shared ultra-thin material selector switches between them in place.
 
 import SwiftData
 import SwiftUI
@@ -68,7 +68,7 @@ struct BrowseView: View {
     var body: some View {
         NavigationStack {
             content
-                .navigationTitle("Browse")
+                .appNavigationTitle("Browse")
                 .navigationBarTitleDisplayMode(.large)
                 .searchable(
                     text: $searchText,
@@ -84,7 +84,7 @@ struct BrowseView: View {
                             displayMode: $displayMode,
                             columnCount: $columnCount
                         )
-                        .navigationTitle("Display")
+                        .appNavigationTitle("Display")
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
@@ -126,16 +126,14 @@ struct BrowseView: View {
 
     // MARK: - Kind switcher
 
-    /// Native segmented control: on iOS 26 it renders as glass and morphs the
-    /// selection for free. It floats in the top bar so the list scrolls under it.
     private var kindSwitcher: some View {
-        Picker("Catalogue", selection: $kindRaw) {
-            ForEach(BrowseKind.allCases) { option in
-                Text(option.title).tag(option.rawValue)
-            }
+        AppSlidingPicker(
+            title: "Catalogue",
+            selection: $kindRaw,
+            options: BrowseKind.allCases.map(\.rawValue)
+        ) { raw in
+            (BrowseKind(rawValue: raw) ?? .novels).title
         }
-        .pickerStyle(.segmented)
-        .hapticFeedback(.selection, trigger: kindRaw)
     }
 
     private var searchPrompt: String {
@@ -158,6 +156,7 @@ struct BrowseView: View {
             }
             sourcesContent
         }
+        .scrollContentBackground(.hidden)
         // Rows cross-fade in place. Animating the rows, not the list, keeps the
         // scroll view (and the nav bar tracking it) alive, so it stays cheap.
         .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: kindRaw)
@@ -206,6 +205,7 @@ struct BrowseView: View {
                         onOpen: { openSource = SourceTarget(key: source.key, name: source.name) },
                         onMigrate: { migratingSource = MigratingSource(key: source.key) }
                     )
+                    .listRowBackground(Color.clear)
                 }
             }
         }

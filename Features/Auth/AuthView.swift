@@ -26,7 +26,7 @@ struct AuthView: View {
     @State private var showsPassword = false
     @State private var showsServerSettings = false
     @State private var serverSettingsExpanded = true
-    @State private var touch = CGPoint(x: 200, y: 400)
+
     @State private var requestedReset = false
     @State private var isSubmitting = false
     @State private var didComplete = false
@@ -81,8 +81,6 @@ struct AuthView: View {
 
     private var settingsContent: some View {
         ZStack {
-            AuroraBackground(touch: touch)
-                .accessibilityHidden(true)
 
             ScrollView {
                 formContent
@@ -92,10 +90,7 @@ struct AuthView: View {
             .scrollBounceBehavior(.basedOnSize)
             .scrollDismissesKeyboard(.interactively)
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                .onChanged { touch = $0.location }
-        )
+        .appBackdrop()
         .overlay(alignment: .topTrailing) {
             Button("Close") { dismiss() }
                 .font(.footnote.weight(.semibold))
@@ -425,7 +420,7 @@ struct AuthView: View {
                     }
                 }
             }
-            .navigationTitle("Server settings")
+            .appNavigationTitle("Server settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

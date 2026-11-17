@@ -53,10 +53,10 @@ struct NovelFireLoginView: View {
                     }
                     .primaryActionStyle()
                 }
-                .background(Color(.systemBackground))
+                .appBackdrop()
             }
           }
-          .navigationTitle("Sign In to \(site.displayName)")
+          .appNavigationTitle("Sign In to \(site.displayName)")
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         #if os(iOS)
           .navigationBarTitleDisplayMode(.inline)

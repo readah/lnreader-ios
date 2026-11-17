@@ -27,9 +27,13 @@ struct LibraryView: View {
     @Query(sort: \Category.order) private var categories: [Category]
 
     @Namespace private var bookTransitions
+    @State private var swipeInteraction = LibrarySwipeInteraction()
+    @GestureState private var isKindDragging = false
     @State private var lastReorderTarget: PersistentIdentifier?
     @State private var editingOrder: [PersistentIdentifier] = []
     @State private var searchText = ""
+    @State private var isSearchExpanded = false
+    @FocusState private var searchFocused: Bool
     @State private var selectedCategory: Category?
     @AppStorage("general.defaultSortOrder") private var defaultSortOrder: SortOrder = .lastRead
     @AppStorage("general.defaultSortDirection") private var defaultSortDirection: SortDirection = .descending
@@ -40,6 +44,7 @@ struct LibraryView: View {
     @AppStorage("library.displays") private var displaysJSON = "{}"
     @AppStorage("general.confirmRemove") private var confirmRemove = true
     @AppStorage("library.kindFilter") private var kindFilterRaw = LibraryKindFilter.all.rawValue
+    @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
     /// Tri-state filters, one per category (`LibraryFilterStore`).
     @AppStorage("library.filters") private var filtersJSON = "{}"
     /// Chapter counts for the filters, loaded off the main thread. Filtering
@@ -82,15 +87,21 @@ struct LibraryView: View {
                 if libraryIsEmpty {
                     emptyLibraryState
                 } else {
-                    if showsKindPicker {
-                        libraryPager
-                    } else {
-                        libraryPage(.all)
-                    }
+                    libraryPager
                 }
             }
-            .navigationTitle("Library")
-            .searchable(text: $searchText, prompt: "Search library")
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                librarySearch
+            }
+            .appNavigationTitle("Library", onTitleVerticalSwipe: {
+                Haptics.shared.selection()
+                withAnimation(AppMotion.tabSwitch(reduceMotion: reduceMotion)) {
+                    minimalMode = true
+                }
+            })
+            .onChange(of: isKindDragging) { _, dragging in
+                if !dragging { swipeInteraction.ended(at: ProcessInfo.processInfo.systemUptime) }
+            }
             .toolbar { libraryToolbar }
             .sheet(isPresented: $showOptionsSheet, onDismiss: {
                 guard arrangeAfterSheet else { return }
@@ -283,13 +294,86 @@ struct LibraryView: View {
         }
     }
 
+    // MARK: - Search
+
+    private var librarySearch: some View {
+        HStack(spacing: 0) {
+            if isSearchExpanded {
+                AppIcon(systemName: "magnifyingglass", size: 17, relativeTo: .body)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 10)
+                    .accessibilityHidden(true)
+
+                TextField("Search library", text: $searchText)
+                    .font(Typography.body)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .focused($searchFocused)
+                    .accessibilityLabel("Search library")
+                    .onSubmit { searchFocused = false }
+                    .task { searchFocused = true }
+
+                if !searchText.isEmpty {
+                    Button {
+                        Haptics.shared.selection()
+                        searchText = ""
+                        searchFocused = true
+                    } label: {
+                        AppIcon(systemName: "xmark.circle.fill", size: 17, relativeTo: .body)
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("Clear search")
+                }
+
+                Button(action: collapseSearch) {
+                    AppIcon(systemName: "chevron.down", size: 17, relativeTo: .body)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel("Close search")
+                .accessibilityHint("Clears the search and shows the full library selection.")
+            } else {
+                Button {
+                    Haptics.shared.selection()
+                    withAnimation(AppMotion.glassMorph(reduceMotion: reduceMotion)) {
+                        isSearchExpanded = true
+                    }
+                } label: {
+                    AppLabel("Search library", systemName: "magnifyingglass", size: 17, relativeTo: .body)
+                        .font(Typography.body)
+                        .padding(.horizontal, 18)
+                        .frame(minHeight: 44)
+                }
+                .accessibilityHint("Expands a search field to filter your library.")
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .padding(.vertical, 4)
+        .frame(maxWidth: isSearchExpanded ? .infinity : nil)
+        .glassEffect(.regular, in: .capsule)
+        .accessibilityAction(.escape, collapseSearch)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    private func collapseSearch() {
+        Haptics.shared.selection()
+        searchFocused = false
+        withAnimation(AppMotion.glassMorph(reduceMotion: reduceMotion)) {
+            searchText = ""
+            isSearchExpanded = false
+        }
+    }
+
     // MARK: - Content
 
-    /// Only the selected kind is built; the segmented control and the swipe both
+    /// Only the selected kind is built; the custom selector and the swipe both
     /// move it. One scroll view, rows cross-fading in place: swapping the whole
     /// page rebuilt the scroll view under the navigation bar and lagged.
     private var libraryPager: some View {
-        libraryPage(LibraryKindFilter(rawValue: kindFilterRaw) ?? .all)
+        libraryPage(showsKindPicker ? (LibraryKindFilter(rawValue: kindFilterRaw) ?? .all) : .all)
             .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: kindFilterRaw)
             .simultaneousGesture(kindSwipe)
     }
@@ -297,26 +381,40 @@ struct LibraryView: View {
     /// Steps between kinds on a clearly horizontal swipe. Only reacts when the
     /// drag ends, so vertical scrolling is never touched.
     private var kindSwipe: some Gesture {
-        DragGesture(minimumDistance: 30)
+        DragGesture(minimumDistance: 10)
+            .updating($isKindDragging) { _, dragging, _ in dragging = true }
+            .onChanged { value in
+                swipeInteraction.changed(
+                    horizontal: value.translation.width,
+                    vertical: value.translation.height
+                )
+            }
             .onEnded { value in
-                let dx = value.translation.width
-                guard !isEditingLibrary,
-                      abs(dx) > 80, abs(dx) > abs(value.translation.height) * 2 else { return }
-                let options = LibraryKindFilter.allCases.map(\.rawValue)
+                swipeInteraction.ended(at: ProcessInfo.processInfo.systemUptime)
+                guard !isEditingLibrary, showsKindPicker else { return }
+                let step = LibrarySwipeInteraction.pageStep(
+                    horizontal: value.translation.width,
+                    vertical: value.translation.height
+                )
+                guard step != 0 else { return }
+                let options = kindOptions.map(\.rawValue)
                 guard let current = options.firstIndex(of: kindFilterRaw) else { return }
-                let next = current + (dx < 0 ? 1 : -1)
+                let next = current + step
                 if options.indices.contains(next) { kindFilterRaw = options[next] }
             }
     }
 
+    private var kindOptions: [LibraryKindFilter] { [.all, .manga, .novels] }
+
     private var kindPicker: some View {
-        Picker("Content", selection: $kindFilterRaw) {
-            ForEach(LibraryKindFilter.allCases) { option in
-                Text(option.title).tag(option.rawValue)
-            }
+        AppSlidingPicker(
+            title: "Library content",
+            selection: $kindFilterRaw,
+            options: kindOptions.map(\.rawValue)
+        ) { raw in
+            let option = LibraryKindFilter(rawValue: raw) ?? .all
+            return option == .novels ? "Novel" : option.title
         }
-        .pickerStyle(.segmented)
-        .hapticFeedback(.selection, trigger: kindFilterRaw)
         .padding(.horizontal)
         .padding(.top, 4)
         .padding(.bottom, 8)
@@ -331,8 +429,7 @@ struct LibraryView: View {
             // Say what it does and how to leave it.
             if isEditingLibrary { arrangeHint }
 
-            // First thing in the scroll view, so it scrolls away with the content
-            // instead of pinning over the search field.
+            // The selector scrolls with the books rather than pinning over them.
             if showsKindPicker { kindPicker }
 
             if !categories.isEmpty {
@@ -355,7 +452,7 @@ struct LibraryView: View {
                 libraryContent(items)
             }
         }
-        .immediateScrollTouches()
+        .scrollDismissesKeyboard(.interactively)
         .onDrop(of: [UTType.text], isTargeted: nil) { _ in
             guard draggedItem != nil else { return false }
             draggedItem = nil
@@ -449,6 +546,7 @@ struct LibraryView: View {
     }
 
     private func handleSelect(_ novel: Entry) {
+        guard swipeInteraction.allowsActivation(at: ProcessInfo.processInfo.systemUptime) else { return }
         navigationPath.append(novel)
     }
 
@@ -845,13 +943,22 @@ enum LibraryKindFilter: String, CaseIterable, Identifiable {
 /// it.
 struct LibraryEntryQuickActions: View {
     let entry: Entry
+    var onOpen: () -> Void
     var onArrange: () -> Void
     var onRemove: () -> Void
 
     @Environment(\.modelContext) private var modelContext
     @Environment(SourceManager.self) private var sourceManager
 
+    @Environment(ReaderRouter.self) private var readerRouter
+
     var body: some View {
+        Button {
+            continueReading()
+        } label: {
+            AppLabel("Continue reading", systemName: "arrow.right.circle", size: 17, relativeTo: .body)
+        }
+
         Button {
             markAllRead()
         } label: {
@@ -906,6 +1013,79 @@ struct LibraryEntryQuickActions: View {
         LibraryChapterCounts.shared.invalidate([entry.persistentModelID])
         NotificationCenter.default.post(name: .lnreaderChapterReadChanged, object: entry)
         Haptics.shared.notify(.success)
+    }
+
+    private func continueReading() {
+        guard readerRouter.request == nil else { return }
+        let entryID = entry.persistentModelID
+        let sourceKey = entry.sourceKey
+        let entryURL = entry.url
+        let kind = entry.kind
+        let container = modelContext.container
+
+        Task {
+            let target = await Self.resolveResumeChapter(
+                entryID: entryID,
+                sourceKey: sourceKey,
+                entryURL: entryURL,
+                container: container
+            )
+            guard readerRouter.request == nil else { return }
+            if let target {
+                Haptics.shared.impact(.light)
+                readerRouter.open(
+                    sourceKey: sourceKey,
+                    entryURL: entryURL,
+                    kind: kind,
+                    chapterURL: target.url,
+                    chapterName: target.name
+                )
+            } else {
+                onOpen()
+            }
+        }
+    }
+
+    @concurrent
+    private nonisolated static func resolveResumeChapter(
+        entryID: PersistentIdentifier,
+        sourceKey: String,
+        entryURL: String,
+        container: ModelContainer
+    ) async -> (url: String, name: String)? {
+        let context = ModelContext(container)
+
+        var descriptor = FetchDescriptor<Chapter>(
+            predicate: #Predicate<Chapter> {
+                $0.entry?.persistentModelID == entryID && !$0.hidden
+            },
+            sortBy: [SortDescriptor(\.sourceOrder)]
+        )
+        descriptor.relationshipKeyPathsForPrefetching = []
+
+        var lastOpened = FetchDescriptor<History>(
+            predicate: #Predicate<History> {
+                $0.chapter?.entry?.url == entryURL && $0.chapter?.entry?.sourceKey == sourceKey
+            },
+            sortBy: [SortDescriptor(\.lastRead, order: .reverse)]
+        )
+        lastOpened.fetchLimit = 1
+
+        guard let chapters = try? context.fetch(descriptor), !chapters.isEmpty else {
+            return nil
+        }
+
+        let oldestFirst = ChapterOrder.oldestFirst(chapters)
+        let lastOpenedPath = (try? context.fetch(lastOpened))?.first?.chapterURL
+
+        guard let chapter = ChapterOrder.resume(
+            oldestFirst: oldestFirst,
+            lastOpenedPath: lastOpenedPath,
+            isUnread: { !$0.read }
+        ) else {
+            return nil
+        }
+        return (chapter.url, chapter.name)
     }
 }
 

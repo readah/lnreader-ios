@@ -109,7 +109,7 @@ struct StatisticsView: View {
             }
             .padding()
         }
-        .navigationTitle("Statistics")
+        .appNavigationTitle("Statistics")
         .task { await loadStatistics() }
     }
 

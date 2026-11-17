@@ -7,6 +7,7 @@ import SwiftUI
 @main
 struct LNReaderApp: App {
     init() {
+
         #if DEBUG
         MainThreadWatchdog.shared.start()
         #endif
@@ -45,6 +46,7 @@ struct LNReaderApp: App {
             }
                 .environment(\.modelContext, syncManager.restoredContext ?? Self.modelContainer.mainContext)
                 .toggleStyle(AppToggleStyle())
+                .accentColor(AppTheme.accent)
                 .environment(libraryManager)
                 .environment(syncManager)
                 .environment(sourceManager)

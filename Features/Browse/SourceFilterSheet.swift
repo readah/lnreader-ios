@@ -46,7 +46,7 @@ struct SourceFilterSheet: View {
                 }
                 if let refresh { refreshSection(refresh) }
             }
-            .navigationTitle("Filters")
+            .appNavigationTitle("Filters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -355,7 +355,7 @@ private struct FilterChoiceList: View {
             }
             .foregroundStyle(.primary)
         }
-        .navigationTitle(title)
+        .appNavigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
     }
@@ -388,7 +388,7 @@ private struct FilterOptionList: View {
             }
             .foregroundStyle(.primary)
         }
-        .navigationTitle(title)
+        .appNavigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
         .toolbar {
@@ -429,7 +429,7 @@ private struct FilterExcludableList: View {
             }
             .foregroundStyle(.primary)
         }
-        .navigationTitle(title)
+        .appNavigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic))
         .toolbar {

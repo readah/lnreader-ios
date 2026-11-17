@@ -30,7 +30,7 @@ struct MoreView: View {
                 settingsSection
                 infoSection
             }
-            .navigationTitle("More")
+            .appNavigationTitle("More")
             .sheet(isPresented: $showingEditProfile) {
                 ProfileEditSheet(profile: userProfile)
             }
@@ -350,7 +350,7 @@ struct ProfileEditSheet: View {
                     TextField("Enter name", text: $nameInput)
                 }
             }
-            .navigationTitle("Edit Profile")
+            .appNavigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

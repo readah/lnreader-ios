@@ -47,9 +47,11 @@ struct HistoryView: View {
                                     runRows(run)
                                 }
                             }
+                            .listRowBackground(Color.clear)
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                 }
             }
             .navigationDestination(for: Entry.self) { entry in
@@ -60,7 +62,7 @@ struct HistoryView: View {
                 }
                 .id(entry.persistentModelID)
             }
-            .navigationTitle("History")
+            .appNavigationTitle("History")
             .onChange(of: resumeTrigger) { resumeLatest() }
             .searchable(text: $searchText, prompt: "Search history")
             .toolbar {
@@ -122,6 +124,7 @@ struct HistoryView: View {
             onOpenChapter: { open(run.head) },
             onToggle: { toggle(run) }
         )
+        .listRowBackground(Color.clear)
         .swipeActions {
             Button(role: .destructive) {
                 delete([run.head])
@@ -141,6 +144,7 @@ struct HistoryView: View {
         if isExpanded {
             ForEach(run.earlier) { item in
                 HistoryChapterRow(history: item, onOpenChapter: { open(item) })
+                    .listRowBackground(Color.clear)
                     .swipeActions {
                         Button(role: .destructive) {
                             delete([item])

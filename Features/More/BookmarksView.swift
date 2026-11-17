@@ -61,6 +61,7 @@ struct BookmarksView: View {
                         }
                     }
                 }
+                .scrollContentBackground(.hidden)
             }
         }
         .settingsScreen("Bookmarks")
@@ -202,6 +203,7 @@ private struct BookmarkedBookView: View {
                         }
                     }
                 }
+                .scrollContentBackground(.hidden)
             }
         }
         .settingsScreen(title)

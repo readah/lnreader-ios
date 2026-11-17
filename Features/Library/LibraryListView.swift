@@ -99,10 +99,16 @@ struct InteractiveListRow: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            LibraryEntryQuickActions(entry: novel, onArrange: onArrange, onRemove: onRemove)
+            LibraryEntryQuickActions(
+                entry: novel,
+                onOpen: { onSelect(novel) },
+                onArrange: onArrange,
+                onRemove: onRemove
+            )
         } preview: {
             LibraryEntryPreview(entry: novel)
         }
+        .menuOrder(.fixed)
     }
 }
 

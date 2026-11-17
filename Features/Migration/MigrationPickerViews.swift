@@ -92,7 +92,7 @@ struct MigrationCandidatePicker: View {
             }
         }
         .listStyle(.plain)
-        .navigationTitle("Migrate")
+        .appNavigationTitle("Migrate")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, prompt: "Search by title")
         .autocorrectionDisabled()
@@ -236,7 +236,7 @@ struct MigrationSourcesView: View {
                 }
             }
         }
-        .navigationTitle("Migration sources")
+        .appNavigationTitle("Migration sources")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -354,7 +354,7 @@ struct MigrateConfirmView: View {
                 MigrationCleanupSection(options: $options)
             }
         }
-        .navigationTitle("Migrate")
+        .appNavigationTitle("Migrate")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { footerBar }
         .task {

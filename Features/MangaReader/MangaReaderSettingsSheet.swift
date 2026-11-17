@@ -283,6 +283,9 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
     @Binding var invertTapZones: Bool
     @Binding var controls: MangaControlSettings
     var unconditional: Bool = false
+    /// The settings screen embeds this form on the app backdrop; the reader's
+    /// own sheet keeps its system background.
+    var hidesBackground: Bool = false
     @ViewBuilder var layoutScope: () -> LayoutScope
     @ViewBuilder var bottomContent: () -> BottomContent
 
@@ -298,6 +301,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
         invertTapZones: Binding<Bool>,
         controls: Binding<MangaControlSettings>,
         unconditional: Bool = false,
+        hidesBackground: Bool = false,
         @ViewBuilder layoutScope: @escaping () -> LayoutScope = { EmptyView() },
         @ViewBuilder bottomContent: @escaping () -> BottomContent = { EmptyView() }
     ) {
@@ -307,6 +311,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
         self._invertTapZones = invertTapZones
         self._controls = controls
         self.unconditional = unconditional
+        self.hidesBackground = hidesBackground
         self.layoutScope = layoutScope
         self.bottomContent = bottomContent
     }
@@ -335,6 +340,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
 
             bottomContent()
         }
+        .scrollContentBackground(hidesBackground ? .hidden : .automatic)
         .transition(.opacity)
     }
 

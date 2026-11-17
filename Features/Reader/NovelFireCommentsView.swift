@@ -83,7 +83,7 @@ struct NovelFireCommentsView: View {
             .scrollContentBackground(backgroundColorHex.isEmpty ? .visible : .hidden)
             .background(Color(hex: backgroundColorHex) ?? Color(.systemGroupedBackground))
             .foregroundStyle(Color(hex: textColorHex) ?? .primary)
-            .navigationTitle("Comments")
+            .appNavigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done", role: .close) { dismiss() } }

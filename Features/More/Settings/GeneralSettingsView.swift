@@ -28,18 +28,21 @@ struct GeneralSettingsView: View {
                         Text(order.displayName).tag(order)
                     }
                 }
+                .tint(AppTheme.accent)
 
                 Picker("Sort direction", selection: defaultSortDirection) {
                     ForEach(SortDirection.allCases, id: \.self) { direction in
                         Text(direction.rawValue).tag(direction)
                     }
                 }
+                .tint(AppTheme.accent)
 
                 Picker("Display mode", selection: defaultDisplayMode) {
                     ForEach(DisplayMode.allCases) { mode in
                         Text(mode.displayName).tag(mode)
                     }
                 }
+                .tint(AppTheme.accent)
             } header: {
                 SettingsSectionHeader(
                     title: "Defaults",
@@ -93,6 +96,7 @@ struct GeneralSettingsView: View {
                     // Let go to feel the new strength.
                     if !editing { Haptics.shared.scroll(ScrollFeel.detent(speed: 800)) }
                 }
+                .tint(AppTheme.accent)
                 .accessibilityLabel("Strength")
             }
         } header: {

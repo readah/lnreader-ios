@@ -32,7 +32,7 @@ struct TTSSettingsView: View {
                                     .accessibilityLabel("Delete audio")
                             }
                         }
-                    }.navigationTitle("Audio storage")
+                    }.appNavigationTitle("Audio storage")
                 }
                 Button("Refresh voices and download previews") { Task { await library.refreshVoices() } }
             } footer: {

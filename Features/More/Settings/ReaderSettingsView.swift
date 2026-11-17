@@ -52,7 +52,6 @@ struct ReaderSettingsView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 8)
-                .background(Color(uiColor: .systemGroupedBackground))
 
             Group {
                 switch selectedTab {
@@ -65,7 +64,6 @@ struct ReaderSettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: selectedTab)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
         .settingsScreen("Reader settings")
     }
 
@@ -120,6 +118,7 @@ struct ReaderSettingsView: View {
             invertTapZones: $invertTapZones,
             controls: $controls,
             unconditional: true,
+            hidesBackground: true,
             bottomContent: {
                 Section {
                     Button("Reset manga defaults", role: .destructive) {

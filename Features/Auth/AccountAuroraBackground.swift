@@ -41,3 +41,17 @@ struct OnboardingBackdrop: View {
         .accessibilityHidden(true)
     }
 }
+
+extension View {
+    /// The onboarding light field behind a screen.
+    ///
+    /// Each screen paints it: a background outside a `TabView` or
+    /// `NavigationStack` is covered by the container's system surface, and
+    /// pushed destinations add their own layer.
+    func appBackdrop() -> some View {
+        background {
+            OnboardingBackdrop()
+                .ignoresSafeArea()
+        }
+    }
+}

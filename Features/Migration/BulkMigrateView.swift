@@ -300,7 +300,7 @@ struct MigrateSourceSheet: View {
                 MigrationOptionsSection(options: $options)
                 MigrationCleanupSection(options: $options)
             }
-            .navigationTitle("Migrate source")
+            .appNavigationTitle("Migrate source")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) { footerBar }
             .toolbar {
@@ -386,7 +386,7 @@ struct BulkMigrateReviewView: View {
             }
         }
         .listStyle(.plain)
-        .navigationTitle(title)
+        .appNavigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { footer }
         .sheet(item: $changing) { entry in

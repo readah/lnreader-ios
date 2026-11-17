@@ -152,7 +152,7 @@ struct VoiceReferencePassageView: View {
                 Link(destination: URL(string: "https://www.dialectsarchive.com/the-rainbow-passage")!) { AppLabel("Read the original at IDEA", systemName: "arrow.up.right.square", size: 17, relativeTo: .body) }
             }
         }
-        .navigationTitle("Recording passage")
+        .appNavigationTitle("Recording passage")
         .navigationBarTitleDisplayMode(.large)
     }
 }
@@ -300,7 +300,7 @@ struct BookAudioDownloadsView: View {
             .listSectionSpacing(16)
             .scrollContentBackground(.hidden)
             .background { CoverBackdrop(url: coverURL, tint: coverTint) }
-            .navigationTitle("Audio")
+            .appNavigationTitle("Audio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -342,7 +342,7 @@ struct BookAudioDownloadsView: View {
             .sheet(isPresented: $showVoices) {
                 NavigationStack {
                     List { Section { NarrationComputePicker() }; Section("Narrator") { NarrationVoicePicker(selected: $selectedVoices) } }
-                        .navigationTitle("Choose voices").navigationBarTitleDisplayMode(.large)
+                        .appNavigationTitle("Choose voices").navigationBarTitleDisplayMode(.large)
                         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") {
                             if let voice = selectedVoices.sorted().first { library.setBookVoice(voice, bookId: bookId) }
                             showVoices = false
@@ -603,7 +603,7 @@ struct BookAudioDownloadsView: View {
                     Text(rangeSummary)
                 }
             }
-            .navigationTitle("Range")
+            .appNavigationTitle("Range")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showRange = false } }
@@ -1110,7 +1110,7 @@ private struct CustomVoiceCreationView: View {
                 }
             }
             .disabled(saving)
-            .navigationTitle("Your voice")
+            .appNavigationTitle("Your voice")
             .navigationBarTitleDisplayMode(.large)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(saving) } }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.audio]) { result in
@@ -1162,7 +1162,7 @@ struct TTSChapterAudioDetailView: View {
                 }
             }
         }
-        .navigationTitle("Chapter \(chapter.position + 1)")
+        .appNavigationTitle("Chapter \(chapter.position + 1)")
         .navigationBarTitleDisplayMode(.large)
         .confirmationDialog("Delete this voice's audio everywhere?", isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })) {
             if let record = deleteTarget {

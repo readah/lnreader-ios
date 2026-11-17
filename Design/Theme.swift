@@ -1,5 +1,9 @@
 import SwiftUI
 
+#if os(iOS)
+import UIKit
+#endif
+
 // MARK: - App Theme
 
 /// Semantic color tokens for the LNReader app.
@@ -21,7 +25,7 @@ enum AppTheme {
     /// This is also the `AccentColor` asset, which is where controls get
     /// their tint. Do not put a `.tint` at the root: an explicit tint beats a
     /// button's role, so destructive swipe actions would lose their red.
-    static let accent = Color.primary
+    static let accent = Color("AccentColor")
 
     /// High-contrast fill for a primary control (play button, selected dot).
     static let primaryFill = Color.primary
@@ -89,6 +93,63 @@ struct AppToggleStyle: ToggleStyle {
     }
 }
 
+// MARK: - Sliding selection
+
+/// Shared by the library and source catalogues, including their swipe selection.
+struct AppSlidingPicker<Selection: Hashable>: View {
+    let title: String
+    @Binding var selection: Selection
+    let options: [Selection]
+    let label: (Selection) -> String
+    @Namespace private var indicator
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 4))
+
+        layout {
+            ForEach(options, id: \.self) { option in
+                Button {
+                    withAnimation(AppMotion.tabSwitch(reduceMotion: reduceMotion)) {
+                        selection = option
+                    }
+                } label: {
+                    Text(label(option))
+                        .font(Typography.body)
+                        .fontWeight(selection == option ? .semibold : .regular)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background {
+                            if selection == option {
+                                Capsule()
+                                    .fill(.ultraThinMaterial)
+                                    .overlay {
+                                        Capsule().strokeBorder(AppTheme.hairline, lineWidth: 0.5)
+                                    }
+                                    .matchedGeometryEffect(id: "selection", in: indicator)
+                            }
+                        }
+                        .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selection == option ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(.ultraThinMaterial, in: .rect(cornerRadius: 28))
+        .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: selection)
+        .hapticFeedback(.selection, trigger: selection)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
+    }
+}
+
 // MARK: - Adaptive Color Helper
 
 extension Color {
@@ -141,6 +202,216 @@ enum Typography {
     /// Smallest text — 11pt regular.
     static let small: Font = .caption2
 }
+
+extension View {
+    /// Keeps native navigation behavior while styling the screen's actual bar
+    /// and navigation item, rather than an appearance proxy SwiftUI can override.
+    func appNavigationTitle(_ title: Text, onTitleVerticalSwipe: (() -> Void)? = nil) -> some View {
+        #if os(iOS)
+        self
+            .scrollContentBackground(.hidden)
+            .appBackdrop()
+            .accentColor(AppTheme.accent)
+            .navigationTitle(title)
+            .background {
+                NavigationTitleFontBridge(onTitleVerticalSwipe: onTitleVerticalSwipe)
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        #else
+        self
+            .scrollContentBackground(.hidden)
+            .appBackdrop()
+            .accentColor(AppTheme.accent)
+            .navigationTitle(title)
+        #endif
+    }
+
+    func appNavigationTitle(_ title: LocalizedStringKey, onTitleVerticalSwipe: (() -> Void)? = nil) -> some View {
+        appNavigationTitle(Text(title), onTitleVerticalSwipe: onTitleVerticalSwipe)
+    }
+
+    @_disfavoredOverload
+    func appNavigationTitle<S: StringProtocol>(_ title: S, onTitleVerticalSwipe: (() -> Void)? = nil) -> some View {
+        appNavigationTitle(Text(title), onTitleVerticalSwipe: onTitleVerticalSwipe)
+    }
+}
+
+#if os(iOS)
+private struct NavigationTitleFontBridge: UIViewControllerRepresentable {
+    var onTitleVerticalSwipe: (() -> Void)?
+
+    func makeUIViewController(context: Context) -> Controller {
+        let controller = Controller()
+        controller.onTitleVerticalSwipe = onTitleVerticalSwipe
+        return controller
+    }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.onTitleVerticalSwipe = onTitleVerticalSwipe
+        controller.refresh()
+    }
+
+    static func dismantleUIViewController(_ controller: Controller, coordinator: ()) {
+        controller.removeTitleSwipe()
+    }
+
+    final class Controller: UIViewController, UIGestureRecognizerDelegate {
+        var onTitleVerticalSwipe: (() -> Void)?
+        private weak var swipeBar: UINavigationBar?
+        private var titlePan: UIPanGestureRecognizer?
+        override func loadView() {
+            view = UIView()
+            view.isUserInteractionEnabled = false
+        }
+
+        override func viewDidLoad() {
+            super.viewDidLoad()
+            registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) {
+                (controller: Controller, _: UITraitCollection) in
+                controller.refresh()
+            }
+        }
+
+        override func didMove(toParent parent: UIViewController?) {
+            super.didMove(toParent: parent)
+            refresh()
+        }
+
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            refresh()
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            applyFonts()
+        }
+
+        override func viewWillDisappear(_ animated: Bool) {
+            super.viewWillDisappear(animated)
+            removeTitleSwipe()
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            applyFonts()
+        }
+
+        func refresh() {
+            applyFonts()
+            // SwiftUI may configure the navigation item later in this update.
+            DispatchQueue.main.async { [weak self] in self?.applyFonts() }
+        }
+
+        private func applyFonts() {
+            guard let navigationController else { return }
+            var owner: UIViewController = self
+            while let parent = owner.parent, parent !== navigationController {
+                owner = parent
+            }
+            // An outgoing or offscreen screen must not restyle the current bar.
+            guard navigationController.topViewController === owner else { return }
+
+            let large = serifFont(size: 34, weight: .bold, style: .largeTitle)
+            let inline = serifFont(size: 17, weight: .semibold, style: .headline)
+            let bar = navigationController.navigationBar
+            let item = owner.navigationItem
+            updateTitleSwipe(on: bar)
+
+            func update(
+                _ appearance: UINavigationBarAppearance?,
+                set: (UINavigationBarAppearance) -> Void
+            ) {
+                guard let appearance else { return }
+                let hasLargeFont = (appearance.largeTitleTextAttributes[.font] as? UIFont)?.isEqual(large) == true
+                let hasInlineFont = (appearance.titleTextAttributes[.font] as? UIFont)?.isEqual(inline) == true
+                guard !hasLargeFont || !hasInlineFont else { return }
+                let copy = appearance.copy()
+                copy.largeTitleTextAttributes[.font] = large
+                copy.titleTextAttributes[.font] = inline
+                set(copy)
+            }
+
+            // Preserve nil states and their native transparent/compact fallbacks.
+            // Item appearances take precedence over the bar's entire appearance.
+            update(bar.standardAppearance) { bar.standardAppearance = $0 }
+            update(bar.scrollEdgeAppearance) { bar.scrollEdgeAppearance = $0 }
+            update(bar.compactAppearance) { bar.compactAppearance = $0 }
+            update(bar.compactScrollEdgeAppearance) { bar.compactScrollEdgeAppearance = $0 }
+            update(item.standardAppearance) { item.standardAppearance = $0 }
+            update(item.scrollEdgeAppearance) { item.scrollEdgeAppearance = $0 }
+            update(item.compactAppearance) { item.compactAppearance = $0 }
+            update(item.compactScrollEdgeAppearance) { item.compactScrollEdgeAppearance = $0 }
+        }
+
+        private func updateTitleSwipe(on bar: UINavigationBar) {
+            guard onTitleVerticalSwipe != nil else {
+                removeTitleSwipe()
+                return
+            }
+            guard swipeBar !== bar || titlePan == nil else { return }
+            removeTitleSwipe()
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(titleSwiped(_:)))
+            pan.maximumNumberOfTouches = 1
+            pan.delegate = self
+            bar.addGestureRecognizer(pan)
+            swipeBar = bar
+            titlePan = pan
+        }
+
+        func removeTitleSwipe() {
+            if let titlePan { swipeBar?.removeGestureRecognizer(titlePan) }
+            titlePan = nil
+            swipeBar = nil
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard let bar = swipeBar else { return false }
+            // Restrict the recognizer to the visible large-title text, not the
+            // toolbar buttons or the scroll view beneath the navigation bar.
+            func titleFrame(in view: UIView) -> CGRect? {
+                guard !view.isHidden, view.alpha > 0.01 else { return nil }
+                if let label = view as? UILabel,
+                   label.text == navigationController?.topViewController?.navigationItem.title,
+                   label.font.pointSize >= 24 {
+                    let frame = label.convert(label.bounds, to: bar)
+                    if frame.intersects(bar.bounds) { return frame }
+                }
+                for child in view.subviews {
+                    if let frame = titleFrame(in: child) { return frame }
+                }
+                return nil
+            }
+            guard let frame = titleFrame(in: bar) else { return false }
+            return frame.insetBy(dx: -8, dy: -6).contains(touch.location(in: bar))
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return false }
+            let velocity = pan.velocity(in: swipeBar)
+            return abs(velocity.y) > abs(velocity.x) * 1.5
+        }
+
+        @objc private func titleSwiped(_ pan: UIPanGestureRecognizer) {
+            guard pan.state == .ended else { return }
+            let translation = pan.translation(in: swipeBar)
+            guard LibrarySwipeInteraction.isTitleSwipe(horizontal: translation.x, vertical: translation.y) else { return }
+            onTitleVerticalSwipe?()
+        }
+
+        private func serifFont(size: CGFloat, weight: UIFont.Weight, style: UIFont.TextStyle) -> UIFont {
+            let base = UIFont.systemFont(ofSize: size, weight: weight)
+            let descriptor = base.fontDescriptor.withDesign(.serif) ?? base.fontDescriptor
+            return UIFontMetrics(forTextStyle: style).scaledFont(
+                for: UIFont(descriptor: descriptor, size: size),
+                compatibleWith: traitCollection
+            )
+        }
+    }
+}
+#endif
 
 // MARK: - Hex Color Helper
 
@@ -292,10 +563,11 @@ extension View {
             .foregroundStyle(AppTheme.onPrimaryFill)
     }
 
-    /// Chrome shared by every settings screen: a large sentence-case title.
+    /// Chrome shared by every settings screen: a large sentence-case title, a
+    /// clear scroll surface and the app's light field behind it.
     func settingsScreen(_ title: String) -> some View {
         self
-            .navigationTitle(title)
+            .appNavigationTitle(title)
             .navigationBarTitleDisplayMode(.large)
     }
 }

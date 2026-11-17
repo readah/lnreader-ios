@@ -83,7 +83,7 @@ struct SourceDetailView: View {
         ScrollView {
             entriesLayout
         }
-        .navigationTitle(title)
+        .appNavigationTitle(title)
         .searchable(text: $searchText, prompt: "Search \(title)")
         .onSubmit(of: .search) {
             Task { await search() }

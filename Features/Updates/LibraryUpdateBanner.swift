@@ -148,7 +148,7 @@ struct LibraryUpdateSheet: View {
                     }
                 }
             }
-            .navigationTitle("Library update")
+            .appNavigationTitle("Library update")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

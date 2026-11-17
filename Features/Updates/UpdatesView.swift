@@ -83,11 +83,14 @@ struct UpdatesView: View {
                                             )
                                         }
                                     )
+                                    .listRowBackground(Color.clear)
                                 }
                             }
+                            .listRowBackground(Color.clear)
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                     .refreshable {
                         // The update banner shows progress; the pull indicator
                         // has no job beyond starting the run. Sleeping here
@@ -98,7 +101,7 @@ struct UpdatesView: View {
                     }
                 }
             }
-            .navigationTitle("Updates")
+            .appNavigationTitle("Updates")
             .navigationDestination(for: Entry.self) { entry in
                 // A migrated entry takes the place of the one that left the library.
                 EntryDetailView(entry: entry) { replacement in
