@@ -47,6 +47,7 @@ struct LNReaderApp: App {
             }
                 .environment(\.modelContext, syncManager.restoredContext ?? Self.modelContainer.mainContext)
                 .toggleStyle(AppToggleStyle())
+                .appKeyboardDismissOnTap()
                 .accentColor(AppTheme.accent)
                 .environment(libraryManager)
                 .environment(syncManager)

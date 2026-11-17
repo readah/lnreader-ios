@@ -3,6 +3,34 @@
 import SwiftUI
 import UIKit
 
+/// Several screens can be mounted at once (a pushed detail or a fullscreen
+/// reader over a navigation stack). Each installs its own recognizer on the
+/// same window, so one edge swipe would otherwise dismiss the reader *and*
+/// pop the screen behind it. Only the most recently installed recognizer may
+/// act, and a short gate stops a second one from firing after the first has
+/// torn itself down mid-gesture.
+@MainActor
+private enum EdgeSwipeArbitration {
+    private static var order: [ObjectIdentifier] = []
+    private static var lastFire: TimeInterval = 0
+
+    static func register(_ id: ObjectIdentifier) {
+        guard !order.contains(id) else { return }
+        order.append(id)
+    }
+
+    static func unregister(_ id: ObjectIdentifier) {
+        order.removeAll { $0 == id }
+    }
+
+    static func claim(_ id: ObjectIdentifier) -> Bool {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard order.last == id, now - lastFire > 0.6 else { return false }
+        lastFire = now
+        return true
+    }
+}
+
 /// Calls `onSwipe` when the user swipes in from a screen edge: right from the
 /// left edge (the standard iOS back gesture), or left from the right edge.
 ///
@@ -61,12 +89,14 @@ struct EdgeSwipeDismiss: UIViewRepresentable {
                 recognizers.append(recognizer)
             }
             self.window = window
+            EdgeSwipeArbitration.register(ObjectIdentifier(self))
         }
 
         func uninstall() {
             for recognizer in recognizers { window?.removeGestureRecognizer(recognizer) }
             recognizers = []
             window = nil
+            EdgeSwipeArbitration.unregister(ObjectIdentifier(self))
         }
 
         @objc private func panned(_ gesture: UIScreenEdgePanGestureRecognizer) {
@@ -75,6 +105,7 @@ struct EdgeSwipeDismiss: UIViewRepresentable {
             // Inward from the edge, mostly horizontal, and far enough to be deliberate.
             let inward = gesture.edges == .left ? translation.x : -translation.x
             guard inward > 100, abs(translation.x) > abs(translation.y) * 1.5 else { return }
+            guard EdgeSwipeArbitration.claim(ObjectIdentifier(self)) else { return }
             onSwipe?()
         }
 
