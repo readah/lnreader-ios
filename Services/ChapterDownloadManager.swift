@@ -59,8 +59,9 @@ final class ChapterDownloadManager {
     }
 
     func configure(context: ModelContext, sources: SourceManager) {
-        guard self.context == nil else { resume(); return }
+        let isConfigured = self.context != nil
         self.context = context; self.sources = sources
+        guard !isConfigured else { resume(); return }
         networkTask = Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: Notification.Name("LNReaderNetworkChanged")) {
                 self?.resume()

@@ -16,63 +16,55 @@ private struct SyncEnvelope: Decodable {
     let data: RemoteSyncData?
 }
 
-/// `PUT /api/sync` success body.
 private struct PushResult: Decodable {
     let ok: Bool
-    let updatedAt: String?
+    let updatedAt: String
 }
 
-/// `PUT /api/sync` 409 body: the write was stale, and this is the copy that won.
-private struct ConflictBody: Decodable {
-    let error: String
-    let serverUpdatedAt: String
-    let data: RemoteSyncData
+struct SyncProgress {
+    let id = UUID()
+    let title: String
+    var detail: String
+    var fraction: Double = 0
+    var isFinished = false
+    var failed = false
 }
 
 @Observable
 @MainActor
 final class SyncManager {
     var currentUser: AuthenticatedUser?
-    var isWorking = false
+    private(set) var isWorking = false
     var lastMessage: String?
     var lastError: String?
+    private(set) var progress: SyncProgress?
+    private(set) var hasSynced = false
+    private(set) var restoredContext: ModelContext?
 
     var backendURL: String = UserDefaults.standard.string(forKey: "sync.backendURL") ?? SyncManager.defaultBackendURL
-
     static let defaultBackendURL = "https://lnreader.traverses.dpdns.org"
-    /// Retired Azure backend — existing installs still have this saved.
-    private static let legacyBackendURL = "https://lnreader-sync-sky788.azurewebsites.net"
 
     init() {
-        // One-time migration off the retired Azure backend.
-        if backendURL == Self.legacyBackendURL || backendURL == "https://lnreader-sync.onrender.com" {
-            backendURL = Self.defaultBackendURL
-            UserDefaults.standard.set(backendURL, forKey: "sync.backendURL")
+        if backendURL == "https://lnreader-sync-sky788.azurewebsites.net" || backendURL == "https://lnreader-sync.onrender.com" {
+            updateBackendURL(Self.defaultBackendURL)
         }
     }
 
     private var baseURL: URL {
-        URL(string: backendURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? URL(string: SyncManager.defaultBackendURL)!
+        URL(string: backendURL.trimmingCharacters(in: .whitespacesAndNewlines)) ?? URL(string: Self.defaultBackendURL)!
     }
 
     func updateBackendURL(_ value: String) {
         backendURL = value
         UserDefaults.standard.set(value, forKey: "sync.backendURL")
+        currentUser = nil
+        hasSynced = false
     }
 
-    // MARK: - Sync position
+    private var lastSyncedKey: String? {
+        currentUser.map { "sync.lastSyncedAt.\(baseURL.absoluteString).\($0.id)" }
+    }
 
-    /// Whether this account has a sync position on this device.
-    ///
-    /// Stored rather than derived from `lastSyncedAt`, because `@Observable`
-    /// only tracks stored properties and the position lives in `UserDefaults`.
-    private(set) var hasSynced = false
-
-    /// The server's `updatedAt` from the last write or pull this device accepted.
-    ///
-    /// Sent back as `clientUpdatedAt` so the backend can tell whether this device
-    /// is working from the current copy or from a stale one. Kept per account so
-    /// signing into a different account cannot inherit another user's position.
     private var lastSyncedAt: Date? {
         get {
             guard let key = lastSyncedKey else { return nil }
@@ -80,44 +72,24 @@ final class SyncManager {
         }
         set {
             guard let key = lastSyncedKey else { return }
-            if let newValue {
-                UserDefaults.standard.set(newValue, forKey: key)
-            } else {
-                UserDefaults.standard.removeObject(forKey: key)
-            }
+            UserDefaults.standard.set(newValue, forKey: key)
             hasSynced = newValue != nil
         }
     }
 
-    /// Re-read the position after `currentUser` changes, since the key is per account.
-    private func refreshSyncPosition() {
+    private func refreshSession() async throws {
+        let envelope: SyncEnvelope = try await request(path: "/api/auth/get-session", method: "GET")
+        currentUser = envelope.user
         hasSynced = lastSyncedAt != nil
     }
 
-    private var lastSyncedKey: String? {
-        currentUser.map { "sync.lastSyncedAt.\($0.id)" }
-    }
-
-    /// The backend writes `Date.toISOString()`, which always carries milliseconds.
-    /// Shared with the payload mapping, which stamps chapter release dates the
-    /// same way — see `SyncWire`.
-    private static func wireTimestamp(_ date: Date) -> String {
-        SyncWire.string(from: date)
-    }
-
-    private static func date(fromWire value: String?) -> Date? {
-        SyncWire.date(from: value)
-    }
-
     func loadSession() async {
+        guard !isWorking else { return }
         do {
-            let envelope: SyncEnvelope = try await request(path: "/api/sync", method: "GET")
-            currentUser = envelope.user
-            refreshSyncPosition()
-            lastError = nil
+            try await refreshSession()
         } catch {
             currentUser = nil
-            refreshSyncPosition()
+            hasSynced = false
         }
     }
 
@@ -127,10 +99,9 @@ final class SyncManager {
         let body: [String: Any] = trimmed.contains("@")
             ? ["email": trimmed, "password": password, "rememberMe": true]
             : ["username": trimmed, "password": password]
-
         await run("Signed in") {
             try await requestRaw(path: path, method: "POST", bodyData: try jsonData(body))
-            await loadSession()
+            try await refreshSession()
         }
     }
 
@@ -143,10 +114,9 @@ final class SyncManager {
             "username": cleanUsername,
             "displayUsername": cleanUsername,
         ]
-
         await run("Account created") {
             try await requestRaw(path: "/api/auth/sign-up/email", method: "POST", bodyData: try jsonData(body))
-            await loadSession()
+            try await refreshSession()
         }
     }
 
@@ -154,319 +124,253 @@ final class SyncManager {
         await run("Signed out") {
             try await requestRaw(path: "/api/auth/sign-out", method: "POST", bodyData: try jsonData([String: String]()))
             currentUser = nil
-            refreshSyncPosition()
+            hasSynced = false
         }
     }
 
     func requestPasswordReset(email: String) async {
         await run("Password reset email requested") {
-            try await requestRaw(
-                path: "/api/auth/request-password-reset",
-                method: "POST",
-                bodyData: try jsonData([
-                    "email": email.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "redirectTo": "lnreader://reset-password",
-                ])
-            )
+            try await requestRaw(path: "/api/auth/request-password-reset", method: "POST", bodyData: try jsonData([
+                "email": email.trimmingCharacters(in: .whitespacesAndNewlines), "redirectTo": "lnreader://reset-password",
+            ]))
         }
     }
 
     func resetPassword(token: String, newPassword: String) async {
         await run("Password reset") {
-            try await requestRaw(
-                path: "/api/auth/reset-password",
-                method: "POST",
-                bodyData: try jsonData([
-                    "token": token.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "newPassword": newPassword,
-                ])
-            )
+            try await requestRaw(path: "/api/auth/reset-password", method: "POST", bodyData: try jsonData([
+                "token": token.trimmingCharacters(in: .whitespacesAndNewlines), "newPassword": newPassword,
+            ]))
         }
     }
 
-    /// Upload the library, deferring to the server when it holds newer data.
-    ///
-    /// The server is the source of truth: a write based on a copy the server has
-    /// since replaced is rejected, and the server's version is applied here
-    /// instead of being overwritten. A device that has never synced also refuses
-    /// to replace a populated server document with an empty one.
-    func push(profile: UserProfile, entries: [Entry], sources: [any CatalogSource], context: ModelContext) async {
-        let library = entries.filter { $0.inLibrary && !$0.isLocal }
-
-        if library.isEmpty, lastSyncedAt == nil, await serverHasData() {
-            await pull(into: context, force: false)
-            return
-        }
-
-        // Building the payload walks every chapter of every title and base64s the
-        // avatar, so it runs on a background context, never the main thread.
-        let container = context.container
-        let ids = library.map(\.persistentModelID)
-        let profileInfo = SyncProfilePayload(
-            username: currentUser?.username,
-            email: currentUser?.email,
-            name: profile.name,
-            image: nil
-        )
-        let avatar = profile.avatarData
-        let sourcePayloads = sources.map { SyncSourcePayload(source: $0) }
-        let clientUpdatedAt = lastSyncedAt.map(Self.wireTimestamp)
-
-        let body: Data
-        do {
-            body = try await Task.detached(priority: .userInitiated) {
-                try Self.encodePayload(
-                    container: container,
-                    ids: ids,
-                    profile: profileInfo,
-                    avatar: avatar,
-                    sources: sourcePayloads,
-                    clientUpdatedAt: clientUpdatedAt
-                )
+    func push(profile: UserProfile, sources: [any CatalogSource], context: ModelContext) async {
+        await run("Uploaded library, books and bookmarks", title: "Syncing up") {
+            try context.save()
+            struct Meta: Decodable { let syncVersion: Int? }
+            let meta: Meta = try await request(path: "/api/sync/meta", method: "GET")
+            guard meta.syncVersion == 2 else { throw SyncError.requestFailed("Update the backend before syncing books and bookmarks.") }
+            let container = context.container
+            let profileInfo = SyncProfilePayload(username: currentUser?.username, email: currentUser?.email, name: profile.name, image: nil)
+            let avatar = profile.avatarData
+            let sourcePayloads = sources.map { SyncSourcePayload(source: $0) }
+            setProgress("Preparing books and reading state", fraction: 0.02)
+            let payload = try await Task.detached(priority: .userInitiated) {
+                let background = ModelContext(container)
+                var info = profileInfo
+                info.image = avatar?.base64EncodedString()
+                let entries = try background.fetch(FetchDescriptor<Entry>(predicate: #Predicate { $0.inLibrary }))
+                let library = entries.map { SyncNovelPayload(entry: $0) }
+                var payload = SyncPayload(profile: info, library: library, sources: sourcePayloads, clientUpdatedAt: nil)
+                payload.highlights = try background.fetch(FetchDescriptor<Highlight>()).map(SyncHighlightPayload.init)
+                payload.localFiles = try SyncFiles.snapshot(library)
+                return payload
             }.value
-        } catch {
-            lastError = error.localizedDescription
-            return
+
+            let total = max(1, payload.localFiles.reduce(0) { $0 + $1.size })
+            var completed = 0
+            for file in payload.localFiles {
+                for index in file.chunks.indices {
+                    let bytes = try await Task.detached { try SyncFiles.chunk(file, index: index) }.value
+                    let start = Double(completed) / Double(total)
+                    let share = Double(bytes.count) / Double(total)
+                    let detail = "Uploading books · \(ByteCountFormatter.string(fromByteCount: Int64(completed), countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file))"
+                    setProgress(detail, fraction: 0.1 + 0.75 * start)
+                    try await requestRaw(path: "/api/sync/blobs/\(file.chunks[index])", method: "PUT", bodyData: bytes,
+                        contentType: "application/octet-stream", transfer: transferProgress(detail, start: 0.1 + 0.75 * start, span: 0.75 * share))
+                    completed += bytes.count
+                }
+            }
+            setProgress("Uploading reading state and bookmarks", fraction: 0.85)
+            let body = try await Task.detached { try JSONEncoder().encode(payload) }.value
+            let response = try await requestRaw(path: "/api/sync", method: "PUT", bodyData: body,
+                transfer: transferProgress("Saving library to backend", start: 0.85, span: 0.13))
+            let result = try JSONDecoder().decode(PushResult.self, from: response)
+            guard result.ok, let date = SyncWire.date(from: result.updatedAt) else { throw SyncError.requestFailed("The backend did not confirm the upload.") }
+            lastSyncedAt = date
         }
+    }
 
-        var tookServerCopy = false
+    func restore(into context: ModelContext) async {
+        await run("Downloaded library, books and bookmarks", title: "Syncing download") {
+            try context.save()
+            let response = try await requestRaw(path: "/api/sync", method: "GET", bodyData: nil,
+                transfer: transferProgress("Downloading library", start: 0, span: 0.1))
+            let envelope = try await Task.detached { try JSONDecoder().decode(SyncEnvelope.self, from: response) }.value
+            guard let data = envelope.data else { throw SyncError.requestFailed("There is no cloud copy yet. Use Sync up on the device with your books first.") }
+            let files = data.localFiles ?? []
+            try await Task.detached {
+                try SyncApplier.validate(data)
+                try SyncFiles.validate(files, books: data.library)
+            }.value
+            currentUser = envelope.user
+            let staging = FileManager.default.temporaryDirectory.appendingPathComponent("lnreader-sync-\(UUID().uuidString)")
+            defer { Task.detached { try? FileManager.default.removeItem(at: staging) } }
+            let total = max(1, files.reduce(0) { $0 + $1.size })
+            var completed = 0
+            for file in files {
+                for index in file.chunks.indices {
+                    let start = Double(completed) / Double(total)
+                    let count = min(SyncFiles.chunkSize, file.size - index * SyncFiles.chunkSize)
+                    let share = Double(count) / Double(total)
+                    let detail = "Downloading books · \(ByteCountFormatter.string(fromByteCount: Int64(completed), countStyle: .file)) of \(ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file))"
+                    setProgress(detail, fraction: 0.1 + 0.75 * start)
+                    let bytes = try await requestRaw(path: "/api/sync/blobs/\(file.chunks[index])", method: "GET", bodyData: nil,
+                        transfer: transferProgress(detail, start: 0.1 + 0.75 * start, span: 0.75 * share))
+                    try await Task.detached { try SyncFiles.stage(bytes, file: file, index: index, root: staging) }.value
+                    completed += count
+                }
+            }
+            setProgress("Restoring books and reading state", fraction: 0.85)
+            let container = context.container
+            let report = transferProgress("Restoring reading state and bookmarks", start: 0.9, span: 0.09)
+            try await Task.detached(priority: .userInitiated) {
+                try SyncFiles.install(files, staging: staging)
+                try SyncApplier.apply(data, context: ModelContext(container)) { done, total, _ in
+                    report(Double(done) / Double(max(1, total)))
+                }
+            }.value
+            await ChapterVisibility.reconcileAll(container: container)
+            // SwiftData keeps registered models stale after another context saves.
+            let refreshed = ModelContext(container)
+            refreshed.autosaveEnabled = true
+            restoredContext = refreshed
+            NotificationCenter.default.post(name: ChapterVisibility.didChange, object: nil)
+            lastSyncedAt = SyncWire.date(from: data.updatedAt)
+        }
+    }
 
-        await run("Synced to backend") {
-            do {
-                let data = try await requestRaw(
-                    path: "/api/sync",
-                    method: "PUT",
-                    bodyData: body
-                )
-                if let result = try? JSONDecoder().decode(PushResult.self, from: data),
-                   let syncedAt = Self.date(fromWire: result.updatedAt) {
-                    lastSyncedAt = syncedAt
-                }
-            } catch SyncError.conflict(let body) {
-                // Someone wrote after this device last read. Applying the winning
-                // copy loses nothing that the server does not already hold.
-                try apply(data: body.data, context: context)
-                if let syncedAt = Self.date(fromWire: body.serverUpdatedAt) {
-                    lastSyncedAt = syncedAt
-                }
-                tookServerCopy = true
+    func dismissProgress() {
+        guard progress?.isFinished == true else { return }
+        progress = nil
+    }
+
+    private func setProgress(_ detail: String, fraction: Double) {
+        guard var current = progress, !current.isFinished else { return }
+        current.detail = detail
+        current.fraction = max(current.fraction, min(0.99, fraction))
+        progress = current
+    }
+
+    private func transferProgress(_ detail: String, start: Double, span: Double) -> @Sendable (Double) -> Void {
+        let id = progress?.id
+        return { [weak self] fraction in
+            Task { @MainActor in
+                guard let self, self.isWorking, self.progress?.id == id else { return }
+                self.setProgress(detail, fraction: start + span * fraction)
             }
         }
-
-        if tookServerCopy {
-            lastMessage = "Backend had newer data, so its copy was applied here"
-        }
-    }
-
-    /// Off-main: reads the library through its own context and encodes the upload.
-    nonisolated private static func encodePayload(
-        container: ModelContainer,
-        ids: [PersistentIdentifier],
-        profile: SyncProfilePayload,
-        avatar: Data?,
-        sources: [SyncSourcePayload],
-        clientUpdatedAt: String?
-    ) throws -> Data {
-        let context = ModelContext(container)
-        var profile = profile
-        profile.image = avatar?.base64EncodedString()
-        let library = ids.compactMap { context.model(for: $0) as? Entry }
-            .map { SyncNovelPayload(entry: $0) }
-        return try JSONEncoder().encode(
-            SyncPayload(profile: profile, library: library, sources: sources, clientUpdatedAt: clientUpdatedAt)
-        )
-    }
-
-    /// True when the account already has a document on the server.
-    private func serverHasData() async -> Bool {
-        struct Meta: Decodable { let updatedAt: String? }
-        guard let meta: Meta = try? await request(path: "/api/sync/meta", method: "GET") else { return false }
-        return meta.updatedAt != nil
-    }
-
-    /// Apply the server's copy when it is newer than the one this device has.
-    ///
-    /// `force` ignores that comparison, for an explicit "Restore" tap. `quiet`
-    /// swallows failures, for the launch path where a network error must not
-    /// surface as an error banner or block the app.
-    @discardableResult
-    func pull(into context: ModelContext, force: Bool = false, quiet: Bool = false) async -> Bool {
-        if quiet {
-            return (try? await performPull(into: context, force: force)) ?? false
-        }
-
-        var applied = false
-        await run("Restored backend data") {
-            applied = try await performPull(into: context, force: force)
-        }
-        return applied
-    }
-
-    private func performPull(into context: ModelContext, force: Bool) async throws -> Bool {
-        let envelope: SyncEnvelope = try await request(path: "/api/sync", method: "GET")
-        currentUser = envelope.user
-        refreshSyncPosition()
-
-        guard let data = envelope.data else { return false }
-
-        let serverAt = Self.date(fromWire: data.updatedAt)
-        if !force, let serverAt, let lastSyncedAt, serverAt <= lastSyncedAt {
-            return false
-        }
-
-        try apply(data: data, context: context)
-        lastSyncedAt = serverAt
-        return true
-    }
-
-    /// Pull regardless of position. The explicit "Restore" action.
-    func restore(into context: ModelContext) async {
-        await pull(into: context, force: true)
-    }
-
-    /// The server copy wins, so this is the one place a restore touches the
-    /// store. The mapping itself lives in `SyncApplier` so a check can drive it.
-    private func apply(data: RemoteSyncData, context: ModelContext) throws {
-        try SyncApplier.apply(data, context: context)
     }
 
     @discardableResult
-    private func run(_ successMessage: String, operation: () async throws -> Void) async -> Bool {
+    private func run(_ successMessage: String, title: String? = nil, operation: () async throws -> Void) async -> Bool {
+        guard !isWorking else { return false }
         isWorking = true
         lastError = nil
+        lastMessage = nil
+        progress = title.map { SyncProgress(title: $0, detail: "Connecting to backend") }
         defer { isWorking = false }
-
         do {
             try await operation()
             lastMessage = successMessage
+            progress?.detail = successMessage
+            progress?.fraction = 1
+            progress?.isFinished = true
+            if let id = progress?.id {
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .seconds(5))
+                    if self?.progress?.id == id { self?.dismissProgress() }
+                }
+            }
             return true
         } catch {
             lastError = error.localizedDescription
+            progress?.detail = error.localizedDescription
+            progress?.failed = true
+            progress?.isFinished = true
             return false
         }
     }
 
-    @discardableResult
     private func request<T: Decodable>(path: String, method: String) async throws -> T {
         let data = try await requestRaw(path: path, method: method, bodyData: nil)
         return try JSONDecoder().decode(T.self, from: data)
     }
 
     @discardableResult
-    private func requestRaw(path: String, method: String, bodyData: Data?) async throws -> Data {
+    private func requestRaw(path: String, method: String, bodyData: Data?, contentType: String = "application/json",
+                            transfer: (@Sendable (Double) -> Void)? = nil) async throws -> Data {
         var request = URLRequest(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))))
         request.httpMethod = method
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 300
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        
         if let scheme = baseURL.scheme, let host = baseURL.host {
             var origin = "\(scheme)://\(host)"
-            if let port = baseURL.port {
-                origin += ":\(port)"
-            }
+            if let port = baseURL.port { origin += ":\(port)" }
             request.setValue(origin, forHTTPHeaderField: "Origin")
         }
-        
+        let data: Data
+        let response: URLResponse
+        let delegate = transfer.map { SyncTransferDelegate(report: $0) }
         if let bodyData {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = bodyData
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+            (data, response) = try await URLSession.shared.upload(for: request, from: bodyData, delegate: delegate)
+        } else if let delegate {
+            let result = try await URLSession.shared.download(for: request, delegate: delegate)
+            response = result.1
+            data = try await Task.detached {
+                defer { try? FileManager.default.removeItem(at: result.0) }
+                return try Data(contentsOf: result.0)
+            }.value
+        } else {
+            (data, response) = try await URLSession.shared.data(for: request)
         }
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw SyncError.requestFailed("No response from the backend")
-        }
+        guard let http = response as? HTTPURLResponse else { throw SyncError.requestFailed("No response from the backend") }
         guard 200..<300 ~= http.statusCode else {
-            // 409 carries the copy that won, so the caller can adopt it instead
-            // of retrying the write.
-            if http.statusCode == 409, let conflict = try? JSONDecoder().decode(ConflictBody.self, from: data) {
-                throw SyncError.conflict(conflict)
-            }
-            let message = String(data: data, encoding: .utf8) ?? "Request failed"
-            throw SyncError.requestFailed(message)
+            if http.statusCode == 401 { throw SyncError.requestFailed("Your session expired. Sign in again, then retry sync.") }
+            struct Failure: Decodable { let error: String?; let message: String? }
+            let failure = try? JSONDecoder().decode(Failure.self, from: data)
+            throw SyncError.requestFailed(failure?.error ?? failure?.message ?? "Backend request failed (HTTP \(http.statusCode)).")
         }
         return data
     }
 
-    private func jsonData(_ object: Any) throws -> Data {
-        try JSONSerialization.data(withJSONObject: object)
-    }
+    private func jsonData(_ object: Any) throws -> Data { try JSONSerialization.data(withJSONObject: object) }
 }
 
 private enum SyncError: LocalizedError {
     case requestFailed(String)
-    /// The server rejected a stale write and returned the copy that won.
-    case conflict(ConflictBody)
-
     var errorDescription: String? {
-        switch self {
-        case .requestFailed(let message): message
-        case .conflict(let body): body.error
-        }
+        switch self { case .requestFailed(let message): message }
     }
 }
 
-extension SyncNovelPayload {
-    /// Maps a v2 entry onto the v1 wire format the backend still stores.
-    init(entry: Entry) {
-        self.path = entry.url
-        self.pluginId = SourceKey.identifier(from: entry.sourceKey)
-        self.name = entry.title
-        self.cover = entry.thumbnailURL
-        self.summary = entry.summary
-        self.author = entry.author
-        self.artist = entry.artist
-        self.status = entry.status.legacyRawValue
-        self.genres = entry.genres.isEmpty ? nil : entry.genres.joined(separator: ", ")
-        self.inLibrary = entry.inLibrary
-        // v1 field: only LN plugins paginate their chapter lists.
-        self.totalPages = 0
-        self.libraryPosition = entry.libraryOrder
-        self.chapters = ChapterOrder.oldestFirst(entry.chapters)
-            .map { SyncChapterPayload(chapter: $0) }
-    }
-}
+private final class SyncTransferDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    let report: @Sendable (Double) -> Void
+    init(report: @escaping @Sendable (Double) -> Void) { self.report = report }
 
-extension SyncChapterPayload {
-    init(chapter: Chapter) {
-        self.path = chapter.url
-        self.name = chapter.name
-        // ISO-8601, not `Date.formatted`: the restore path parses this back with
-        // `DateParsing`, which cannot read a localized date string.
-        self.releaseTime = chapter.dateUpload.map(SyncWire.string(from:))
-        self.bookmark = chapter.bookmark
-        self.unread = !chapter.read
-        self.isDownloaded = chapter.isDownloaded
-        self.chapterNumber = chapter.chapterNumber >= 0 ? chapter.chapterNumber : nil
-        self.page = "1"
-        self.position = chapter.sourceOrder
-        self.progress = chapter.progress > 0 ? Int(chapter.progress) : nil
-        self.lastReadParagraphIndex = chapter.paragraphIndex
+    func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64,
+                    totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
+        if totalBytesExpectedToSend > 0 { report(Double(totalBytesSent) / Double(totalBytesExpectedToSend)) }
     }
-}
 
-private extension EntryStatus {
-    /// The v1 status names, which is what other clients still parse.
-    var legacyRawValue: String {
-        switch self {
-        case .unknown: "Unknown"
-        case .ongoing: "Ongoing"
-        case .completed: "Completed"
-        case .licensed: "Licensed"
-        case .publishingFinished: "Publishing Finished"
-        case .cancelled: "Cancelled"
-        case .onHiatus: "On Hiatus"
-        }
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
+                    totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        if totalBytesExpectedToWrite > 0 { report(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)) }
     }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {}
 }
 
 extension SyncSourcePayload {
     init(source: any CatalogSource) {
-        self.id = SourceKey.identifier(from: source.key)
-        self.name = source.name
-        self.site = ""
-        self.lang = source.lang
-        self.version = "native"
-        self.url = ""
-        self.iconUrl = source.iconURL ?? ""
+        id = SourceKey.identifier(from: source.key)
+        name = source.name
+        site = ""
+        lang = source.lang
+        version = "native"
+        url = ""
+        iconUrl = source.iconURL ?? ""
     }
 }

@@ -263,17 +263,18 @@ final class LibraryManager {
         // sort cannot reveal that this was opened.
         guard !IncognitoMode.shared.isOn else { return }
 
-        let chapterURL = chapter.url
+        let chapterURL = "\(entry.sourceKey)\u{1F}\(entry.url)\u{1F}\(chapter.url)"
         let predicate = #Predicate<History> { $0.chapterURL == chapterURL }
         var descriptor = FetchDescriptor(predicate: predicate)
         descriptor.fetchLimit = 1
 
-        if let existing = try? context.fetch(descriptor).first {
+        if let existing = chapter.history ?? (try? context.fetch(descriptor).first) {
             existing.lastRead = .now
         } else {
-            let history = History(chapterURL: chapter.url)
+            let history = History(chapterURL: chapterURL)
             history.chapter = chapter
             context.insert(history)
+            chapter.history = history
         }
 
         entry.lastReadAt = .now

@@ -55,6 +55,7 @@ Checks: foundation links schema chapter-sync chapter-order page-pipeline scanlat
         tts-contracts sync migration native-comments player
 
 Checks needing setup, not part of `all`:
+  sync-network      needs LNREADER_SYNC_TEST_URL pointing at a disposable backend on 127.0.0.1
   native-comments   needs the SwiftSoup checkout or network access, and a normal
                     terminal: `swift run` compiles its manifest through
                     sandbox-exec, which fails inside an agent sandbox
@@ -259,8 +260,16 @@ run() {
         Services/TTSChapterSource.swift \
         tests/TTSContractChecks.swift
       ;;
-    sync)
-      compile_and_run sync \
+    sync|sync-network)
+      sync_check=SyncApplyChecks
+      if [ "$1" = sync-network ]; then sync_check=SyncNetworkChecks; fi
+      compile_and_run "$1" \
+        Models/Schema/SchemaV3.swift \
+        Services/SyncFiles.swift \
+        Services/SyncManager.swift \
+        Services/Sources/CatalogSource.swift \
+        Services/Sources/SourceFilters.swift \
+        Services/Network/HTTPTypes.swift \
         Models/Schema/ContentKind.swift \
         Models/Schema/EntryStatus.swift \
         Models/Schema/UpdateStrategy.swift \
@@ -276,7 +285,7 @@ run() {
         Services/ChapterOrder.swift \
         Services/ChapterVisibility.swift \
         Features/Entry/ScanlatorRules.swift \
-        tests/SyncApplyChecks.swift
+        "tests/$sync_check.swift"
       ;;
     player)
       shift

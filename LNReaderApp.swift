@@ -43,6 +43,7 @@ struct LNReaderApp: App {
             OnboardingHost {
                 ContentView()
             }
+                .environment(\.modelContext, syncManager.restoredContext ?? Self.modelContainer.mainContext)
                 .toggleStyle(AppToggleStyle())
                 .environment(libraryManager)
                 .environment(syncManager)

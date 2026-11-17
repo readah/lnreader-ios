@@ -1,14 +1,5 @@
-// SyncApply.swift - the wire format and the "server copy wins" mapping.
-//
-// Split out of `SyncManager` so the mapping can be exercised headlessly
-// (`./scripts/check.sh sync`). Everything here is pure: types plus one function
-// that takes a decoded payload and a `ModelContext`. No networking, no
-// `@Observable`, so a check can compile it against the schema alone.
-
 import Foundation
 import SwiftData
-
-// MARK: - Wire format
 
 struct SyncProfilePayload: Codable {
     var username: String?
@@ -27,8 +18,13 @@ struct SyncChapterPayload: Codable {
     var chapterNumber: Double?
     var page: String
     var position: Int
-    var progress: Int?
+    var progress: Double?
     var lastReadParagraphIndex: Int?
+    var lastPageRead: Int?
+    var pagesLeft: Int?
+    var lastRead: String?
+    var timeRead: Double?
+    var scanlator: String?
 }
 
 struct SyncNovelPayload: Codable {
@@ -45,6 +41,10 @@ struct SyncNovelPayload: Codable {
     var totalPages: Int
     var libraryPosition: Int
     var chapters: [SyncChapterPayload]
+    var sourceKey: String?
+    var kind: ContentKind?
+    var lastReadAt: String?
+    var lastUpdate: String?
 }
 
 struct SyncSourcePayload: Codable {
@@ -57,103 +57,138 @@ struct SyncSourcePayload: Codable {
     var iconUrl: String
 }
 
+struct SyncFilePayload: Codable, Sendable {
+    var path: String
+    var size: Int
+    var chunks: [String]
+}
+
+struct SyncHighlightPayload: Codable {
+    var id: UUID
+    var text: String
+    var color: String
+    var createdAt: Date
+    var sourceKey: String
+    var entryURL: String?
+    var chapterURL: String
+    var chapterName: String
+    var chapterNumber: Double
+    var sourceOrder: Int
+    var paragraphIndex: Int
+    var startOffset: Int
+    var endOffset: Int
+    var bookTitle: String
+    var bookCoverURL: String?
+
+    init(_ highlight: Highlight) {
+        id = highlight.id
+        text = highlight.text
+        color = highlight.color
+        createdAt = highlight.createdAt
+        sourceKey = highlight.sourceKey
+        entryURL = highlight.entryURL
+        chapterURL = highlight.chapterURL
+        chapterName = highlight.chapterName
+        chapterNumber = highlight.chapterNumber
+        sourceOrder = highlight.sourceOrder
+        paragraphIndex = highlight.paragraphIndex
+        startOffset = highlight.startOffset
+        endOffset = highlight.endOffset
+        bookTitle = highlight.bookTitle
+        bookCoverURL = highlight.bookCoverURL
+    }
+
+    func makeModel() -> Highlight {
+        let highlight = Highlight(text: text, color: color, sourceKey: sourceKey, entryURL: entryURL,
+            chapterURL: chapterURL, chapterName: chapterName, chapterNumber: chapterNumber,
+            sourceOrder: sourceOrder, paragraphIndex: paragraphIndex, startOffset: startOffset,
+            endOffset: endOffset, bookTitle: bookTitle, bookCoverURL: bookCoverURL)
+        highlight.id = id
+        highlight.createdAt = createdAt
+        return highlight
+    }
+}
+
 struct SyncPayload: Codable {
     var profile: SyncProfilePayload
     var library: [SyncNovelPayload]
     var sources: [SyncSourcePayload]
-    /// The server timestamp this upload is based on.
-    ///
-    /// The backend compares it with its own `updatedAt` and answers 409 when its
-    /// copy is newer, which is what makes the server authoritative instead of
-    /// whichever device happened to push last. Omitted on a device that has
-    /// never synced, which the backend treats as a legacy write.
     var clientUpdatedAt: String?
+    var overwrite = true
+    var localFiles: [SyncFilePayload] = []
+    var highlights: [SyncHighlightPayload] = []
 }
 
 struct RemoteSyncData: Decodable {
     let profile: SyncProfilePayload
     let library: [SyncNovelPayload]
     let sources: [SyncSourcePayload]
-    /// When the server last accepted a write. Absent on older backends.
     let updatedAt: String?
+    var syncVersion: Int?
+    var localFiles: [SyncFilePayload]?
+    var highlights: [SyncHighlightPayload]?
 }
 
-// MARK: - Timestamps
-
-/// Every timestamp on the wire is ISO-8601 with milliseconds.
-///
-/// The chapter `releaseTime` used to be `Date.formatted`, which is a localized
-/// human string ("10/29/2026, 8:45 PM"). `DateParsing` cannot read that back, so
-/// every restore silently dropped the release date of every chapter. One format
-/// for the whole payload keeps the round trip lossless.
 enum SyncWire {
-    private static let formatter: ISO8601DateFormatter = {
+    static func string(from date: Date) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    static func string(from date: Date) -> String {
-        formatter.string(from: date)
+        return formatter.string(from: date)
     }
 
-    /// Accepts the fractional form we write and the plain form other clients
-    /// wrote, so a payload from an older build still restores.
     static func date(from value: String?) -> Date? {
         guard let value else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
     }
 }
 
-// MARK: - Applying the server's copy
-
-/// Writes a decoded `/api/sync` payload into the store.
-///
-/// The server wins wherever the two disagree: titles, metadata and reading
-/// state are copied over, chapters are matched by `url` and created when they
-/// are new. Two things are deliberately *not* copied:
-///
-/// - `isDownloaded` — whether a chapter can be read offline depends on files on
-///   this device, not on another device's claim.
-/// - `dateFetch` — it drives the Updates feed, which is about what *this* device
-///   has seen since it last checked.
 enum SyncApplier {
-
-    /// The wire format carries genres as one comma-separated string.
     static func splitGenres(_ raw: String?) -> [String] {
         guard let raw else { return [] }
-        return raw
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        return raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
     }
 
-    static func apply(_ data: RemoteSyncData, context: ModelContext) throws {
+    static func validate(_ data: RemoteSyncData) throws {
+        var identities = Set<String>()
+        for book in data.library {
+            let source = book.sourceKey ?? SourceKey.makeBuiltin(id: book.pluginId)
+            guard identities.insert("\(source)\u{1F}\(book.path)").inserted,
+                  Set(book.chapters.map(\.path)).count == book.chapters.count else { throw CocoaError(.fileReadCorruptFile) }
+            for chapter in book.chapters {
+                guard (chapter.progress ?? 0).isFinite, (0...100).contains(chapter.progress ?? 0),
+                      (chapter.lastReadParagraphIndex ?? 0) >= 0, (chapter.lastPageRead ?? 0) >= 0,
+                      (chapter.pagesLeft ?? 0) >= 0, (chapter.timeRead ?? 0) >= 0 else { throw CocoaError(.fileReadCorruptFile) }
+            }
+        }
+        if let highlights = data.highlights {
+            guard Set(highlights.map(\.id)).count == highlights.count,
+                  highlights.allSatisfy({ $0.startOffset >= 0 && $0.endOffset >= $0.startOffset }) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+        }
+    }
+
+    static func apply(_ data: RemoteSyncData, context: ModelContext,
+                      onProgress: ((Int, Int, String) -> Void)? = nil) throws {
+        try validate(data)
+        context.autosaveEnabled = false
         let profiles = try context.fetch(FetchDescriptor<UserProfile>())
         let profile = profiles.first ?? UserProfile()
-        if profiles.isEmpty {
-            context.insert(profile)
-        }
-        if let name = data.profile.name, !name.isEmpty {
-            profile.name = name
-        }
-        if let image = data.profile.image {
-            profile.avatarData = Data(base64Encoded: image)
-        }
+        if profiles.isEmpty { context.insert(profile) }
+        if let name = data.profile.name, !name.isEmpty { profile.name = name }
+        profile.avatarData = data.profile.image.flatMap { Data(base64Encoded: $0) }
 
-        for remoteNovel in data.library {
-            // The wire format still calls the source id `pluginId`; v2 stores the
-            // prefixed source key.
-            let sourceKey = SourceKey.makeBuiltin(id: remoteNovel.pluginId)
+        for (index, remoteNovel) in data.library.enumerated() {
+            let sourceKey = remoteNovel.sourceKey ?? (remoteNovel.pluginId == SourceKey.local
+                ? SourceKey.local : SourceKey.makeBuiltin(id: remoteNovel.pluginId))
             let path = remoteNovel.path
             let predicate = #Predicate<Entry> { $0.url == path && $0.sourceKey == sourceKey }
             let existing = try context.fetch(FetchDescriptor(predicate: predicate)).first
-            let novel = existing
-                ?? Entry(kind: .novel, sourceKey: sourceKey, url: remoteNovel.path, title: remoteNovel.name)
-            if existing == nil {
-                context.insert(novel)
-            }
-
+            let novel = existing ?? Entry(kind: remoteNovel.kind ?? .novel, sourceKey: sourceKey, url: path, title: remoteNovel.name)
+            if existing == nil { context.insert(novel) }
+            novel.kind = remoteNovel.kind ?? novel.kind
             novel.title = remoteNovel.name
             novel.thumbnailURL = remoteNovel.cover
             novel.summary = remoteNovel.summary
@@ -163,17 +198,16 @@ enum SyncApplier {
             novel.genres = splitGenres(remoteNovel.genres)
             novel.inLibrary = remoteNovel.inLibrary
             novel.libraryOrder = remoteNovel.libraryPosition
+            novel.lastReadAt = SyncWire.date(from: remoteNovel.lastReadAt)
+            novel.lastUpdate = SyncWire.date(from: remoteNovel.lastUpdate)
 
             var existingChapters: [String: Chapter] = [:]
-            for chapter in novel.chapters {
-                existingChapters[chapter.url] = chapter
-            }
+            for chapter in novel.chapters { existingChapters[chapter.url] = chapter }
             for remoteChapter in remoteNovel.chapters {
-                let chapter = existingChapters[remoteChapter.path]
-                    ?? Chapter(url: remoteChapter.path, name: remoteChapter.name)
+                let chapter = existingChapters[remoteChapter.path] ?? Chapter(url: remoteChapter.path, name: remoteChapter.name)
                 if chapter.entry == nil {
-                    chapter.entry = novel
                     context.insert(chapter)
+                    chapter.entry = novel
                 }
                 chapter.name = remoteChapter.name
                 chapter.dateUpload = DateParsing.parse(remoteChapter.releaseTime)
@@ -181,18 +215,75 @@ enum SyncApplier {
                 chapter.read = !remoteChapter.unread
                 chapter.chapterNumber = remoteChapter.chapterNumber ?? -1
                 chapter.sourceOrder = remoteChapter.position
-                chapter.progress = Double(remoteChapter.progress ?? 0)
+                chapter.progress = remoteChapter.progress ?? 0
                 chapter.paragraphIndex = remoteChapter.lastReadParagraphIndex
+                chapter.lastPageRead = remoteChapter.lastPageRead ?? 0
+                chapter.pagesLeft = remoteChapter.pagesLeft ?? 0
+                chapter.scanlator = remoteChapter.scanlator
+                if let date = SyncWire.date(from: remoteChapter.lastRead) {
+                    let history = chapter.history ?? History(chapterURL: "\(sourceKey)\u{1F}\(path)\u{1F}\(chapter.url)", lastRead: date)
+                    if chapter.history == nil {
+                        context.insert(history)
+                        history.chapter = chapter
+                        chapter.history = history
+                    }
+                    history.lastRead = date
+                    history.timeRead = remoteChapter.timeRead ?? 0
+                } else if data.syncVersion == 2, let history = chapter.history {
+                    chapter.history = nil
+                    context.delete(history)
+                }
             }
+            onProgress?(index + 1, data.library.count, novel.title)
         }
 
+        if let highlights = data.highlights {
+            for highlight in try context.fetch(FetchDescriptor<Highlight>()) { context.delete(highlight) }
+            for highlight in highlights { context.insert(highlight.makeModel()) }
+        }
         try context.save()
-        // A sync rewrites read state, so every badge it touched is now wrong and
-        // an open chapter list has to redraw. Announced through the one event
-        // that already means "stored chapters changed": this file compiles
-        // without `LibraryManager`, so it cannot name the count cache directly.
-        NotificationCenter.default.post(name: ChapterVisibility.didChange, object: nil)
-        // Synced chapters and rules decide what exists.
-        Task { await ChapterVisibility.reconcileAll(container: context.container) }
+    }
+}
+
+extension SyncNovelPayload {
+    init(entry: Entry) {
+        path = entry.url
+        pluginId = SourceKey.identifier(from: entry.sourceKey)
+        name = entry.title
+        cover = entry.thumbnailURL
+        summary = entry.summary
+        author = entry.author
+        artist = entry.artist
+        status = entry.status.displayName
+        genres = entry.genres.isEmpty ? nil : entry.genres.joined(separator: ", ")
+        inLibrary = entry.inLibrary
+        totalPages = 0
+        libraryPosition = entry.libraryOrder
+        chapters = ChapterOrder.oldestFirst(entry.visibleChapters).map { SyncChapterPayload(chapter: $0) }
+        sourceKey = entry.sourceKey
+        kind = entry.kind
+        lastReadAt = entry.lastReadAt.map(SyncWire.string(from:))
+        lastUpdate = entry.lastUpdate.map(SyncWire.string(from:))
+    }
+}
+
+extension SyncChapterPayload {
+    init(chapter: Chapter) {
+        path = chapter.url
+        name = chapter.name
+        releaseTime = chapter.dateUpload.map(SyncWire.string(from:))
+        bookmark = chapter.bookmark
+        unread = !chapter.read
+        isDownloaded = false
+        chapterNumber = chapter.chapterNumber >= 0 ? chapter.chapterNumber : nil
+        page = String(chapter.lastPageRead)
+        position = chapter.sourceOrder
+        progress = chapter.progress
+        lastReadParagraphIndex = chapter.paragraphIndex
+        lastPageRead = chapter.lastPageRead
+        pagesLeft = chapter.pagesLeft
+        lastRead = (chapter.history?.lastRead).map(SyncWire.string(from:))
+        timeRead = chapter.history?.timeRead
+        scanlator = chapter.scanlator
     }
 }

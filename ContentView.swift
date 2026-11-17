@@ -60,6 +60,12 @@ struct ContentView: View {
                 AppTabLabel(title: AppTab.more.title, systemName: AppTab.more.icon)
             }
         }
+        .id(ObjectIdentifier(modelContext))
+        .overlay(alignment: .top) {
+            SyncProgressToast()
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+        }
         .tabBarMinimizeBehavior(.onScrollDown)
         .modifier(UpdateBannerHost(isActive: libraryManager.updateProgress != nil || BackupManager.shared.progress != nil))
         .onChange(of: scenePhase) { _, phase in
@@ -100,12 +106,12 @@ struct ContentView: View {
             )
             .environment(readerRouter)
         }
+        .onChange(of: ObjectIdentifier(modelContext)) { _, _ in
+            readerRouter.close()
+            ChapterDownloadManager.shared.configure(context: modelContext, sources: sourceManager)
+        }
         .task {
             await syncManager.loadSession()
-            // The server is the source of truth, so catch up with it before
-            // anything can push over it. Best effort: a launch on a dead network
-            // must not surface an error or hold up the library.
-            await syncManager.pull(into: modelContext, quiet: true)
             // Sources are registered in `SourceManager.init`: a link can open an
             // entry before this task gets here.
             ChapterDownloadManager.shared.configure(context: modelContext, sources: sourceManager)
@@ -121,6 +127,55 @@ struct ContentView: View {
                 await libraryManager.updateLibrary(context: modelContext, sourceManager: sourceManager, automatic: true)
             }
         }
+    }
+}
+
+private struct SyncProgressToast: View {
+    @Environment(SyncManager.self) private var syncManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack {
+            if let progress = syncManager.progress {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 12) {
+                        AppIcon(systemName: progress.failed ? "exclamationmark.triangle" : (progress.isFinished ? "checkmark.circle" : "arrow.triangle.2.circlepath"), size: 20)
+                            .foregroundStyle(progress.failed ? AppTheme.destructive : .primary)
+                        Text(progress.failed ? "Sync failed" : (progress.isFinished ? "Sync complete" : progress.title))
+                            .font(Typography.headline)
+                        Spacer(minLength: 0)
+                        if progress.isFinished {
+                            Button {
+                                Haptics.shared.selection()
+                                syncManager.dismissProgress()
+                            } label: {
+                                AppIcon(systemName: "xmark", size: 15)
+                                    .frame(width: 32, height: 32)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Dismiss sync notification")
+                        } else {
+                            Text(progress.fraction, format: .percent.precision(.fractionLength(0)))
+                                .font(Typography.caption)
+                                .monospacedDigit()
+                        }
+                    }
+                    Text(progress.detail)
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(progress.failed ? 4 : 2)
+                    ProgressView(value: progress.fraction)
+                        .progressViewStyle(.linear)
+                        .tint(progress.failed ? AppTheme.destructive : .primary)
+                        .accessibilityLabel("Sync progress")
+                }
+                .padding(16)
+                .frame(maxWidth: 420)
+                .glassEffect(.regular, in: .rect(cornerRadius: 24))
+                .transition(.move(edge: .top))
+            }
+        }
+        .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: syncManager.progress?.id)
     }
 }
 

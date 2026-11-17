@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B171C0000000000000000001 /* SyncFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = B171C0000000000000000002 /* SyncFiles.swift */; };
 		A0B016000000000000000001 /* OnboardingSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B016000000000000000011 /* OnboardingSetup.swift */; };
 		A0B015000000000000000001 /* AccountAuroraBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B015000000000000000011 /* AccountAuroraBackground.swift */; };
 		A0B015000000000000000002 /* AccountAuroraShader.metal in Sources */ = {isa = PBXBuildFile; fileRef = A0B015000000000000000012 /* AccountAuroraShader.metal */; };
@@ -218,6 +219,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B171C0000000000000000002 /* SyncFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncFiles.swift; sourceTree = "<group>"; };
 		A0B016000000000000000011 /* OnboardingSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Onboarding/OnboardingSetup.swift; sourceTree = SOURCE_ROOT; };
 		A0B015000000000000000011 /* AccountAuroraBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Auth/AccountAuroraBackground.swift; sourceTree = SOURCE_ROOT; };
 		A0B015000000000000000012 /* AccountAuroraShader.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Features/Auth/AccountAuroraShader.metal; sourceTree = SOURCE_ROOT; };
@@ -671,6 +673,7 @@
 				BD006CC34D0C4C76D36DE78E /* ReaderTTSManager.swift */,
 				A93193A48DE8D174048C0696 /* SyncManager.swift */,
 				14D04BE15B8D2BADF7D4F9B8 /* SyncApply.swift */,
+				B171C0000000000000000002 /* SyncFiles.swift */,
 				3A7C1E0000000000000000C4 /* IncognitoMode.swift */,
 				0F0800F1C8A9CD9E40C97AA4 /* Images */,
 				67D5E46151A19BB7CC7CBFDF /* Network */,
@@ -1083,6 +1086,7 @@
 				62C08A004F957CA7BE8565D4 /* String+Extensions.swift in Sources */,
 				F8879A418673455C0E62F341 /* SyncManager.swift in Sources */,
 				428ECF15CA13FA1625B8CF7A /* SyncApply.swift in Sources */,
+				B171C0000000000000000001 /* SyncFiles.swift in Sources */,
 				3A7C1E0000000000000000B4 /* IncognitoMode.swift in Sources */,
 				F284113DD4D3BBD22FA26560 /* TTSSettingsView.swift in Sources */,
 				964462B69BFEFB77456C4391 /* Theme.swift in Sources */,
