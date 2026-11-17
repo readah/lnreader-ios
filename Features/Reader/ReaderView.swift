@@ -83,7 +83,7 @@ struct ReaderView: View {
     @AppStorage("reader.bionicReading") private var bionicReading = false
     @AppStorage("reader.characterSpacing") private var characterSpacing: Double = 0.0
     @AppStorage("reader.wordSpacing") private var wordSpacing: Double = 0.0
-    @AppStorage("reader.grainIntensity") private var grainIntensity: Double = 10.0
+    @AppStorage("reader.grainIntensity") private var grainIntensity: Double = 0
     @AppStorage("reader.lineFocusEnabled") private var lineFocusEnabled = false
     @AppStorage("reader.lineFocusLines") private var lineFocusLines = 1
     @AppStorage("reader.lineFocusDulling") private var lineFocusDulling = "mid"

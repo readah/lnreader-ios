@@ -41,7 +41,7 @@ struct ReaderSettings: View {
     @AppStorage("reader.justifyText") private var justifyText = true
     @AppStorage("reader.keepScreenOn") private var keepScreenOn = true
     @AppStorage(Haptics.enabledKey) private var hapticsEnabled = true
-    @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = true
+    @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = false
     @ObservedObject private var focusManager = FocusModeManager.shared
 
     static let compactDetent: PresentationDetent = .height(420)
@@ -687,7 +687,7 @@ struct ReaderSettings: View {
         localLineFocusDulling = "mid"
         localCharacterSpacing = 0.0
         localWordSpacing = 0.0
-        localGrainIntensity = 10.0
+        localGrainIntensity = 0
         justifyText = true
         keepScreenOn = true
         highlightColorHex = ""

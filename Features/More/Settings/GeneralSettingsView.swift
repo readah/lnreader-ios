@@ -18,7 +18,7 @@ struct GeneralSettingsView: View {
 
     @AppStorage(Haptics.enabledKey) private var hapticsEnabled = true
     @AppStorage(Haptics.strengthKey) private var hapticStrength = 1.0
-    @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = true
+    @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = false
 
     var body: some View {
         Form {

@@ -35,7 +35,7 @@ struct ReaderSettingsView: View {
     @AppStorage("reader.textColor") private var textColorHex: String = ""
     @AppStorage("reader.characterSpacing") private var characterSpacing: Double = 0.0
     @AppStorage("reader.wordSpacing") private var wordSpacing: Double = 0.0
-    @AppStorage("reader.grainIntensity") private var grainIntensity: Double = 10.0
+    @AppStorage("reader.grainIntensity") private var grainIntensity: Double = 0
 
     // Manga reader global settings
     @AppStorage(MangaReaderSettingsKey.readingMode) private var readingModeRaw = MangaReadingMode.pager.rawValue

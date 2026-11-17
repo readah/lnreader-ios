@@ -287,7 +287,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
     @ViewBuilder var bottomContent: () -> BottomContent
 
     @AppStorage(Haptics.enabledKey) private var hapticsEnabled = true
-    @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = true
+    @AppStorage(Haptics.scrollEnabledKey) private var scrollHaptics = false
     @ObservedObject private var focusManager = FocusModeManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

@@ -31,7 +31,7 @@ final class Haptics {
     /// The ticks, chapter knocks and end thuds of scrolling. Under the main
     /// switch: off there silences these too.
     nonisolated static var isScrollEnabled: Bool {
-        isEnabled && (UserDefaults.standard.object(forKey: scrollEnabledKey) as? Bool ?? true)
+        isEnabled && (UserDefaults.standard.object(forKey: scrollEnabledKey) as? Bool ?? false)
     }
 
     nonisolated static var strength: Double {
