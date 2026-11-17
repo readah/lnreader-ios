@@ -656,6 +656,7 @@ struct MangaReaderSettingsContent<LayoutScope: View, BottomContent: View>: View 
                 .accessibilityLabel(title)
                 .accessibilityValue(valueText)
         }
+        .padding(.vertical, 4)
     }
 }
 

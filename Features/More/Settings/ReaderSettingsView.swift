@@ -47,34 +47,34 @@ struct ReaderSettingsView: View {
     @State private var showResetMangaDialog = false
 
     var body: some View {
-        VStack(spacing: 0) {
+        Group {
+            switch selectedTab {
+            case .novel:
+                novelContent
+            case .manga:
+                mangaContent
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .top, spacing: 0) {
             tabSwitcher
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .padding(.top, 4)
                 .padding(.bottom, 8)
-
-            Group {
-                switch selectedTab {
-                case .novel:
-                    novelContent
-                case .manga:
-                    mangaContent
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: selectedTab)
         }
         .settingsScreen("Reader settings")
+        .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: selectedTab)
     }
 
     private var tabSwitcher: some View {
-        AppPicker("Reader", selection: $selectedTab) {
-            ForEach(Tab.allCases) { tab in
-                Text(tab.title).tag(tab)
-            }
+        AppSlidingPicker(
+            title: "Reader",
+            selection: $selectedTab,
+            options: Tab.allCases,
+            classicSelectionIndicator: true
+        ) { tab in
+            tab.title
         }
-        .appPickerStyle(.segmented)
-        .hapticFeedback(.selection, trigger: selectedTab)
     }
 
     // MARK: - Light Novel

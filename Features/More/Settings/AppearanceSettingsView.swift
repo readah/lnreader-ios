@@ -9,6 +9,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(IconPack.storageKey) private var iconPack = IconPack.swiftIcons.rawValue
     @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
     @AppStorage(ChromeAppearance.noLiquidGlassKey) private var noLiquidGlass = false
+    @AppStorage(ChromeAppearance.systemFormsKey) private var systemForms = false
     @AppStorage(RevealMotion.enabledKey) private var springUnblurMotion = false
 
     var body: some View {
@@ -19,6 +20,16 @@ struct AppearanceSettingsView: View {
                 Text("Interface")
             } footer: {
                 Text("Use soft frosted materials, blurred navigation bars and a custom tab dock instead of Liquid Glass. Applies throughout the app; onboarding stays unchanged.")
+            }
+
+            if noLiquidGlass {
+                Section {
+                    Toggle("Use iOS default forms", isOn: $systemForms)
+                } header: {
+                    Text("Beta")
+                } footer: {
+                    Text("Uses iOS's native grouped form layout for every settings screen and option sheet instead of the custom frosted cards. Titles, buttons and content stay ours.")
+                }
             }
 
             Section {
@@ -48,11 +59,12 @@ struct AppearanceSettingsView: View {
                         Text("\(Int((strength * 100).rounded()))%")
                             .monospacedDigit()
                     }
-                    AppSlider(value: $strength, in: 0.1...1) {
+                    AppSlider(value: $strength, in: 0.1...1, step: 0.05) {
                         Text("Tint strength")
                     }
                     .tint(AppTheme.accent)
                 }
+                .padding(.vertical, 4)
                 .disabled(!tintDetails)
             } header: {
                 Text("Detail screens")

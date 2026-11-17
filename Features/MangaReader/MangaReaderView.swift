@@ -1233,7 +1233,11 @@ private struct MangaPageSlider: View {
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
                         let fraction = min(max((value.location.x - 44) / trackWidth, 0), 1)
-                        index = Int((fraction * CGFloat(max(pageCount - 1, 0))).rounded())
+                        let newIndex = Int((fraction * CGFloat(max(pageCount - 1, 0))).rounded())
+                        if newIndex != index {
+                            index = newIndex
+                            Haptics.shared.selection()
+                        }
                     }
             )
         }

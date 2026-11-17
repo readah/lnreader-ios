@@ -588,19 +588,39 @@ struct ReaderSettings: View {
                 .tint(AppTheme.controlFill)
 
             if localLineFocusEnabled {
-                AppPicker("Focused lines", selection: $localLineFocusLines) {
-                    Text("1 Line").tag(1)
-                    Text("2 Lines").tag(2)
-                    Text("3 Lines").tag(3)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Focused lines")
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                    AppSlidingPicker(
+                        title: "Focused lines",
+                        selection: $localLineFocusLines,
+                        options: [1, 2, 3],
+                        classicSelectionIndicator: true
+                    ) { lines in
+                        lines == 1 ? "1 Line" : "\(lines) Lines"
+                    }
                 }
-                .appPickerStyle(.segmented)
+                .padding(.vertical, 4)
 
-                AppPicker("Background dimming", selection: $localLineFocusDulling) {
-                    Text("Low").tag("low")
-                    Text("Medium").tag("mid")
-                    Text("High").tag("high")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Background dimming")
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                    AppSlidingPicker(
+                        title: "Background dimming",
+                        selection: $localLineFocusDulling,
+                        options: ["low", "mid", "high"],
+                        classicSelectionIndicator: true
+                    ) { dulling in
+                        switch dulling {
+                        case "low": return "Low"
+                        case "high": return "High"
+                        default: return "Medium"
+                        }
+                    }
                 }
-                .appPickerStyle(.segmented)
+                .padding(.vertical, 4)
             }
         }
     }
@@ -676,6 +696,7 @@ struct ReaderSettings: View {
                 .accessibilityLabel(title)
                 .accessibilityValue(valueText)
         }
+        .padding(.vertical, 4)
     }
 
     private func resetNovelDefaults() {

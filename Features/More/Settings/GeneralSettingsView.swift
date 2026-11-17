@@ -88,16 +88,19 @@ struct GeneralSettingsView: View {
                 }
             if hapticsEnabled {
                 Toggle("While scrolling", isOn: $scrollHaptics)
-                LabeledContent("Strength") {
-                    Text("\(Int((hapticStrength * 100).rounded()))%")
-                        .monospacedDigit()
+                VStack(alignment: .leading, spacing: 4) {
+                    LabeledContent("Strength") {
+                        Text("\(Int((hapticStrength * 100).rounded()))%")
+                            .monospacedDigit()
+                    }
+                    AppSlider(value: $hapticStrength, in: Haptics.strengthRange, step: 0.05) { editing in
+                        // Let go to feel the new strength.
+                        if !editing { Haptics.shared.scroll(ScrollFeel.detent(speed: 800)) }
+                    }
+                    .tint(AppTheme.accent)
+                    .accessibilityLabel("Strength")
                 }
-                AppSlider(value: $hapticStrength, in: Haptics.strengthRange) { editing in
-                    // Let go to feel the new strength.
-                    if !editing { Haptics.shared.scroll(ScrollFeel.detent(speed: 800)) }
-                }
-                .tint(AppTheme.accent)
-                .accessibilityLabel("Strength")
+                .padding(.vertical, 4)
             }
         } header: {
             Text("Haptics")
