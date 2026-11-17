@@ -75,13 +75,11 @@ struct BrowseView: View {
             content
                 .appNavigationTitle("Browse")
                 .navigationBarTitleDisplayMode(.large)
-                .appSearchable(
-                    text: $searchText,
-                    placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: searchPrompt
-                )
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    AppExpandableSearchBar(text: $searchText, prompt: searchPrompt)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                }
                 .appToolbar { toolbarContent }
                 .appSheet(isPresented: $showDisplay) {
                     AppNavigationStack {

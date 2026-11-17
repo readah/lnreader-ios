@@ -244,74 +244,9 @@ struct LibraryView: View {
     // MARK: - Search
 
     private var librarySearch: some View {
-        HStack(spacing: 0) {
-            if isSearchExpanded {
-                AppIcon(systemName: "magnifyingglass", size: 17, relativeTo: .body)
-                    .padding(.leading, 16)
-                    .padding(.trailing, 10)
-                    .accessibilityHidden(true)
-
-                TextField("Search library", text: $searchText)
-                    .font(Typography.body)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.search)
-                    .focused($searchFocused)
-                    .accessibilityLabel("Search library")
-                    .onSubmit { searchFocused = false }
-                    .task { searchFocused = true }
-
-                if !searchText.isEmpty {
-                    Button {
-                        Haptics.shared.selection()
-                        searchText = ""
-                        searchFocused = true
-                    } label: {
-                        AppIcon(systemName: "xmark.circle.fill", size: 17, relativeTo: .body)
-                            .frame(minWidth: 44, minHeight: 44)
-                    }
-                    .accessibilityLabel("Clear search")
-                }
-
-                Button(action: collapseSearch) {
-                    AppIcon(systemName: "chevron.down", size: 17, relativeTo: .body)
-                        .frame(minWidth: 44, minHeight: 44)
-                }
-                .accessibilityLabel("Close search")
-                .accessibilityHint("Clears the search and shows the full library selection.")
-            } else {
-                Button {
-                    Haptics.shared.selection()
-                    withAnimation(AppMotion.glassMorph(reduceMotion: reduceMotion)) {
-                        isSearchExpanded = true
-                    }
-                } label: {
-                    AppLabel("Search library", systemName: "magnifyingglass", size: 17, relativeTo: .body)
-                        .font(Typography.body)
-                        .padding(.horizontal, 18)
-                        .frame(minHeight: 44)
-                }
-                .accessibilityHint("Expands a search field to filter your library.")
-            }
-        }
-        .buttonStyle(AppPlainButtonStyle())
-        .foregroundStyle(.primary)
-        .padding(.vertical, 4)
-        .frame(maxWidth: isSearchExpanded ? .infinity : nil)
-        .appGlassEffect(.regular, in: .capsule)
-        .accessibilityAction(.escape, collapseSearch)
-        .frame(maxWidth: .infinity, alignment: .trailing)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-    }
-
-    private func collapseSearch() {
-        Haptics.shared.selection()
-        searchFocused = false
-        withAnimation(AppMotion.glassMorph(reduceMotion: reduceMotion)) {
-            searchText = ""
-            isSearchExpanded = false
-        }
+        AppExpandableSearchBar(text: $searchText, prompt: "Search library")
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
     }
 
     // MARK: - Content

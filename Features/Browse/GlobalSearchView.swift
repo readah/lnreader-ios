@@ -32,9 +32,12 @@ struct GlobalSearchView: View {
             }
         }
         .appNavigationTitle("Global Search")
-        .appSearchable(text: $searchText, prompt: "Search all sources")
-        .onSubmit(of: .search) {
-            Task { await performSearch() }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            AppExpandableSearchBar(text: $searchText, prompt: "Search all sources") {
+                Task { await performSearch() }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
     }
 

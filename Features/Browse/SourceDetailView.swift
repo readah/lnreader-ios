@@ -84,9 +84,12 @@ struct SourceDetailView: View {
             entriesLayout
         }
         .appNavigationTitle(title)
-        .appSearchable(text: $searchText, prompt: "Search \(title)")
-        .onSubmit(of: .search) {
-            Task { await search() }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            AppExpandableSearchBar(text: $searchText, prompt: "Search \(title)") {
+                Task { await search() }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
         .onChange(of: searchText) { _, newValue in
             if newValue.isEmpty {
