@@ -226,6 +226,7 @@ extension View {
             .accentColor(AppTheme.accent)
             .navigationTitle(title)
             .preference(key: AppScreenTitleKey.self, value: title)
+            .environment(\.appScreenTitle, title)
             .modifier(AppTitleSwipePreference(action: onTitleVerticalSwipe))
             .appNavigationChrome()
             .background {

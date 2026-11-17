@@ -26,8 +26,13 @@ Use the adaptive components, not raw SwiftUI chrome:
 - `AppMenu`, `.appContextMenu`, `.appConfirmationDialog`, `.appAlert` and
   `.appPopover` draw custom classic popups. Action activation is deferred until
   the popup has dismissed, so actions may safely open another presentation.
-- `.appSheet`, `.appPresentationDetents` and `AppPresentationDetent` draw classic
-  panels in a transparent fullscreen presentation context, not a system sheet.
+- `.appSheet`, `.appPresentationDetents` and `AppPresentationDetent` use iOS's
+  native sheet presentation in **both** modes; the custom full-screen panel is
+  gone. The presentation background is always ours — `Material.ultraThin`, or
+  an opaque surface under Reduce Transparency — so system glass never shows.
+  Dismissal is controlled by `.appInteractiveDismissDisabled`; our serif title,
+  buttons, detents, corner radius and content stay unchanged. Deferred popup
+  actions still run only after the sheet is gone.
   `.appInteractiveDismissDisabled` also guards backdrop and drag dismissal.
   Classic panels spring-pop and unblur on opening (when enabled), then reverse
   on closing. The host stays alive until that exit finishes; item-backed sheets
@@ -44,6 +49,13 @@ Use the adaptive components, not raw SwiftUI chrome:
   including More and the Browse catalogue's source list. Its structure stays
   stable when the material setting changes. Keep long result lists and
   editable/reorderable lists as `List`.
+- **Beta — Use iOS default forms** (`appearance.systemForms`, offered only
+  while No Liquid Glass is on): `AppForm` hands its `Section` content to a
+  native grouped `Form`, so every screen that uses `AppForm` — settings,
+  option sheets, filters, trackers, migration, Browse, reader and manga
+  settings — switches at once. Titles, buttons and row content stay ours;
+  insets, separators, section chrome and row backgrounds come from iOS. This
+  does not affect screens that already use a native `List`.
 - `.appRefreshable` draws the shared pull indicator on Library, Updates,
   History and other refreshable screens. The indicator is an overlay: it never
   pins a screen or changes its insets while an update publishes store changes.
@@ -51,7 +63,13 @@ Use the adaptive components, not raw SwiftUI chrome:
   Never attach a gesture recognizer just to observe a touch: it competes with
   the enclosing `ScrollView`'s pan and makes form rows unscrollable. Scrolling
   and press feedback are not mutually exclusive, and Reduce Motion disables
-  the scale.
+  the scale. The classic toggle scales only its knob while held, then springs
+  back to full size as it travels to the new position.
+- Every text input and search bar, including the custom classic search field,
+  dismisses the keyboard when the user taps anywhere that is not a text field.
+  `.appKeyboardDismissOnTap()` installs a non-cancelling window recognizer once
+  at the app root, so it also covers fields inside custom forms and sheets.
+  `AppForm` additionally dismisses on scroll.
 - `.appGlassEffect`, `.appGlassButtonStyle` and `AppGlassEffectContainer` switch
   existing floating controls between renderers. Pass `frostTint` explicitly for
   tinted material; `Glass` doesn't expose its tint for conversion.
@@ -70,9 +88,10 @@ Glass in glass mode. Library's All / Novel / Manga selector is pinned below the
 navigation header; Browse keeps its selector directly below Search, above the
 `AppForm` source cards.
 
-The classic page title is left-aligned serif text. Its backdrop is clear at the
-top of a page and fades in after scrolling eight points; this changes only the
-backdrop opacity, never blurring the page itself. `.appNavigationTitle` forwards
+The classic page title is left-aligned serif text across all non-glass views.
+Its backdrop is clear at the top of a page and fades in after
+scrolling eight points; this changes only the backdrop opacity, never blurring
+the page itself. `.appNavigationTitle` forwards
 its optional vertical-swipe callback to the actual custom title, not just the
 hidden native bar. Library accepts either vertical direction to switch modes;
 the root mode transition supplies the matching arrival and departure blur/move.

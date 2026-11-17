@@ -34,7 +34,7 @@ struct AppNavigationLink<Destination: View, Label: View>: View {
     @ViewBuilder var destination: () -> Destination
     @ViewBuilder var label: () -> Label
     var body: some View {
-        NavigationLink { destination().appNavigationScreen() } label: {
+        NavigationLink { destination().appPushedScreen() } label: {
             HStack(spacing: 12) {
                 label()
                 if formRow {
@@ -76,6 +76,15 @@ struct AppScreenTitleKey: PreferenceKey {
     static let defaultValue: Text? = nil
     static func reduce(value: inout Text?, nextValue: () -> Text?) {
         if let next = nextValue() { value = next }
+    }
+}
+struct AppScreenTitleEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Text? = nil
+}
+extension EnvironmentValues {
+    var appScreenTitle: Text? {
+        get { self[AppScreenTitleEnvironmentKey.self] }
+        set { self[AppScreenTitleEnvironmentKey.self] = newValue }
     }
 }
 struct AppTitleSwipeAction: Equatable {
@@ -189,14 +198,20 @@ extension View {
             .environment(\.appPressFeedbackHosted, false)
     }
 
+    /// A screen reached by a push. Adds one to the routing depth so its chrome
+    /// can show a back button; sheets keep `appNavigationScreen()` and depth 0.
+    func appPushedScreen() -> some View {
+        modifier(AppPushedScreen())
+    }
+
     func appNavigationDestination<Value: Hashable, Destination: View>(for type: Value.Type, @ViewBuilder destination: @escaping (Value) -> Destination) -> some View {
-        navigationDestination(for: type) { destination($0).appNavigationScreen() }
+        navigationDestination(for: type) { destination($0).appPushedScreen() }
     }
     func appNavigationDestination<Destination: View>(isPresented: Binding<Bool>, @ViewBuilder destination: @escaping () -> Destination) -> some View {
-        navigationDestination(isPresented: isPresented) { destination().appNavigationScreen() }
+        navigationDestination(isPresented: isPresented) { destination().appPushedScreen() }
     }
     func appNavigationDestination<Item: Hashable, Destination: View>(item: Binding<Item?>, @ViewBuilder destination: @escaping (Item) -> Destination) -> some View {
-        navigationDestination(item: item) { destination($0).appNavigationScreen() }
+        navigationDestination(item: item) { destination($0).appPushedScreen() }
     }
 
     func appToolbar<T: AppToolbarContent>(@AppToolbarBuilder content: () -> T) -> some View {
@@ -221,6 +236,28 @@ private extension EnvironmentValues {
     }
 }
 
+private struct AppNavigationDepthKey: EnvironmentKey { static let defaultValue = 0 }
+extension EnvironmentValues {
+    /// SwiftUI routing depth. Incremented by each destination wrapper, so a
+    /// screen knows it was pushed without asking UIKit (whose SwiftUI stack
+    /// reports a single view controller).
+    var appNavigationDepth: Int {
+        get { self[AppNavigationDepthKey.self] }
+        set { self[AppNavigationDepthKey.self] = newValue }
+    }
+}
+
+private struct AppPushedScreen: ViewModifier {
+    @Environment(\.appNavigationDepth) private var depth
+    func body(content: Content) -> some View {
+        content
+            .environment(\.classicChromeHosted, false)
+            .environment(\.appFormRow, false)
+            .environment(\.appPressFeedbackHosted, false)
+            .environment(\.appNavigationDepth, depth + 1)
+    }
+}
+
 struct AppNavigationChrome: ViewModifier {
     func body(content: Content) -> some View {
         content.modifier(AdaptiveNavigationChrome(items: EmptyAppToolbar()))
@@ -240,12 +277,6 @@ private struct AdaptiveNavigationChrome<Items: AppToolbarContent>: ViewModifier 
                                           isHost: !hosted && navigation != nil, items: items))
             .toolbarVisibility(enabled ? .hidden : .automatic, for: .navigationBar)
             .toolbarVisibility(enabled ? .hidden : .automatic, for: .bottomBar)
-            .background {
-                if enabled, !hosted, let navigation {
-                    NavigationDepthBridge(navigation: navigation, back: { dismiss() })
-                        .frame(width: 0, height: 0).allowsHitTesting(false)
-                }
-            }
     }
 }
 
@@ -253,14 +284,21 @@ private struct ClassicScreenChrome<Items: AppToolbarContent>: ViewModifier {
     @Environment(\.noLiquidGlass) private var classic
     @Environment(\.classicTabBarHeight) private var tabBarHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.appSheetClose) private var sheetClose
+    @Environment(\.appScreenTitle) private var environmentTitle
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appNavigationDepth) private var depth
     let navigation: ClassicNavigationState
     let isHost: Bool
     let items: Items
     @State private var title: Text?
     @State private var titleSwipe: AppTitleSwipeAction?
     @State private var headerScrolled = false
+
+    private var isPushed: Bool { depth > 0 }
+    private var resolvedTitle: Text? { environmentTitle ?? title }
     private var enabled: Bool { classic && isHost }
-    private var showsHeader: Bool { enabled && (title != nil || !items.regions.isEmpty || navigation.canGoBack) }
+    private var showsHeader: Bool { enabled && (resolvedTitle != nil || !items.regions.isEmpty || isPushed) }
 
     func body(content: Content) -> some View {
         content
@@ -279,43 +317,74 @@ private struct ClassicScreenChrome<Items: AppToolbarContent>: ViewModifier {
                     }
                 }
             }
-            .onPreferenceChange(AppScreenTitleKey.self) { title = $0 }
+            .background {
+                if enabled {
+                    // Native interactive pop still needs UIKit's controller;
+                    // the back button itself now comes from SwiftUI depth.
+                    NavigationDepthBridge()
+                        .frame(width: 0, height: 0)
+                        .allowsHitTesting(false)
+                }
+            }
+            .onPreferenceChange(AppScreenTitleKey.self) { newTitle in
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    title = newTitle
+                }
+            }
             .onPreferenceChange(AppTitleSwipeKey.self) { titleSwipe = $0 }
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentOffset.y + geometry.contentInsets.top > 8
             } action: { _, scrolled in
                 if enabled { headerScrolled = scrolled }
             }
-            .background {
-                if enabled && navigation.canGoBack { EdgeSwipeDismiss { navigation.back() } }
-            }
     }
 
     private var header: some View {
         HStack(spacing: 10) {
-            if navigation.canGoBack {
-                Button { Haptics.shared.selection(); navigation.back() } label: {
+            if isPushed {
+                Button {
+                    Haptics.shared.selection()
+                    dismiss()
+                } label: {
                     AppIcon(systemName: "chevron.left", size: 17)
                 }
                 .buttonStyle(ClassicChromeButtonStyle())
                 .accessibilityLabel("Back")
             }
-            HStack(spacing: 8) { items.classic(in: .leading) }.fixedSize(horizontal: true, vertical: false)
-            if let title {
+            if items.regions.contains(.leading) {
+                HStack(spacing: 8) { items.classic(in: .leading) }
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            if let title = resolvedTitle {
                 title.font(Typography.navigationTitle)
-                    .lineLimit(1).minimumScaleFactor(0.75)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .contentShape(.rect)
-                    .gesture(DragGesture(minimumDistance: 12).onEnded { value in
-                        guard LibrarySwipeInteraction.isTitleSwipe(horizontal: value.translation.width,
-                                                                    vertical: value.translation.height) else { return }
-                        titleSwipe?.perform()
-                    }, including: titleSwipe == nil ? .none : .all)
+                    .gesture(
+                        DragGesture(minimumDistance: 12).onEnded { value in
+                            guard LibrarySwipeInteraction.isTitleSwipe(
+                                horizontal: value.translation.width,
+                                vertical: value.translation.height
+                            ) else { return }
+                            titleSwipe?.perform()
+                        },
+                        including: titleSwipe == nil ? .none : .all
+                    )
                     .accessibilityActions {
-                                            if let titleSwipe { Button("Switch library mode", action: titleSwipe.perform) }
-                                        }
-            } else { Spacer(minLength: 0) }
-            HStack(spacing: 8) { items.classic(in: .trailing) }.fixedSize(horizontal: true, vertical: false)
+                        if let titleSwipe {
+                            Button("Switch library mode", action: titleSwipe.perform)
+                        }
+                    }
+            } else {
+                Spacer(minLength: 0)
+            }
+            if items.regions.contains(.trailing) {
+                HStack(spacing: 8) { items.classic(in: .trailing) }
+                    .fixedSize(horizontal: true, vertical: false)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
@@ -338,10 +407,12 @@ struct ClassicChromeButtonStyle: ButtonStyle {
             .font(Typography.body.weight(.semibold))
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 20)
+            .frame(minWidth: 44, minHeight: 44)
             .padding(.horizontal, 12)
-            .frame(height: 44)
-            .foregroundStyle(isProminent(configuration) ? Color.white : (configuration.role == .destructive ? AppTheme.destructive : AppTheme.accent))
+            .foregroundStyle(
+                isProminent(configuration) ? Color.white :
+                (configuration.role == .destructive ? AppTheme.destructive : AppTheme.accent)
+            )
             .background {
                 if isProminent(configuration) {
                     RoundedRectangle(cornerRadius: 15).fill(AppTheme.confirmation)
@@ -353,33 +424,53 @@ struct ClassicChromeButtonStyle: ButtonStyle {
     }
 }
 
-/// Reads routing depth only. No private subviews, delegates or bar appearance.
+/// Enables UIKit's native interactive pop gesture when the navigation bar is
+/// hidden. Depth for the back button comes from SwiftUI's destination wrappers,
+/// not from this bridge: a SwiftUI stack reports a single view controller.
 private struct NavigationDepthBridge: UIViewControllerRepresentable {
-    let navigation: ClassicNavigationState
-    let back: () -> Void
     func makeUIViewController(context: Context) -> Controller { Controller() }
     func updateUIViewController(_ controller: Controller, context: Context) {
-        controller.state = navigation
-        controller.back = back
         controller.refresh()
     }
-    final class Controller: UIViewController {
-        var state: ClassicNavigationState?
-        var back: () -> Void = {}
+    final class Controller: UIViewController, UIGestureRecognizerDelegate {
         override func loadView() { view = UIView(); view.isUserInteractionEnabled = false }
+        override func didMove(toParent parent: UIViewController?) {
+            super.didMove(toParent: parent)
+            refresh()
+        }
+        override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); refresh() }
         override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); refresh() }
         override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); refresh() }
         func refresh() {
             guard let nav = navigationController else { return }
-            var owner: UIViewController = self
-            while let parent = owner.parent, parent !== nav { owner = parent }
-            guard nav.topViewController === owner else { return }
-            let canGoBack = nav.viewControllers.count > 1
-            DispatchQueue.main.async { [weak self] in
-                guard let self, let state = self.state else { return }
-                if state.canGoBack != canGoBack { state.canGoBack = canGoBack }
-                state.back = self.back
+            let pushed = nav.viewControllers.count > 1
+
+            // Restore native 1:1 interactive swipe-back when the nav bar is hidden
+            if let popGesture = nav.interactivePopGestureRecognizer {
+                popGesture.isEnabled = pushed
+                if popGesture.delegate !== self {
+                    popGesture.delegate = self
+                }
             }
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let nav = navigationController else { return false }
+            return nav.viewControllers.count > 1
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            gestureRecognizer is UIScreenEdgePanGestureRecognizer
         }
     }
 }
