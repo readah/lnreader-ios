@@ -36,6 +36,8 @@ struct BrowseView: View {
 
     @AppStorage("browse.kind") private var kindRaw = BrowseKind.novels.rawValue
     @State private var searchText = ""
+    @State private var swipeInteraction = LibrarySwipeInteraction()
+    @GestureState private var isKindDragging = false
     @State private var showDisplay = false
     /// Same keys as the Library's default display, so the two always agree.
     @AppStorage("general.defaultDisplayMode") private var displayMode = DisplayMode.comfortable
@@ -43,6 +45,10 @@ struct BrowseView: View {
     @State private var migratingSource: MigratingSource?
     /// The source whose catalogue is open.
     @State private var openSource: SourceTarget?
+    /// The bottom of the pinned kind slider, in global coordinates. Rows blur
+    /// progressively as they scroll up under it, the way the Minimal library's
+    /// rows blur under their title.
+    @State private var headerBottom: CGFloat = 0
 
     /// Library entries, only to count them per source: a source row says how many
     /// of its books are in the library, and offers to migrate them.
@@ -126,7 +132,8 @@ struct BrowseView: View {
         AppSlidingPicker(
             title: "Catalogue",
             selection: $kindRaw,
-            options: BrowseKind.allCases.map(\.rawValue)
+            options: BrowseKind.allCases.map(\.rawValue),
+            classicSelectionIndicator: true
         ) { raw in
             (BrowseKind(rawValue: raw) ?? .novels).title
         }
@@ -138,25 +145,27 @@ struct BrowseView: View {
 
     // MARK: - Content
 
-    /// One list for both catalogues. The switcher is its first row, so it scrolls
-    /// away with the content instead of pinning over the navigation bar's search
-    /// field, and switching kinds cross-fades rows in place: no second scroll view, no
-    /// whole-page transition to lag behind the gesture.
+    /// Search and catalogue selection stay together above one shared source list.
     private var content: some View {
-        List {
-            Section {
-                kindSwitcher
-                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-            }
+        AppForm {
             sourcesContent
         }
-        .scrollContentBackground(.hidden)
-        // Rows cross-fade in place. Animating the rows, not the list, keeps the
-        // scroll view (and the nav bar tracking it) alive, so it stays cheap.
+        // The band every row measures itself against while it scrolls.
+        .environment(\.progressiveBlurBand, headerBottom)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            kindSwitcher
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.frame(in: .global).maxY
+                } action: { headerBottom = $0 }
+        }
         .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: kindRaw)
         .simultaneousGesture(kindSwipe)
+        .onChange(of: isKindDragging) { _, dragging in
+            if !dragging { swipeInteraction.ended(at: ProcessInfo.processInfo.systemUptime) }
+        }
         // Rows are buttons, not links: the hold needs to own the touch (see
         // `SourceRow`), so navigation goes through a destination instead.
         .appNavigationDestination(item: $openSource) { target in
@@ -167,8 +176,13 @@ struct BrowseView: View {
     /// Steps between catalogues on a clearly horizontal swipe. Only reacts when
     /// the drag ends, so vertical scrolling is never touched.
     private var kindSwipe: some Gesture {
-        DragGesture(minimumDistance: 30)
+        DragGesture(minimumDistance: 10)
+            .updating($isKindDragging) { _, dragging, _ in dragging = true }
+            .onChanged { value in
+                swipeInteraction.changed(horizontal: value.translation.width, vertical: value.translation.height)
+            }
             .onEnded { value in
+                swipeInteraction.ended(at: ProcessInfo.processInfo.systemUptime)
                 let dx = value.translation.width
                 guard abs(dx) > 80, abs(dx) > abs(value.translation.height) * 2 else { return }
                 let target: BrowseKind = dx < 0 ? .manga : .novels
@@ -185,24 +199,34 @@ struct BrowseView: View {
                         kind == .novels ? "No novel sources" : "No manga sources",
                         systemImage: "books.vertical"
                     )
+                    .frame(maxWidth: .infinity, minHeight: 220)
                 } else {
                     ContentUnavailableView.search(text: searchText)
+                        .frame(maxWidth: .infinity, minHeight: 220)
                 }
             }
-            .listRowBackground(Color.clear)
         } else {
             // Counted once for the whole list rather than per row.
             let counts = libraryCounts
-            Section("Sources · \(visibleSources.count)") {
+            Section {
                 ForEach(visibleSources, id: \.key) { source in
                     SourceRow(
                         source: source,
                         inLibrary: counts[source.key] ?? 0,
-                        onOpen: { openSource = SourceTarget(key: source.key, name: source.name) },
-                        onMigrate: { migratingSource = MigratingSource(key: source.key) }
+                        onOpen: {
+                            guard swipeInteraction.allowsActivation(at: ProcessInfo.processInfo.systemUptime) else { return }
+                            openSource = SourceTarget(key: source.key, name: source.name)
+                        },
+                        onMigrate: {
+                            guard swipeInteraction.allowsActivation(at: ProcessInfo.processInfo.systemUptime) else { return }
+                            migratingSource = MigratingSource(key: source.key)
+                        }
                     )
-                    .listRowBackground(Color.clear)
+                    .progressiveTopBlur()
                 }
+            } header: {
+                Text("Sources · \(visibleSources.count)")
+                    .progressiveTopBlur()
             }
         }
     }
@@ -283,9 +307,9 @@ private struct SourceRow: View {
             .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.4).onEnded { _ in
+            LongPressGesture(minimumDuration: 0.4, maximumDistance: 10).onEnded { _ in
                 guard inLibrary > 0 else { return }
                 Haptics.shared.impact(.medium)
                 didHold = true
