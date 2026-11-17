@@ -20,6 +20,12 @@ extension AppMotion {
     static func reveal(reduceMotion: Bool) -> Animation? {
         reduceMotion ? nil : .spring(response: 0.48, dampingFraction: 0.88)
     }
+
+    /// Compact popovers settle quickly; the long page-arrival spring left
+    /// their text visibly blurred well after the panel was readable.
+    static func quickReveal(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.16)
+    }
 }
 
 private struct SpringUnblurTransition: ViewModifier {
@@ -50,6 +56,11 @@ extension View {
         appReveal(trigger: false, edge: edge)
     }
 
+    /// The same reveal with a short settle, for small floating panels.
+    func appRevealQuick(edge: Edge = .bottom) -> some View {
+        modifier(AppRevealModifier(trigger: false, edge: edge, quick: true))
+    }
+
     /// For reader chrome kept mounted while hidden. Does not affect its hit
     /// testing or visibility; those remain the caller's responsibility.
     func appUnblurVisibility(_ visible: Bool, edge: Edge = .bottom) -> some View {
@@ -69,8 +80,12 @@ private struct AppRevealModifier<Trigger: Hashable>: ViewModifier {
     @State private var settled = false
     let trigger: Trigger
     let edge: Edge
+    var quick = false
 
     private var active: Bool { enabled && !reduceMotion && !settled }
+    private var arrival: Animation? {
+        quick ? AppMotion.quickReveal(reduceMotion: reduceMotion) : AppMotion.reveal(reduceMotion: reduceMotion)
+    }
 
     func body(content: Content) -> some View {
         content
@@ -84,9 +99,9 @@ private struct AppRevealModifier<Trigger: Hashable>: ViewModifier {
                 withTransaction(transaction) { settled = false }
                 // Let the arriving layout paint once; no timers, per-frame state
                 // updates or tasks survive a dismissed screen / changed trigger.
-                do { try await Task.sleep(for: .milliseconds(16)) }
+                do { try await Task.sleep(for: .milliseconds(quick ? 4 : 16)) }
                 catch { return }
-                withAnimation(AppMotion.reveal(reduceMotion: reduceMotion)) { settled = true }
+                withAnimation(arrival) { settled = true }
             }
     }
 

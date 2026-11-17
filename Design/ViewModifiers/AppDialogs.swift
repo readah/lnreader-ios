@@ -61,16 +61,18 @@ private struct AppContextMenuModifier<Items: View, Preview: View>: ViewModifier 
     @ViewBuilder func body(content: Content) -> some View {
         if classic {
             content
-                .highPriorityGesture(LongPressGesture(minimumDuration: 0.4).onEnded { _ in
+                .highPriorityGesture(LongPressGesture(minimumDuration: 0.4, maximumDistance: 10).onEnded { _ in
                     Haptics.shared.impact(.medium)
                     presented = true
                 })
                 .accessibilityAction(named: Text("Quick actions")) { presented = true }
-                .appSheet(isPresented: $presented) {
-                    ClassicPopup {
+                .appCompactMenuPopover(isPresented: $presented) {
+                    AppPopupMenuSurface {
                         preview().frame(maxHeight: 160).clipped()
                         items()
                     }
+                    .buttonStyle(ClassicPopupButtonStyle())
+                    .environment(\.appPopupDismiss, { presented = false })
                 }
         } else if hasPreview {
             content.contextMenu(menuItems: items, preview: preview)
@@ -84,11 +86,9 @@ struct AppDismissDisabledKey: PreferenceKey {
     static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
 }
 private struct AppDismissDisabledModifier: ViewModifier {
-    @Environment(\.noLiquidGlass) private var classic
     let disabled: Bool
-    @ViewBuilder func body(content: Content) -> some View {
-        if classic { content.preference(key: AppDismissDisabledKey.self, value: disabled) }
-        else { content.interactiveDismissDisabled(disabled) }
+    func body(content: Content) -> some View {
+        content.preference(key: AppDismissDisabledKey.self, value: disabled)
     }
 }
 

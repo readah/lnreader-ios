@@ -20,11 +20,6 @@ enum AppPresentationDetent: Hashable {
         }
     }
 }
-private struct AppDetentsKey: PreferenceKey {
-    static let defaultValue: Set<AppPresentationDetent> = [.large]
-    static func reduce(value: inout Set<AppPresentationDetent>, nextValue: () -> Set<AppPresentationDetent>) { value = nextValue() }
-}
-
 extension View {
     func appSheet<Sheet: View>(isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil, @ViewBuilder content: @escaping () -> Sheet) -> some View {
         modifier(AppSheetModifier(isPresented: isPresented, onDismiss: onDismiss, sheet: content))
@@ -43,22 +38,29 @@ extension View {
     }
 }
 private struct AppDetentsModifier: ViewModifier {
-    @Environment(\.noLiquidGlass) private var classic
     let detents: Set<AppPresentationDetent>
-    @ViewBuilder func body(content: Content) -> some View {
-        if classic { content.preference(key: AppDetentsKey.self, value: detents) }
-        else { content.presentationDetents(Set(detents.map(\.native))) }
+    func body(content: Content) -> some View {
+        content.presentationDetents(Set(detents.map(\.native)))
     }
 }
 private struct AppCornerModifier: ViewModifier {
-    @Environment(\.noLiquidGlass) private var classic
     let radius: CGFloat?
-    @ViewBuilder func body(content: Content) -> some View {
-        if classic { content }
-        else { content.presentationCornerRadius(radius) }
+    func body(content: Content) -> some View {
+        content.presentationCornerRadius(radius)
     }
 }
 private final class DeferredPopupAction { var action: (() -> Void)? }
+
+/// Opaque under Reduce Transparency, ultra-thin otherwise. The sheet's own
+/// glass never shows through because this is the presentation background.
+private struct AppSheetBackground: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    var body: some View {
+        Rectangle()
+            .fill(reduceTransparency ? AnyShapeStyle(AppTheme.surface) : AnyShapeStyle(Material.thick))
+            .ignoresSafeArea()
+    }
+}
 
 private struct AppItemSheetModifier<Item: Identifiable, Sheet: View>: ViewModifier {
     @Binding var item: Item?
@@ -79,77 +81,53 @@ private struct AppItemSheetModifier<Item: Identifiable, Sheet: View>: ViewModifi
     }
 }
 
+/// Sheets are native iOS presentations in both modes. Only the surface is
+/// ours: an ultra-thin background instead of system glass, non-interactive
+/// dismissal, and our own serif title, buttons and content. Deferred popup
+/// actions still run only after the sheet is gone.
 private struct AppSheetModifier<Sheet: View>: ViewModifier {
-    @Environment(\.noLiquidGlass) private var classic
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var isPresented: Bool
     var onDismiss: (() -> Void)?
     @ViewBuilder var sheet: () -> Sheet
     @State private var deferredAction = DeferredPopupAction()
-    @State private var hostPresented = false
-    @State private var visible = false
-    @State private var closing = false
 
     func body(content: Content) -> some View {
         content
-            .sheet(isPresented: classic ? .constant(false) : $isPresented, onDismiss: finished) {
-                sheet()
-                    .environment(\.appPressFeedbackHosted, false)
+            .sheet(isPresented: $isPresented, onDismiss: finished) {
+                SheetHost(deferred: deferredAction) { sheet() }
             }
-            // UIKit supplies the presentation context only; its transition is
-            // disabled so the panel has exactly one arrival and departure.
-            .fullScreenCover(isPresented: $hostPresented, onDismiss: finished) {
-                ClassicSheet(visible: visible, close: close) { sheet().appNavigationScreen() }
-                    .environment(\.appPressFeedbackHosted, false)
-                    .environment(\.classicTabBarHeight, 0)
-                    .environment(\.classicNavigation, nil)
-                    .environment(\.appSheetClose, close)
-                    .environment(\.appPopupAction, { action in
-                        deferredAction.action = action
-                        close()
-                    })
-                    .presentationBackground(.clear)
-                    .task {
-                        do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
-                        guard !closing else { return }
-                        withAnimation(AppMotion.reveal(reduceMotion: reduceMotion)) { visible = true }
-                    }
-            }
-            .onChange(of: isPresented, initial: true) { _, presented in
-                guard classic else { return }
-                if presented {
-                    guard !hostPresented else { return }
-                    closing = false
-                    visible = false
-                    setHost(true)
-                } else if hostPresented { close() }
-            }
-    }
-
-    private func setHost(_ presented: Bool) {
-        var transaction = Transaction(animation: nil)
-        transaction.disablesAnimations = true
-        withTransaction(transaction) { hostPresented = presented }
-    }
-
-    private func close() {
-        guard hostPresented, !closing else { return }
-        closing = true
-        withAnimation(AppMotion.reveal(reduceMotion: reduceMotion), completionCriteria: .removed) {
-            visible = false
-        } completion: {
-            setHost(false)
-        }
     }
 
     private func finished() {
         isPresented = false
-        visible = false
-        closing = false
         let action = deferredAction.action
         deferredAction.action = nil
         onDismiss?()
         action?()
+    }
+}
+
+private struct SheetHost<Content: View>: View {
+    @Environment(\.dismiss) private var dismiss
+    let deferred: DeferredPopupAction
+    @ViewBuilder var content: () -> Content
+    @State private var dismissDisabled = false
+
+    var body: some View {
+        content()
+            .environment(\.appPressFeedbackHosted, false)
+            .environment(\.classicTabBarHeight, 0)
+            .environment(\.classicNavigation, nil)
+            .environment(\.appNavigationDepth, 0)
+            .environment(\.appSheetClose, { dismiss() })
+            .environment(\.appPopupAction, { action in
+                deferred.action = action
+                dismiss()
+            })
+            .appNavigationScreen()
+            .interactiveDismissDisabled(dismissDisabled)
+            .presentationBackground { AppSheetBackground() }
+            .onPreferenceChange(AppDismissDisabledKey.self) { dismissDisabled = $0 }
     }
 }
 private struct AppPopoverModifier<Popup: View>: ViewModifier {
@@ -158,96 +136,18 @@ private struct AppPopoverModifier<Popup: View>: ViewModifier {
     @ViewBuilder var popup: () -> Popup
     func body(content: Content) -> some View {
         content
-            .popover(isPresented: classic ? .constant(false) : $isPresented) {
-                            popup().environment(\.appPressFeedbackHosted, false)
-                        }
-            .appSheet(isPresented: classic ? $isPresented : .constant(false)) {
-                popup().appPresentationDetents([.medium])
+            .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: nil) {
+                popup()
+                    .environment(\.appPressFeedbackHosted, false)
+                    .appRevealQuick(edge: .top)
+                    #if os(iOS)
+                    .presentationCompactAdaptation(.popover)
+                    #endif
             }
     }
 }
 
-private struct ClassicSheet<Content: View>: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.springUnblurMotion) private var springUnblurMotion
-    let visible: Bool
-    let close: () -> Void
-    @State private var detents: Set<AppPresentationDetent> = [.large]
-    @State private var selectedDetent: AppPresentationDetent?
-    @GestureState private var drag: CGFloat = 0
-    @State private var dismissalOffset: CGFloat = 24
-    @State private var dismissDisabled = false
-    @ViewBuilder var content: () -> Content
-
-    var body: some View {
-        GeometryReader { geometry in
-            let available = geometry.size.height
-            let ordered = detents.sorted { $0.height(in: available) < $1.height(in: available) }
-            let selected = selectedDetent.flatMap { detents.contains($0) ? $0 : nil } ?? ordered.first ?? .large
-            let height = max(160, selected.height(in: available))
-            ZStack(alignment: .bottom) {
-                Color.black.opacity(visible ? 0.4 : 0)
-                    .ignoresSafeArea()
-                    .onTapGesture { if !dismissDisabled { close() } }
-                    .accessibilityLabel("Dismiss sheet")
-                    .accessibilityAddTraits(.isButton)
-                content()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .safeAreaInset(edge: .top, spacing: 0) {
-                        Capsule().fill(AppTheme.hairline)
-                        .frame(width: 34, height: 4)
-                        .frame(maxWidth: .infinity).frame(height: 22)
-                        .contentShape(.rect)
-                        .accessibilityLabel("Sheet size")
-                        .accessibilityAdjustableAction { direction in
-                            let index = ordered.firstIndex(of: selected) ?? 0
-                            let next = direction == .increment ? min(index + 1, ordered.count - 1) : max(index - 1, 0)
-                            if ordered.indices.contains(next) {
-                                withAnimation(AppMotion.reveal(reduceMotion: reduceMotion)) { selectedDetent = ordered[next] }
-                            }
-                        }
-                    }
-                .frame(height: height)
-                .padding(.bottom, geometry.safeAreaInsets.bottom)
-                .background { OnboardingBackdrop() }
-                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30))
-                .blur(radius: springUnblurMotion && !reduceMotion && !visible ? 10 : 0)
-                .scaleEffect(springUnblurMotion && !reduceMotion && !visible ? 0.94 : 1, anchor: .bottom)
-                .opacity(visible ? 1 : 0)
-                .offset(y: visible ? max(0, drag) : (reduceMotion ? 0 : dismissalOffset))
-                .simultaneousGesture(DragGesture(minimumDistance: 12, coordinateSpace: .named("sheetPanel"))
-                    .updating($drag) { value, drag, _ in
-                        guard value.startLocation.y < 82, abs(value.translation.height) > abs(value.translation.width) else { return }
-                        drag = max(-30, value.translation.height)
-                    }
-                    .onEnded { value in
-                        guard value.startLocation.y < 82, abs(value.translation.height) > abs(value.translation.width) else { return }
-                        let decision = SheetDragDecision.resolve(translation: value.translation.height,
-                                                                 predicted: value.predictedEndTranslation.height,
-                                                                 canDismiss: !dismissDisabled)
-                        withAnimation(AppMotion.reveal(reduceMotion: reduceMotion)) {
-                            switch decision {
-                            case .dismiss:
-                                dismissalOffset = max(24, value.translation.height + 24)
-                                close()
-                            case .expand: selectedDetent = ordered.last
-                            case .restore: break
-                            }
-                        }
-                    })
-                .coordinateSpace(name: "sheetPanel")
-                .animation(AppMotion.reveal(reduceMotion: reduceMotion), value: drag == 0)
-                .ignoresSafeArea(edges: .bottom)
-                .onPreferenceChange(AppDetentsKey.self) { if !$0.isEmpty { detents = $0 } }
-                .onPreferenceChange(AppDismissDisabledKey.self) { dismissDisabled = $0 }
-            }
-            .allowsHitTesting(visible)
-        }
-        .accessibilityAction(.escape) { if !dismissDisabled { close() } }
-    }
-}
-
-private struct SheetCloseKey: EnvironmentKey {
+struct SheetCloseKey: EnvironmentKey {
     static let defaultValue: (() -> Void)? = nil
 }
 
@@ -263,7 +163,7 @@ private struct PopupDismissKey: EnvironmentKey {
     static let defaultValue: (() -> Void)? = nil
 }
 extension EnvironmentValues {
-    fileprivate var appSheetClose: (() -> Void)? {
+    var appSheetClose: (() -> Void)? {
         get { self[SheetCloseKey.self] }
         set { self[SheetCloseKey.self] = newValue }
     }
@@ -295,6 +195,7 @@ extension EnvironmentValues {
 struct ClassicPopupButtonStyle: PrimitiveButtonStyle {
     @Environment(\.appPopupDismiss) private var close
     @Environment(\.appPopupAction) private var performAfterDismissal
+    @Environment(\.appCompactRow) private var compact
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
         Button(role: configuration.role) {
@@ -310,9 +211,13 @@ struct ClassicPopupButtonStyle: PrimitiveButtonStyle {
             configuration.label
                 .font(Typography.body)
                 .foregroundStyle(configuration.role == .destructive ? AppTheme.destructive : AppTheme.accent)
-                .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
-                .padding(.horizontal, 14)
-                .background(AppTheme.surface.opacity(0.4), in: .rect(cornerRadius: 16))
+                .frame(maxWidth: .infinity, minHeight: compact ? 44 : 46, alignment: .leading)
+                .padding(.horizontal, compact ? 10 : 14)
+                .background {
+                    if !compact {
+                        AppTheme.surface.opacity(0.4).clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                }
                 .contentShape(.rect)
         }
         .buttonStyle(AppPlainButtonStyle())
@@ -326,13 +231,16 @@ struct ClassicPopup<Content: View>: View {
     var title: Text? = nil
     @ViewBuilder var content: () -> Content
     var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                title?.font(Typography.headline)
-                Spacer()
-                Button { dismiss() } label: { AppIcon(systemName: "xmark", size: 15) }
-                    .buttonStyle(ClassicChromeButtonStyle())
-                    .accessibilityLabel("Close")
+        VStack(alignment: .leading, spacing: 16) {
+            if let title {
+                HStack(alignment: .firstTextBaseline, spacing: 16) {
+                    title.font(Typography.navigationTitle)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 12)
+                    Button { dismiss() } label: { AppIcon(systemName: "xmark", size: 15) }
+                        .buttonStyle(ClassicChromeButtonStyle())
+                        .accessibilityLabel("Close")
+                }
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 8, content: content)
@@ -342,7 +250,9 @@ struct ClassicPopup<Content: View>: View {
             }
             .scrollBounceBehavior(.basedOnSize)
         }
-        .padding(16)
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 20)
         .appPresentationDetents([.medium, .large])
     }
 }
