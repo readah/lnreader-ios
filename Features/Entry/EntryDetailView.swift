@@ -65,6 +65,13 @@ struct EntryDetailView: View {
     /// The chapter "Continue reading" opens, also shown on the button.
     /// Rebuilt with `orderedChapters` so the body never walks relationships.
     @State private var resumeChapter: ChapterDisplay?
+    @State private var showCoverPicker = false
+    /// A cover resolved or chosen on this screen before it is written to the entry.
+    @State private var chosenCover: String?
+    /// The user picked a cover (or the source cover); automatic lookup must not undo it.
+    @State private var coverWasPicked = false
+    /// The lookup key already attempted, so a redraw does not repeat the request.
+    @State private var coverLookupAttempted: String?
     /// Asks the page to bring a chapter row into view.
     @State private var scrollRequest: ChapterScrollRequest?
     /// The row briefly lit after a scroll lands on it.
@@ -208,12 +215,16 @@ struct EntryDetailView: View {
         .task(id: tintDetails ? (displayCover ?? "") : "") {
             coverTint = tintDetails ? await CoverTint.color(for: displayCover) : nil
         }
+        // Look for a better cover once per title; a hit is written as the
+        // entry's custom cover, so it survives refreshes and backups.
+        .task(id: coverLookupKey) { await resolveCoverArtIfNeeded() }
         .environment(\.coverTint, coverTint)
         .background {
             if let coverTint {
                 coverTint.opacity(tintStrength * 0.55).ignoresSafeArea()
             }
         }
+        .appBackdrop()
         // A screen-level overlay, so the confirmation is where the eye lands
         // after a hold, not inside the hero that scrolls it away.
         .overlay(alignment: .bottom) { copyToast }
@@ -221,31 +232,7 @@ struct EntryDetailView: View {
         .onDisappear { chapterSelection.end() }
         .toolbar(removing: .title)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                // Both are visible buttons. Migrate used to be the only item in a
-                // `…` menu, which hid the one action a broken source makes you
-                // look for.
-                //
-                // Least to most likely used, left to right: the right end is the
-                // easiest corner for a right thumb, so Refresh takes it.
-                if let localEntry, localEntry.inLibrary, !localEntry.isLocal {
-                    migrateButton
-                }
-                if webURL != nil {
-                    webViewButton
-                }
-                if let shareURL {
-                    ShareLink(item: shareURL) {
-                        AppLabel("Share link", systemName: "square.and.arrow.up", size: 17, relativeTo: .body)
-                    }
-                    .accessibilityLabel("Share link")
-                }
-                // Refresh is a toolbar button, not pull to refresh: pulling down
-                // dismisses this screen.
-                if canRefetch {
-                    refreshButton
-                }
-            }
+            ToolbarItem(placement: .topBarTrailing) { moreMenu }
         }
         // The sheet reports the new entry; this screen closes it, and only once the
         // sheet is gone does it ask the stack to show that entry in its place. The
@@ -284,6 +271,15 @@ struct EntryDetailView: View {
             // Applied to the sheet content directly: the sheet is chained after
             // the `.environment(\.coverTint,…)` above, so it does not inherit it.
             .environment(\.coverTint, coverTint)
+        }
+        .sheet(isPresented: $showCoverPicker) {
+            CoverPickerSheet(
+                title: displayTitle,
+                isNovel: !isManga,
+                currentCover: displayCover,
+                sourceCover: sourceCover,
+                onChoose: pickCover)
+                .presentationDetents([.medium, .large])
         }
         // The reader is a full-screen window of its own; this screen only
         // decides which chapter to open.
@@ -336,32 +332,52 @@ struct EntryDetailView: View {
         return "Updated \(lastFetched.formatted(.relative(presentation: .named)))"
     }
 
-    /// Refetches details and chapters. Turns into the spinner while it runs,
-    /// so the refresh shows where it was started.
-    ///
-    /// Migrate is its own button next to it; see docs/DETAIL_SCREEN.md.
+    /// The screen's actions behind one `…`. Five separate buttons crowded the
+    /// bar; an overflow menu earns its place once it holds several.
+    private var moreMenu: some View {
+        Menu {
+            coverButton
+            if let localEntry, localEntry.inLibrary, !localEntry.isLocal {
+                migrateButton
+            }
+            if webURL != nil {
+                webViewButton
+            }
+            if let shareURL {
+                ShareLink(item: shareURL) {
+                    Label("Share link", systemImage: "square.and.arrow.up")
+                }
+            }
+            if canRefetch {
+                Divider()
+                refreshButton
+            }
+        } label: {
+            AppLabel("More", systemName: "ellipsis.circle", size: 17, relativeTo: .body)
+        }
+        .menuOrder(.fixed)
+    }
+
+    /// Refetches details and chapters. There is no pull to refresh: pulling down
+    /// dismisses this screen. While it runs, the status under the chapter count
+    /// says "Refreshing…".
     private var refreshButton: some View {
         Button {
             Task { await fetchDetails(force: true) }
         } label: {
-            if isRefetching {
-                ProgressView()
-            } else {
-                AppLabel("Refresh", systemName: "arrow.clockwise", size: 17, relativeTo: .body)
-            }
+            Label(isRefetching ? "Refreshing…" : "Refresh", systemImage: "arrow.clockwise")
         }
         .disabled(isRefetching)
-        .accessibilityLabel(isRefetching ? "Refreshing" : "Refresh")
     }
 
-    /// Move this entry to another source. Its own button rather than an item in a
-    /// menu: it is what you come here for when a source breaks, and a menu with a
-    /// single item is a door with one room behind it.
+    private var coverButton: some View {
+        Button("Change cover", systemImage: "photo") { showCoverPicker = true }
+    }
+
+    /// Move this entry to another source. It is what you come here for when a
+    /// source breaks, so it sits at the top of the menu.
     private var migrateButton: some View {
-        Button { showMigrate = true } label: {
-            AppLabel("Migrate to another source", systemName: "arrow.triangle.swap", size: 17, relativeTo: .body)
-        }
-        .accessibilityLabel("Migrate to another source")
+        Button("Migrate to another source", systemImage: "arrow.triangle.swap") { showMigrate = true }
     }
 
     /// The entry's page on its site, when its source has one.
@@ -389,13 +405,10 @@ struct EntryDetailView: View {
     }
 
     /// Open the entry's page on its site, in the app, sharing the scraper's
-    /// cookies. A visible button, like Migrate: it is the way to check what the
-    /// site shows, or to clear a Cloudflare check, when the source misbehaves.
+    /// cookies: the way to check what the site shows, or to clear a Cloudflare
+    /// check, when the source misbehaves.
     private var webViewButton: some View {
-        Button { showWebView = true } label: {
-            AppLabel("Open in web view", systemName: "globe", size: 17, relativeTo: .body)
-        }
-        .accessibilityLabel("Open in web view")
+        Button("Open in web view", systemImage: "globe") { showWebView = true }
     }
 
     // MARK: - Chapter Computation
@@ -519,12 +532,11 @@ struct EntryDetailView: View {
     /// unread chapter after the latest one read, then the first unread one,
     /// then the newest.
     private static func resumeChapter(oldestFirst: [ChapterDisplay], lastOpened: ChapterDisplay?) -> ChapterDisplay? {
-        if let lastOpened, lastOpened.unread { return lastOpened }
-        if let latestRead = oldestFirst.lastIndex(where: { !$0.unread }),
-           let next = oldestFirst[latestRead...].first(where: \.unread) {
-            return next
-        }
-        return oldestFirst.first(where: \.unread) ?? oldestFirst.last
+        ChapterOrder.resume(
+            oldestFirst: oldestFirst,
+            lastOpenedPath: lastOpened?.path,
+            isUnread: \.unread
+        )
     }
 
     private var filteredChapters: [ChapterDisplay] {
@@ -567,7 +579,62 @@ struct EntryDetailView: View {
     }
 
     private var displayCover: String? {
-        localEntry?.displayThumbnailURL ?? details?.thumbnailURL ?? sourceEntry?.thumbnailURL
+        if let custom = localEntry?.customThumbnailURL, !custom.isEmpty { return custom }
+        if let chosenCover { return chosenCover }
+        return localEntry?.thumbnailURL ?? details?.thumbnailURL ?? sourceEntry?.thumbnailURL
+    }
+
+    /// The cover written for the source itself, ignoring this screen's override.
+    private var sourceCover: String? {
+        localEntry?.thumbnailURL ?? details?.thumbnailURL ?? sourceEntry?.thumbnailURL
+    }
+
+    // MARK: - Cover art
+
+    /// Reruns when a browse title resolves or a browse result becomes a library entry.
+    private var coverLookupKey: String {
+        "\(displayTitle)\u{0}\(displayAuthor ?? "")\u{0}\(bookPath)\u{0}\(localEntry != nil ? 1 : 0)"
+    }
+
+    /// Ask AniList for a cover once per library book. Only an exact-enough title
+    /// match is written; otherwise the source's cover stays and the picker offers
+    /// the results for the user to choose from.
+    private func resolveCoverArtIfNeeded() async {
+        let key = coverLookupKey
+        guard coverLookupAttempted != key else { return }
+        coverLookupAttempted = key
+        guard !coverWasPicked else { return }
+        // Library books only: browsing a source must not spend a lookup per
+        // result. Adding the book flips `coverLookupKey` and runs this again.
+        guard let localEntry else { return }
+        if let custom = localEntry.customThumbnailURL, !custom.isEmpty { return }
+        guard !bookPath.isEmpty, displayTitle != "Unknown",
+              !CoverArt.isAutoDisabled(sourceKey: sourceKey, url: bookPath) else { return }
+
+        let mediaID = localEntry.tracks.first { $0.syncId == TrackerID.aniList }?.remoteId
+        guard let cover = await CoverArt.bestCover(
+            title: displayTitle, isNovel: !isManga, mediaID: mediaID),
+            cover != displayCover else { return }
+        guard !Task.isCancelled, !coverWasPicked else { return }
+
+        chosenCover = cover
+        if localEntry.customThumbnailURL == nil {
+            localEntry.customThumbnailURL = cover
+            try? modelContext.save()
+        }
+    }
+
+    /// The picker's choice. `nil` restores the source's cover and stops the
+    /// automatic lookup from replacing it again.
+    private func pickCover(_ url: String?) {
+        coverWasPicked = true
+        chosenCover = url
+        if url == nil {
+            CoverArt.disableAuto(sourceKey: sourceKey, url: bookPath)
+        }
+        guard let localEntry else { return }
+        localEntry.customThumbnailURL = url
+        try? modelContext.save()
     }
 
     private var displayGenres: [String] {
@@ -770,6 +837,12 @@ struct EntryDetailView: View {
             guard let added = modelContext.model(for: id) as? Entry else {
                 isAddingToLibrary = false
                 return
+            }
+            // A cover resolved or picked while this was only a browse result
+            // becomes the new entry's override.
+            if let chosenCover, added.customThumbnailURL == nil {
+                added.customThumbnailURL = chosenCover
+                try? modelContext.save()
             }
             // One transaction: the other actions split out of the library
             // button as it shrinks to the left.

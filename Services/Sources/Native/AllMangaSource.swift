@@ -314,7 +314,9 @@ final class AllMangaSource: MangaSource {
 
     private static func thumbnail(_ value: String?) -> String? {
         guard let value, !value.isEmpty else { return nil }
-        return value.hasPrefix("http") ? value : thumbnailCDN + value + "?w=250"
+        // No `?w=250`: the CDN's original is the only copy sharp enough for the
+        // detail hero, and `CoverDecode` downsamples it for grid cells.
+        return value.hasPrefix("http") ? value : thumbnailCDN + value
     }
 
     private static func status(_ value: String?) -> EntryStatus {

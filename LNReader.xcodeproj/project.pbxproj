@@ -23,6 +23,9 @@
 		ABCD27010000000000000002 /* Services/EntryMigrationApply.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD27000000000000000002 /* Services/EntryMigrationApply.swift */; };
 		ABCD27010000000000000001 /* Services/EntryMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD27000000000000000001 /* Services/EntryMigration.swift */; };
 		ABCD2901000000000000000001 /* Services/EntryLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD2900000000000000000001 /* Services/EntryLink.swift */; };
+		ABCDC0A10000000000000001 /* Services/CoverArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDC0A00000000000000001 /* Services/CoverArt.swift */; };
+		ABCDC0A10000000000000002 /* Services/CoverMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDC0A00000000000000002 /* Services/CoverMatching.swift */; };
+		ABCDC0A10000000000000003 /* Features/Entry/CoverPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDC0A00000000000000003 /* Features/Entry/CoverPickerSheet.swift */; };
 		3FD8ED1A52F11F14302BEC1C /* WebViewCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D7107F537AFC5915A42C0BC /* WebViewCapture.swift */; };
 		0E81C8622310F65C28D7D9B4 /* OmegaScansSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCFC737D4CC39E892D03BD2F /* OmegaScansSource.swift */; };
 		6F29897283D90B2944E3D69B /* NovelPhoenixSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B5697954043B01F054A9A5 /* NovelPhoenixSource.swift */; };
@@ -235,6 +238,9 @@
 		ABCD27000000000000000002 /* Services/EntryMigrationApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/EntryMigrationApply.swift; sourceTree = SOURCE_ROOT; };
 		ABCD27000000000000000001 /* Services/EntryMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/EntryMigration.swift; sourceTree = SOURCE_ROOT; };
 		ABCD2900000000000000000001 /* Services/EntryLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/EntryLink.swift; sourceTree = SOURCE_ROOT; };
+		ABCDC0A00000000000000001 /* Services/CoverArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CoverArt.swift; sourceTree = SOURCE_ROOT; };
+		ABCDC0A00000000000000002 /* Services/CoverMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/CoverMatching.swift; sourceTree = SOURCE_ROOT; };
+		ABCDC0A00000000000000003 /* Features/Entry/CoverPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Entry/CoverPickerSheet.swift; sourceTree = SOURCE_ROOT; };
 		8D7107F537AFC5915A42C0BC /* WebViewCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewCapture.swift; sourceTree = "<group>"; };
 		FCFC737D4CC39E892D03BD2F /* OmegaScansSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OmegaScansSource.swift; sourceTree = "<group>"; };
 		E2B5697954043B01F054A9A5 /* NovelPhoenixSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovelPhoenixSource.swift; sourceTree = "<group>"; };
@@ -562,6 +568,7 @@
 				2B52FBF3B582C74A0B195493 /* BookAudioDownloadsView.swift */,
 				9B5910B0EC9309E6416CFAFB /* ChapterListView.swift */,
 				EF6E35C495529EB1044040B0 /* ChapterRow.swift */,
+				ABCDC0A00000000000000003 /* Features/Entry/CoverPickerSheet.swift */,
 				F8C839AAAF9EECC8AEFF7D32 /* EntryDetailView.swift */,
 				864A984E2C4C0237F815C05E /* EntryHeaderView.swift */,
 				F40544D40A826C93D44709D4 /* EntryInfoSection.swift */,
@@ -658,6 +665,8 @@
 			children = (
 				CA609549517104028BBED534 /* Tracking/TrackingManager.swift */,
 				EC1FF6B73F774BA6649459BC /* Tracking/AniListClient.swift */,
+				ABCDC0A00000000000000001 /* Services/CoverArt.swift */,
+				ABCDC0A00000000000000002 /* Services/CoverMatching.swift */,
 				2134FC9B8F314414383E3D90 /* TTSAudioAppDelegate.swift */,
 				D20C2FE9D0133D8131081F47 /* TTSChapterSource.swift */,
 				D629A9BAEAE61A89C750A012 /* TTSOfflineLibrary.swift */,
@@ -978,6 +987,9 @@
 				ABCD27010000000000000002 /* Services/EntryMigrationApply.swift in Sources */,
 				ABCD27010000000000000001 /* Services/EntryMigration.swift in Sources */,
 				ABCD2901000000000000000001 /* Services/EntryLink.swift in Sources */,
+				ABCDC0A10000000000000001 /* Services/CoverArt.swift in Sources */,
+				ABCDC0A10000000000000002 /* Services/CoverMatching.swift in Sources */,
+				ABCDC0A10000000000000003 /* Features/Entry/CoverPickerSheet.swift in Sources */,
 				ABCD26890000000000000001 /* Services/LibraryBackup.swift in Sources */,
 				ABCD26890000000000000000 /* Services/ChapterDownloadManager.swift in Sources */,
 				295E3A3C6DA5D18305CFC473 /* TTSPlaybackControls.swift in Sources */,

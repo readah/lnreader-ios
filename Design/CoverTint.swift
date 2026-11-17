@@ -41,7 +41,7 @@ enum CoverTint {
     /// The already-decoded cover when one is on screen, the disk cache next, and
     /// the network only as a last resort.
     private static func image(for url: URL) async -> PlatformImage? {
-        if let decoded = ImageCache.shared.object(forKey: url as NSURL) { return decoded }
+        if let decoded = ImageCache.cached(url) { return decoded }
         if let stored = CoverDiskCache.read(url), let decoded = CoverDecode.image(from: stored.data) { return decoded }
         guard let data = try? await HTTPClient.covers.send(HTTPRequest(url: url)).data else { return nil }
         return CoverDecode.image(from: data)

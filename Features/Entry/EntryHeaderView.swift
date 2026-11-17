@@ -59,7 +59,7 @@ struct EntryHeaderView<Actions: View>: View {
     private var heroBackground: some View {
         Group {
             if let cover, let url = URL(string: cover) {
-                CustomAsyncImage(url: url) { image in
+                CustomAsyncImage(url: url, maxPixelSize: CoverDecode.heroMaxPixelSize) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)

@@ -40,7 +40,7 @@ compile_and_run_plain() {
 # first, so a break in the foundation shows up before the expensive ones run.
 PLAIN_CHECKS="foundation links schema chapter-sync chapter-order page-pipeline scanlators \
 reader-settings haptics filters sorts categories badges offline mihon-backup tts-contracts \
-sync migration"
+sync migration cover-art"
 
 usage() {
   cat <<'USAGE'
@@ -52,7 +52,7 @@ all                run every check that takes no arguments
 
 Checks: foundation links schema chapter-sync chapter-order page-pipeline scanlators
         reader-settings haptics filters sorts categories badges offline mihon-backup
-        tts-contracts sync migration native-comments player
+        tts-contracts sync migration cover-art native-comments player
 
 Checks needing setup, not part of `all`:
   sync-network      needs LNREADER_SYNC_TEST_URL pointing at a disposable backend on 127.0.0.1
@@ -110,6 +110,7 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -129,6 +130,7 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -144,6 +146,7 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
@@ -155,6 +158,11 @@ run() {
         Features/Entry/ScanlatorRules.swift \
         Services/EntryMigration.swift \
         tests/MigrationChecks.swift
+      ;;
+    cover-art)
+      compile_and_run_plain cover-art \
+        Services/CoverMatching.swift \
+        tests/CoverArtChecks.swift
       ;;
     page-pipeline)
       compile_and_run page-pipeline \
@@ -238,6 +246,7 @@ run() {
         Models/Schema/DownloadState.swift \
         Models/Schema/SchemaV1.swift \
         Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
         Models/Schema/SchemaMigrationPlan.swift \
         Models/UserProfile.swift \
         Services/Sources/SourceKey.swift \
