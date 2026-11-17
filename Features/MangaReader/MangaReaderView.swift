@@ -408,7 +408,7 @@ struct MangaReaderView: View {
                         .padding(.horizontal, 20)
                         .appGlassEffect(.regular.interactive(), in: .capsule)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .padding(.horizontal, 60)
                 .accessibilityLabel("Chapters: \(chapterName)")
             }
@@ -460,7 +460,7 @@ struct MangaReaderView: View {
                 .frame(width: 44, height: 44)
                 .appGlassEffect(.regular.interactive(), in: .circle)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel(label)
     }
 
@@ -473,7 +473,7 @@ struct MangaReaderView: View {
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .disabled(!available)
         .opacity(available ? 1 : 0.35)
         .accessibilityLabel(label)
@@ -947,7 +947,7 @@ struct MangaReaderView: View {
                         .frame(height: 44)
                         .appGlassEffect(.regular.interactive(), in: .capsule)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .padding(.bottom, chrome.isControl ? 96 : 28)
                 .accessibilityLabel("Stop auto scroll")
             }
@@ -973,7 +973,7 @@ struct MangaReaderView: View {
                     .frame(minWidth: 58)
                     .frame(height: 44)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPlainButtonStyle())
             .accessibilityLabel("Reset zoom")
             zoomButton("plus.magnifyingglass", label: "Zoom in", enabled: zoom.canZoomIn) {
                 zoomBy(MangaZoomState.step)
@@ -994,7 +994,7 @@ struct MangaReaderView: View {
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.35)
         .accessibilityLabel(label)

@@ -158,7 +158,6 @@ struct LiquidGlassOnboardingView: View {
 
             GeometryReader { geometry in
                 controls(availableHeight: geometry.size.height)
-                    .appReveal()
             }
         }
         .foregroundStyle(OnboardingPalette.ink)
@@ -306,7 +305,7 @@ struct LiquidGlassOnboardingView: View {
             .font(Typography.caption)
             .frame(minHeight: 44)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .padding(.horizontal, 20)
         .disabled(setup.isSubmitting || syncManager.isWorking)
     }

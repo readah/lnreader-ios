@@ -19,7 +19,7 @@ struct ScanlatorSettingsView: View {
     /// Scanlators present in this entry's chapter list.
     let scanlators: [String]
 
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
 
     /// The list's own copy of the order. A move updates it in the same
     /// transaction as the drop; reading the order back from `settings` lagged a
@@ -140,7 +140,7 @@ struct ScanlatorSettingsView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel(displayName(name))
         .accessibilityValue(visible ? "Shown" : "Hidden")
         .accessibilityAddTraits(visible ? .isSelected : [])

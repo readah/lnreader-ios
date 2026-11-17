@@ -26,6 +26,9 @@ struct LibraryGridView: View {
                     onSelect: onSelect,
                     onRemove: { onDelete(novel) }
                 )
+                // Blurs out under the pinned kind picker; the band comes from
+                // the Library through the environment.
+                .progressiveTopBlur()
             }
         }
         .padding(.horizontal)
@@ -77,7 +80,7 @@ struct InteractiveGridCell: View {
             onSelect(novel)
         }
         .menuStyle(.button)
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .menuOrder(.fixed)
     }
 }

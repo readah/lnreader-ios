@@ -361,7 +361,7 @@ extension ChapterDisplay: ChapterOrdered {
 
 /// Bounded chapter pages keep navigation manageable even for very long novels.
 struct ChapterDirectoryView: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     @Environment(\.coverTint) private var coverTint
     let entry: Entry?
     let sourceEntry: SourceEntry?
@@ -464,12 +464,12 @@ struct ChapterDirectoryView: View {
                         }
                         Spacer()
                         Button { goToCurrent() } label: { AppLabel("Go to current chapter", systemName: "location.fill", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(AppBorderlessButtonStyle())
                             .tint(coverTint)
                     }
                     HStack {
                         Label { TextField("Jump to chapter", text: $jumpNumber).keyboardType(.numberPad).focused($jumpFocused) } icon: { AppIcon(systemName: "number", size: 12, relativeTo: .caption) }
-                        Button("Go", action: jump).buttonStyle(.borderless).disabled(jumpNumber.isEmpty)
+                        Button("Go", action: jump).buttonStyle(AppBorderlessButtonStyle()).disabled(jumpNumber.isEmpty)
                             .tint(coverTint)
                     }
                     if let jumpError { Text(jumpError).font(.caption).foregroundStyle(AppTheme.destructive) }
@@ -488,7 +488,7 @@ struct ChapterDirectoryView: View {
                                         if chapter.path == currentChapterPath { AppIcon(systemName: "book.fill", size: 17, relativeTo: .body).foregroundStyle(coverTint ?? .primary) }
                                         else if chapter.bookmarked { AppIcon(systemName: "bookmark.fill", size: 17, relativeTo: .body).foregroundStyle(.secondary) }
                                     }.frame(minHeight: 44).contentShape(Rectangle())
-                                }.buttonStyle(.plain)
+                                }.buttonStyle(AppPlainButtonStyle())
                             } else {
                                 ChapterRow(chapter: chapter, entry: entry, sourceKey: sourceKey,
                                            selection: entry == nil ? nil : selection, orderedPaths: { paths },
@@ -525,8 +525,8 @@ struct ChapterDirectoryView: View {
                     }
                 }
                 AppToolbarItem(placement: .confirmationAction) { Button("Done") { if let onClose { onClose() } else { dismiss() } } }
+                if showsPager { pagerItems(items, pageCount: pageCount, page: page) }
             }
-            .appToolbar { if showsPager { pagerItems(items, pageCount: pageCount, page: page) } }
             .toolbar(showsPager ? .visible : .hidden, for: .bottomBar)
             .chapterSelectionToolbar(
                 selection: selection, entry: entry, ordered: items,

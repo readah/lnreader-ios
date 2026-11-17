@@ -12,7 +12,7 @@ struct EntryWebView: View {
     let url: URL
     let title: String
 
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var page: WebPage = {
         var configuration = WebPage.Configuration()

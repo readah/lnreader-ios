@@ -59,7 +59,7 @@ struct ReaderSheetHeader: View {
                                     .background(Color.white, in: .circle)
                                     .contentShape(.circle)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppPlainButtonStyle())
                             .accessibilityLabel("Keep changes")
                         }
                     }
@@ -67,7 +67,6 @@ struct ReaderSheetHeader: View {
             }
         }
         .frame(height: GlassMetrics.side)
-        .appReveal(edge: .top)
     }
 
     private var closeButton: some View {
@@ -79,7 +78,7 @@ struct ReaderSheetHeader: View {
                 .appGlassEffect(.regular.interactive(), in: .circle)
                 .contentShape(.circle)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel("Close")
     }
 }
@@ -111,7 +110,7 @@ struct GlassToggleSegment: View {
                 }
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel(label)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
@@ -140,7 +139,7 @@ struct SheetActionButton: View {
             .background(Color.white, in: .capsule)
             .contentShape(.capsule)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
     }
 }
 
@@ -164,7 +163,7 @@ struct InfoButton: View {
                 .foregroundStyle(.secondary)
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel("More about this setting")
         .appPopover(isPresented: $isShowing) {
             Text(text)

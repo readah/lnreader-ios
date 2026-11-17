@@ -115,7 +115,7 @@ struct SourceResultSection: View {
                                     .foregroundStyle(.primary)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPlainButtonStyle())
                     }
                 }
                 .padding(.horizontal, 16)

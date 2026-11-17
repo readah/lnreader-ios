@@ -4,6 +4,72 @@ import UIKit
 /// Scoped to ContentView, deliberately not the onboarding host or UIAppearance.
 enum ChromeAppearance {
     static let noLiquidGlassKey = "appearance.noLiquidGlass"
+    static let classicTabBarHeight: CGFloat = 64
+}
+
+private struct AppPressFeedbackHostedKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var appPressFeedbackHosted: Bool {
+        get { self[AppPressFeedbackHostedKey.self] }
+        set { self[AppPressFeedbackHostedKey.self] = newValue }
+    }
+}
+
+private struct AppPressFeedback: ViewModifier {
+    @Environment(\.noLiquidGlass) private var classic
+    @Environment(\.appFormRow) private var formRow
+    @Environment(\.appPressFeedbackHosted) private var hosted
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var enabled
+    let pressed: Bool
+    let always: Bool
+
+    private var active: Bool { pressed && enabled && !reduceMotion && !hosted && (always || classic || formRow) }
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(active ? 0.97 : 1)
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.82), value: active)
+    }
+}
+
+extension View {
+    func appPressFeedback(_ pressed: Bool, always: Bool = false) -> some View {
+        modifier(AppPressFeedback(pressed: pressed, always: always))
+    }
+}
+
+/// Press feedback uses the native `ButtonStyle.isPressed` value. Attaching a
+/// gesture recognizer to observe a touch competes with the enclosing
+/// ScrollView's pan and makes rows unscrollable, so no custom gesture is used.
+struct AppAutomaticButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .appPressFeedback(configuration.isPressed)
+    }
+}
+struct AppPlainButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .appPressFeedback(configuration.isPressed)
+    }
+}
+struct AppBorderlessButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .appPressFeedback(configuration.isPressed)
+    }
+}
+
+/// Applied below ContentView's `noLiquidGlass` environment so glass mode keeps
+/// its native automatic button appearance; only classic rows get the adapter.
+struct AppRootButtonStyle: ViewModifier {
+    @Environment(\.noLiquidGlass) private var classic
+    func body(content: Content) -> some View {
+        if classic { content.buttonStyle(AppAutomaticButtonStyle()) }
+        else { content }
+    }
 }
 
 private struct NoLiquidGlassKey: EnvironmentKey {
@@ -107,7 +173,6 @@ struct FrostedButtonStyle: ButtonStyle {
     var prominent = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.controlSize) private var controlSize
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -123,8 +188,7 @@ struct FrostedButtonStyle: ButtonStyle {
             }
             .foregroundStyle(prominent ? (configuration.role == .destructive ? Color.white : AppTheme.onPrimaryFill) : (configuration.role == .destructive ? AppTheme.destructive : AppTheme.accent))
             .opacity(isEnabled ? (configuration.isPressed ? 0.72 : 1) : 0.4)
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
-            .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: configuration.isPressed)
+            .appPressFeedback(configuration.isPressed, always: true)
     }
 }
 
@@ -139,7 +203,6 @@ struct AppGlassEffectContainer<Content: View>: View {
             if classic { content() }
             else { GlassEffectContainer(spacing: spacing, content: content) }
         }
-        .appReveal()
     }
 }
 
@@ -148,7 +211,6 @@ struct ClassicTabBar: View {
     let select: (AppTab) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Namespace private var selection
 
     var body: some View {
         HStack(spacing: 4) {
@@ -165,33 +227,21 @@ struct ClassicTabBar: View {
                                 .lineLimit(1).minimumScaleFactor(0.8)
                         }
                     }
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.primary.opacity(selected == tab ? 1 : 0.55))
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 50)
                     .padding(.vertical, 3)
-                    .background {
-                        if selected == tab {
-                            RoundedRectangle(cornerRadius: 21, style: .continuous)
-                                .fill(.primary.opacity(0.10))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 21, style: .continuous)
-                                        .strokeBorder(AppTheme.hairline, lineWidth: 0.5)
-                                }
-                                .matchedGeometryEffect(id: "tab", in: selection)
-                        }
-                    }
                     .contentShape(.rect)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .accessibilityLabel(tab.title)
                 .accessibilityAddTraits(selected == tab ? .isSelected : [])
             }
         }
         .padding(.horizontal, 10)
-        .frame(height: 64)
+        .frame(height: ChromeAppearance.classicTabBarHeight)
         .background {
             FrostedBackdrop(dense: true).ignoresSafeArea(edges: .bottom)
-                .overlay(alignment: .top) { Rectangle().fill(AppTheme.hairline).frame(height: 0.5) }
         }
         .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: selected)
         .accessibilityElement(children: .contain)
@@ -217,7 +267,55 @@ struct AppTabChrome: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbarVisibility(classic ? .hidden : .automatic, for: .tabBar)
-            .environment(\.classicTabBarHeight, classic ? 64 : 0)
-            .appReveal()
+            .environment(\.classicTabBarHeight, classic ? ChromeAppearance.classicTabBarHeight : 0)
+    }
+}
+
+// MARK: - Progressive top blur
+
+/// The bottom edge, in global coordinates, of the header content scrolls
+/// under: the kind slider on Browse and the Library. Rows compare their own
+/// global frame against it, so a default of 0 keeps every row sharp on
+/// screens that pin nothing above their content.
+private struct ProgressiveBlurBandKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    var progressiveBlurBand: CGFloat {
+        get { self[ProgressiveBlurBandKey.self] }
+        set { self[ProgressiveBlurBandKey.self] = newValue }
+    }
+}
+
+/// Rows blur out progressively as they scroll up under a pinned header, the
+/// same fade the Minimal library's rows use under their title
+/// (`MinimalLibraryRow.fade`). The work happens in `visualEffect`, so
+/// scrolling never re-evaluates the row's body.
+private struct ProgressiveTopBlur: ViewModifier {
+    /// How far into the header band a row must climb before the blur is total.
+    nonisolated private static let span: CGFloat = 56
+
+    @Environment(\.progressiveBlurBand) private var bandBottom
+
+    func body(content: Content) -> some View {
+        // Copied to a local so the `visualEffect` closure, which is not on the
+        // main actor, never reads the isolated property.
+        let band = bandBottom
+        return content.visualEffect { view, proxy in
+            let fade = max(0, min(1, (band - proxy.frame(in: .global).minY) / Self.span))
+            return view
+                .blur(radius: fade * 8)
+                .opacity(1 - fade * 0.45)
+        }
+    }
+}
+
+extension View {
+    /// Blurs the view out as it scrolls up under the header named by
+    /// ``EnvironmentValues/progressiveBlurBand``. Apply it per row or cell,
+    /// not to a whole list: the fade comes from each view's own frame.
+    func progressiveTopBlur() -> some View {
+        modifier(ProgressiveTopBlur())
     }
 }

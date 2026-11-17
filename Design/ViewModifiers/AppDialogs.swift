@@ -109,7 +109,7 @@ struct AppColorPicker: View {
                         Circle().fill(selection).frame(width: 28, height: 28)
                             .overlay { Circle().strokeBorder(AppTheme.hairline, lineWidth: 1) }
                     }.foregroundStyle(.primary).frame(minHeight: 44)
-                }.buttonStyle(.plain)
+                }.buttonStyle(AppPlainButtonStyle())
             } else { ColorPicker(title, selection: $selection, supportsOpacity: supportsOpacity) }
         }
         .appSheet(isPresented: $presented) { ClassicColorEditor(title: title, selection: $selection, supportsOpacity: supportsOpacity) }
@@ -168,7 +168,7 @@ struct AppDatePicker: View {
                 Button { presented = true } label: {
                     HStack { Text(title); Spacer(); Text(selection, style: .date) }
                         .foregroundStyle(.primary).frame(minHeight: 44)
-                }.buttonStyle(.plain)
+                }.buttonStyle(AppPlainButtonStyle())
             } else { DatePicker(title, selection: $selection, displayedComponents: displayedComponents) }
         }
         .appSheet(isPresented: $presented) {

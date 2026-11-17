@@ -6,6 +6,7 @@ import SwiftUI
 
 struct CategoryTabView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.noLiquidGlass) private var classic
     let categories: [Category]
     @Binding var selectedCategory: Category?
     var isUpdating = false
@@ -84,7 +85,7 @@ struct CategoryTabView: View {
         .appGlassEffect(
             isSelected ? .regular.tint(Color.primary.opacity(0.28)).interactive() : .regular.interactive(),
             in: .capsule,
-            frostTint: isSelected ? Color.primary.opacity(0.14) : nil)
+            frostTint: !classic && isSelected ? Color.primary.opacity(0.14) : nil)
         .contentShape(.capsule)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

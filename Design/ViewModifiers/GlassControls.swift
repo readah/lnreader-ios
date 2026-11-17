@@ -37,7 +37,7 @@ struct GlassIconButton: View {
                 .frame(width: GlassMetrics.side, height: GlassMetrics.side)
                 .contentShape(.circle)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .appGlassEffect(.regular.interactive(), in: .circle)
         .accessibilityLabel(label)
     }
@@ -55,7 +55,7 @@ struct GlassPillButton<Label: View>: View {
                 .padding(.horizontal, 16)
                 .contentShape(.capsule)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .appGlassEffect(.regular.interactive(), in: .capsule)
     }
 }
@@ -79,7 +79,7 @@ struct GlassMenuButton<Content: View>: View {
                 .frame(width: GlassMetrics.side, height: GlassMetrics.side)
                 .contentShape(.circle)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .appGlassEffect(.regular.interactive(), in: .circle)
         .accessibilityLabel(label)
     }
@@ -101,7 +101,7 @@ private struct GlassSegment: View {
                 .padding(.horizontal, GlassMetrics.segmentInset)
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.4)
         .accessibilityLabel(label)
@@ -195,7 +195,7 @@ struct GlassSearchField: View {
                         .foregroundStyle(.secondary)
                         .contentShape(.circle)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppPlainButtonStyle())
                 .accessibilityLabel("Clear search")
             }
         }

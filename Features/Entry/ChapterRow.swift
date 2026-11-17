@@ -200,6 +200,7 @@ private struct ChapterRowButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .appPressFeedback(configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, pressed in
                 if pressed { onPressStart() }
             }
@@ -546,7 +547,7 @@ private struct ChapterSelectionBar<MenuItems: View>: View {
             .padding(.horizontal, 16)
             .contentShape(.capsule)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .appGlassEffect(.regular.tint(.red).interactive(), in: .capsule, frostTint: AppTheme.destructive.opacity(0.18))
         .accessibilityLabel("Cancel selection")
         .accessibilityValue("\(selection.paths.count) selected")

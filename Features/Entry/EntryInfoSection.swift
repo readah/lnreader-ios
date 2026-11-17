@@ -23,7 +23,7 @@ struct EntryInfoSection: View {
                         withAnimation { showFullDescription.toggle() }
                     }
                     .font(Typography.caption)
-                    .buttonStyle(.borderless)
+                    .buttonStyle(AppBorderlessButtonStyle())
                 }
             }
 

@@ -190,7 +190,7 @@ private struct BookmarkedBookView: View {
                                 } label: {
                                     HighlightRow(highlight: highlight)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(AppPlainButtonStyle())
                                 .swipeActions(edge: .trailing) {
                                     Button(role: .destructive) {
                                         modelContext.delete(highlight)

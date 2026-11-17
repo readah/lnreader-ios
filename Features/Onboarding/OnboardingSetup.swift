@@ -236,7 +236,7 @@ struct OnboardingSetupContent: View {
                         .padding(.vertical, 12)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppPlainButtonStyle())
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel(pack.displayName)
@@ -298,7 +298,7 @@ struct OnboardingSetupContent: View {
                                 .frame(minWidth: 44, minHeight: 44)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppPlainButtonStyle())
                         .foregroundStyle(.primary)
                         .accessibilityLabel(showsPassword ? "Hide password" : "Show password")
                     }
@@ -375,7 +375,7 @@ struct OnboardingSetupContent: View {
                 setup.beginSignIn(reduceMotion: reduceMotion)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .foregroundStyle(.primary)
         .underline()
     }

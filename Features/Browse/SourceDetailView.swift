@@ -55,7 +55,7 @@ struct SourceDetailView: View {
                     entry: entry, displayMode: displayMode, transitionNamespace: bookTransitions)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
     }
 
     @ViewBuilder

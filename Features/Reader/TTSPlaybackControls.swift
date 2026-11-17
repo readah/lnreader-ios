@@ -114,7 +114,7 @@ struct TTSPlaybackControls: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(.rect)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(AppBorderlessButtonStyle())
             .accessibilityLabel(sleepActive ? "Sleep timer: \(sleepTimerLabel)" : "Sleep timer")
 
             transportButton("gobackward.15", label: "Rewind 15 seconds", action: onSkipBack)
@@ -130,7 +130,7 @@ struct TTSPlaybackControls: View {
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .contentShape(.rect)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(AppBorderlessButtonStyle())
             .foregroundStyle(.primary)
             .accessibilityLabel("Playback speed \(formatRate(rate))")
         }
@@ -143,7 +143,7 @@ struct TTSPlaybackControls: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(.rect)
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(AppBorderlessButtonStyle())
         .foregroundStyle(.primary)
         .accessibilityLabel(label)
     }
@@ -176,7 +176,7 @@ struct TTSPlaybackControls: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(.rect)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(AppBorderlessButtonStyle())
                 .foregroundStyle(.primary)
 
                 Spacer()
@@ -188,7 +188,7 @@ struct TTSPlaybackControls: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(.rect)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(AppBorderlessButtonStyle())
                 .foregroundStyle(.primary)
             }
 
@@ -197,7 +197,7 @@ struct TTSPlaybackControls: View {
                     .frame(minHeight: 44)
                     .contentShape(.capsule)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPlainButtonStyle())
             .accessibilityLabel("Voice: \(voiceName)")
             .padding(.horizontal, 52)
         }

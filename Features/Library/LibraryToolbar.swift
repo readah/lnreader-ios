@@ -18,7 +18,8 @@ struct LibraryToolbar: AppToolbarContent {
     var onOpenRandom: () -> Void
 
     var native: some ToolbarContent { content.native }
-    var classic: some View { content.classic }
+    var regions: Set<AppToolbarRegion> { content.regions }
+    func classic(in region: AppToolbarRegion) -> some View { content.classic(in: region) }
 
     private var content: some AppToolbarContent {
         AppToolbarItemGroup(placement: .primaryAction) {

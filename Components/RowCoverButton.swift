@@ -22,7 +22,7 @@ struct RowCoverButton: View {
         Button(action: action) {
             cover
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel("Open \(entry?.displayTitle ?? "book")")
         .accessibilityHint("Opens the book, not the chapter")
     }

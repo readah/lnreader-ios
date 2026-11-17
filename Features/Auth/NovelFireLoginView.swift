@@ -9,7 +9,7 @@ typealias PlatformViewRepresentable = NSViewRepresentable
 #endif
 
 struct NovelFireLoginView: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appDismiss) private var dismiss
     var onLoginSuccess: () -> Void
     /// Which LNW-family site to sign in to. Defaults to NovelFire for backwards compatibility.
     var site: CommentSite = .novelFire

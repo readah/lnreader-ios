@@ -29,7 +29,7 @@ struct ErrorDetailBox: View {
                     .frame(width: 32, height: 32)
                     .contentShape(.rect)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppPlainButtonStyle())
             .accessibilityLabel(copied ? "Copied" : "Copy error")
         }
         .padding(12)

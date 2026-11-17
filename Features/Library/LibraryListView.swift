@@ -19,8 +19,13 @@ struct LibraryListView: View {
                     onSelect: onSelect,
                     onRemove: { onDelete(novel) }
                 )
+                // Blurs out under the pinned kind picker; the band comes from
+                // the Library through the environment. The divider follows its
+                // row so a blurred row is not cut by a sharp hairline.
+                .progressiveTopBlur()
                 Divider()
                     .padding(.leading, 88)
+                    .progressiveTopBlur()
             }
         }
     }
@@ -54,7 +59,7 @@ struct InteractiveListRow: View {
             onSelect(novel)
         }
         .menuStyle(.button)
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .menuOrder(.fixed)
     }
 }

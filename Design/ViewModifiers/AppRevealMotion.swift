@@ -22,6 +22,23 @@ extension AppMotion {
     }
 }
 
+private struct SpringUnblurTransition: ViewModifier {
+    var hidden: Bool
+    func body(content: Content) -> some View {
+        content
+            .blur(radius: hidden ? 9 : 0)
+            .scaleEffect(hidden ? 0.96 : 1)
+            .opacity(hidden ? 0 : 1)
+            .offset(y: hidden ? 14 : 0)
+    }
+}
+
+extension AnyTransition {
+    static var appSpringUnblur: AnyTransition {
+        .modifier(active: SpringUnblurTransition(hidden: true), identity: SpringUnblurTransition(hidden: false))
+    }
+}
+
 extension View {
     /// Animate an arrival, not scrolling or model updates. A new trigger replays
     /// the reveal without changing identity, focus, navigation, or form state.
@@ -84,6 +101,7 @@ private struct AppRevealModifier<Trigger: Hashable>: ViewModifier {
 }
 
 struct AppearanceMotionPreview: View {
+    @Environment(\.springUnblurMotion) private var enabled
     @State private var replay = 0
     var body: some View {
         Button { replay += 1 } label: {
@@ -101,8 +119,9 @@ struct AppearanceMotionPreview: View {
             .foregroundStyle(.primary)
             .padding(.vertical, 8)
             .appReveal(trigger: replay)
+            .environment(\.springUnblurMotion, enabled && replay > 0)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel("Replay spring and unblur preview")
     }
 }
