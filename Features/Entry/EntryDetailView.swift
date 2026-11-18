@@ -233,6 +233,9 @@ struct EntryDetailView: View {
         .toolbar(removing: .title)
         .appToolbar {
             AppToolbarItem(placement: .topBarTrailing) { moreMenu }
+            if canRefetch {
+                AppToolbarItem(placement: .topBarTrailing) { refreshButton }
+            }
         }
         // The sheet reports the new entry; this screen closes it, and only once the
         // sheet is gone does it ask the stack to show that entry in its place. The
@@ -348,10 +351,6 @@ struct EntryDetailView: View {
                     Label("Share link", systemImage: "square.and.arrow.up")
                 }
             }
-            if canRefetch {
-                Divider()
-                refreshButton
-            }
         } label: {
             AppLabel("More", systemName: "ellipsis.circle", size: 17, relativeTo: .body)
         }
@@ -359,15 +358,22 @@ struct EntryDetailView: View {
     }
 
     /// Refetches details and chapters. There is no pull to refresh: pulling down
-    /// dismisses this screen. While it runs, the status under the chapter count
-    /// says "Refreshing…".
+    /// dismisses this screen. It sits on the bar rather than inside `…` because
+    /// it is the one action you come back to this screen to repeat; the status
+    /// under the chapter count says "Refreshing…" and the icon becomes a
+    /// spinner while it runs.
     private var refreshButton: some View {
         Button {
             Task { await fetchDetails(force: true) }
         } label: {
-            Label(isRefetching ? "Refreshing…" : "Refresh", systemImage: "arrow.clockwise")
+            if isRefetching {
+                ProgressView().controlSize(.small)
+            } else {
+                AppIcon(systemName: "arrow.clockwise", size: 17, relativeTo: .body)
+            }
         }
         .disabled(isRefetching)
+        .accessibilityLabel(isRefetching ? "Refreshing…" : "Refresh")
     }
 
     private var coverButton: some View {
