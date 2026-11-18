@@ -55,7 +55,6 @@ struct MinimalLibraryView: View {
     /// Scroll haptics: the row under the reading line and when it last changed.
     @State private var scrollPhase: ScrollPhase = .idle
     @State private var lastRowChange: TimeInterval = 0
-    @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
 
     private let rowHeight: CGFloat = 122
     private let topInset: CGFloat = 84
@@ -70,7 +69,7 @@ struct MinimalLibraryView: View {
                 vignettes(screenHeight: screenHeight)
 
                 VStack(spacing: 10) {
-                    MinimalPageHeader(title: "Library") { overflowMenu }
+                    MinimalPageHeader(title: "Library") { importButton }
                     if showSearch {
                         searchField
                             .appReveal(edge: .top)
@@ -251,32 +250,19 @@ struct MinimalLibraryView: View {
 
     // MARK: - Header
 
-    /// Several actions, so the `…` menu earns its place; leaving Minimal Mode is
-    /// the one that matters most, since the tab bar is the only other way out.
-    private var overflowMenu: some View {
-        AppMenu {
-            Button {
-                showFileImporter = true
-            } label: {
-                AppLabel("Import EPUB or PDF", systemName: "square.and.arrow.down")
-            }
-
-            Divider()
-
-            Button {
-                Haptics.shared.selection()
-                minimalMode = false
-            } label: {
-                AppLabel("Turn off Minimal Mode", systemName: "square.grid.2x2")
-            }
+    /// One action, so it is a button: the `…` menu held a single row once the
+    /// mode switch moved to the title, and a menu is a tap spent for nothing.
+    private var importButton: some View {
+        Button {
+            showFileImporter = true
         } label: {
-            AppIcon(systemName: "ellipsis", size: 17)
+            AppIcon(systemName: "square.and.arrow.down", size: 17)
                 .foregroundStyle(.white)
                 .frame(width: 40, height: 40)
                 .contentShape(.circle)
                 .appGlassEffect(.clear.interactive(), in: .circle)
         }
-        .accessibilityLabel("Library actions")
+        .accessibilityLabel("Import EPUB or PDF")
     }
 
     private var searchField: some View {
@@ -305,7 +291,7 @@ struct MinimalLibraryView: View {
                 .font(.system(.title3, design: .serif, weight: .semibold))
                 .foregroundStyle(.white)
 
-            Text("Import a book, or turn Minimal Mode off to explore sources.")
+            Text("Import a book, or swipe the title to leave Minimal Mode.")
                 .font(Typography.body)
                 .foregroundStyle(.white.opacity(0.68))
                 .multilineTextAlignment(.center)
@@ -314,17 +300,6 @@ struct MinimalLibraryView: View {
                 showFileImporter = true
             } label: {
                 AppLabel("Import EPUB", systemName: "square.and.arrow.down", size: 17, relativeTo: .body)
-                    .frame(maxWidth: 240)
-            }
-            .appGlassButtonStyle()
-            .buttonBorderShape(.capsule)
-            .controlSize(.large)
-
-            Button {
-                Haptics.shared.selection()
-                minimalMode = false
-            } label: {
-                AppLabel("Turn off Minimal Mode", systemName: "square.grid.2x2", size: 17, relativeTo: .body)
                     .frame(maxWidth: 240)
             }
             .appGlassButtonStyle()

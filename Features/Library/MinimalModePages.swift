@@ -523,11 +523,15 @@ private struct MinimalPageHandle: ViewModifier {
 // MARK: - Header and page menu
 
 /// The floating serif title every minimal page wears, with the page menu beside
-/// it. The swipe is not up here: a drag on the title fought the shelf's own
-/// scroll feel and read as lag, so the bar at the bottom is the pager's handle.
+/// it. Paging is the bar's, not the title's: a drag up here fought the shelf's
+/// own scroll feel and read as lag. The title is the mode switch instead — a
+/// vertical swipe on it leaves Minimal Mode, the mirror of the same swipe on the
+/// library's title, which enters it.
 struct MinimalPageHeader<Trailing: View>: View {
     let title: String
     let trailing: Trailing
+
+    @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
 
     init(title: String, @ViewBuilder trailing: () -> Trailing) {
         self.title = title
@@ -539,6 +543,25 @@ struct MinimalPageHeader<Trailing: View>: View {
             Text(title)
                 .font(.system(.largeTitle, design: .serif, weight: .bold))
                 .foregroundStyle(.white)
+                .contentShape(.rect)
+                // The same predicate the library's title uses, so both ends of
+                // the switch read a drag the same way. High priority: the shelf
+                // scrolls under this title, and a swipe that starts on the
+                // title is aimed at the mode, not the list.
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 12).onEnded { value in
+                        guard LibrarySwipeInteraction.isTitleSwipe(
+                            horizontal: value.translation.width,
+                            vertical: value.translation.height
+                        ) else { return }
+                        Haptics.shared.selection()
+                        minimalMode = false
+                    }
+                )
+                .accessibilityAction(named: "Leave Minimal Mode") {
+                    Haptics.shared.selection()
+                    minimalMode = false
+                }
             MinimalPageMenu()
 
             Spacer(minLength: 0)

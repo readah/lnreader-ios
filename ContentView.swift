@@ -26,10 +26,11 @@ struct ContentView: View {
     @State private var openedEntry: SourceEntry?
 
     var body: some View {
-        // Minimal Mode is the library alone: no tab bar, no other sections. The
-        // `…` menu on that screen is the way back to the full app. Its three
-        // pages — Library, History, Updates — are one vertical pager, so the
-        // library can be swapped for either neighbour with a swipe.
+        // Minimal Mode is the library alone: no tab bar, no other sections. A
+        // vertical swipe on the library's title goes in, and the same swipe on
+        // the title inside comes back out. Its three pages — Library, History,
+        // Updates — are one vertical pager, so the library can be swapped for
+        // either neighbour with a swipe.
         //
         // A crossfade, not the spring-unblur: that transition blurs the whole
         // subtree, and the subtree on the way out of Minimal Mode is the entire

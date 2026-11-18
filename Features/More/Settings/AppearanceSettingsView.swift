@@ -84,7 +84,7 @@ struct AppearanceSettingsView: View {
             } header: {
                 Text("Library")
             } footer: {
-                Text("The library becomes a full-screen list and the tab bar is hidden. Turn it off from the ··· menu on that screen.")
+                Text("The library becomes a full-screen shelf and the tab bar is hidden. Swipe the library's title to enter it, and the title inside to leave.")
             }
         }
         .settingsScreen("Appearance")

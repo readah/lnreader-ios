@@ -373,7 +373,9 @@ private struct NavigationTitleFontBridge: UIViewControllerRepresentable {
             removeTitleSwipe()
             let pan = UIPanGestureRecognizer(target: self, action: #selector(titleSwiped(_:)))
             pan.maximumNumberOfTouches = 1
-            pan.cancelsTouchesInView = false
+            // The touch that starts on the title is aimed at the mode, not at
+            // the list behind the glass: take it, do not share it.
+            pan.cancelsTouchesInView = true
             pan.delegate = self
             // Glass chrome can hit-test through the bar. Observe from its window,
             // but accept only touches on the visible title below.
@@ -385,6 +387,7 @@ private struct NavigationTitleFontBridge: UIViewControllerRepresentable {
 
         func removeTitleSwipe() {
             if let titlePan { swipeHost?.removeGestureRecognizer(titlePan) }
+            releaseScrolls()
             titlePan = nil
             swipeBar = nil
             swipeHost = nil
@@ -439,10 +442,56 @@ private struct NavigationTitleFontBridge: UIViewControllerRepresentable {
         }
 
         @objc private func titleSwiped(_ pan: UIPanGestureRecognizer) {
-            guard pan.state == .ended else { return }
-            let translation = pan.translation(in: swipeBar)
-            guard LibrarySwipeInteraction.isTitleSwipe(horizontal: translation.x, vertical: translation.y) else { return }
-            onTitleVerticalSwipe?()
+            switch pan.state {
+            case .began:
+                stallScrolls(under: pan)
+            case .ended:
+                releaseScrolls()
+                let translation = pan.translation(in: swipeBar)
+                guard LibrarySwipeInteraction.isTitleSwipe(horizontal: translation.x, vertical: translation.y) else { return }
+                onTitleVerticalSwipe?()
+            case .cancelled, .failed:
+                releaseScrolls()
+            default:
+                break
+            }
+        }
+
+        /// Scroll views under the title, and the offset each had before the
+        /// drag. A swipe on the title switches library mode; the same touch
+        /// also reaches the list behind the glass bar, and a mode switch that
+        /// scrolls the library on its way out reads as two things at once.
+        private var stalledScrolls: [(scroll: UIScrollView, offset: CGPoint)] = []
+
+        private func stallScrolls(under pan: UIPanGestureRecognizer) {
+            guard let host = swipeHost else { return }
+            releaseScrolls()
+            let point = pan.location(in: host)
+            stalledScrolls = scrollViews(in: host, containing: point).map { (scroll: $0, offset: $0.contentOffset) }
+            for entry in stalledScrolls {
+                entry.scroll.panGestureRecognizer.isEnabled = false
+                // The drag had already moved the list before the pan began.
+                entry.scroll.setContentOffset(entry.offset, animated: false)
+            }
+        }
+
+        private func releaseScrolls() {
+            for entry in stalledScrolls { entry.scroll.panGestureRecognizer.isEnabled = true }
+            stalledScrolls = []
+        }
+
+        private func scrollViews(in host: UIView, containing point: CGPoint) -> [UIScrollView] {
+            var found: [UIScrollView] = []
+            func walk(_ view: UIView) {
+                guard !view.isHidden, view.alpha > 0.01 else { return }
+                if let scroll = view as? UIScrollView,
+                   scroll.convert(scroll.bounds, to: host).contains(point) {
+                    found.append(scroll)
+                }
+                view.subviews.forEach(walk)
+            }
+            walk(host)
+            return found
         }
 
         private func serifFont(size: CGFloat, weight: UIFont.Weight, style: UIFont.TextStyle) -> UIFont {
