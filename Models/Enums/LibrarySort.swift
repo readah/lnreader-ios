@@ -1,6 +1,7 @@
 // LibrarySort.swift - Per-category library sort and the rule that applies it
 
 import Foundation
+import SwiftData
 
 /// A sort order with its direction. "Ascending" means smallest first: A to Z,
 /// oldest first, fewest first.
@@ -42,6 +43,10 @@ struct LibrarySort: Codable, Equatable, Sendable {
     var needsChapterCounts: Bool { order.needsChapterCounts }
     /// Whether it also reads the latest upload / fetch dates.
     var needsChapterDates: Bool { order.needsChapterDates }
+
+    /// The optional counts this order reads. Total and unread are always
+    /// counted; a chapter-date order needs the newest dates as well.
+    var countExtras: LibraryChapterCounts.Extras { needsChapterDates ? .dates : [] }
 }
 
 extension SortOrder {
@@ -164,6 +169,62 @@ enum LibrarySorter {
     /// "newest first" sort instead of floating to the top.
     private static func compare(_ a: Date?, _ b: Date?) -> ComparisonResult {
         compare(a ?? .distantPast, b ?? .distantPast)
+    }
+}
+
+/// The last answer to `LibrarySort.sorted(_:counts:cache:)`, reused while the
+/// facts and the order are unchanged.
+///
+/// Both screens that show the library re-run their bodies far more often than
+/// the library changes — the grid on every progress save under the reader, the
+/// shelf on every row its scroll crosses — and a sort is an ICU compare per
+/// element. The facts are the expensive half of a comparison, so a caller that
+/// keeps them around can skip the sort entirely when nothing moved.
+final class LibrarySortCache {
+    private var facts: [LibrarySortFacts] = []
+    private var sort: LibrarySort?
+    private var result: [Entry] = []
+
+    func sorted(_ keyed: [(item: Entry, facts: LibrarySortFacts)], by sort: LibrarySort) -> [Entry] {
+        let facts = keyed.map(\.facts)
+        if sort == self.sort, facts == self.facts { return result }
+        let result = LibrarySorter.sorted(keyed, by: sort)
+        self.facts = facts
+        self.sort = sort
+        self.result = result
+        return result
+    }
+}
+
+extension LibrarySort {
+    /// What this order ranks one entry by. Built from `Entry` columns and the
+    /// background count pass — never from the `chapters` relationship.
+    func facts(
+        for entry: Entry,
+        counts: [PersistentIdentifier: LibraryChapterCounts.Counts] = [:]
+    ) -> LibrarySortFacts {
+        let known = counts[entry.persistentModelID]
+        return LibrarySortFacts(
+            title: entry.displayTitle,
+            dateAdded: entry.dateAdded,
+            lastReadAt: entry.lastReadAt,
+            lastChecked: entry.lastUpdate,
+            total: known?.total ?? 0,
+            unread: known?.unread ?? 0,
+            latestUpload: known?.latestUpload,
+            latestFetch: known?.latestFetch
+        )
+    }
+
+    /// `entries` in this order. The one place the app turns a sort into a list,
+    /// so the library grid and Minimal Mode's shelf cannot disagree about what
+    /// "the library, in the reader's order" means.
+    func sorted(
+        _ entries: [Entry],
+        counts: [PersistentIdentifier: LibraryChapterCounts.Counts] = [:],
+        cache: LibrarySortCache
+    ) -> [Entry] {
+        cache.sorted(entries.map { (item: $0, facts: facts(for: $0, counts: counts)) }, by: self)
     }
 }
 

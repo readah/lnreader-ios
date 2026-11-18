@@ -576,9 +576,8 @@ struct LibraryView: View {
     /// The optional counts this screen reads. Total and unread are always
     /// counted; these are one extra query per entry each.
     private var countExtras: LibraryChapterCounts.Extras {
-        var extras: LibraryChapterCounts.Extras = []
+        var extras = activeSort.countExtras
         if activeFilter.needsDownloads { extras.insert(.downloads) }
-        if needsChapterDates { extras.insert(.dates) }
         return extras
     }
 
@@ -698,23 +697,7 @@ struct LibraryView: View {
         // of every entry was ~19 of 31 s of main-thread time in a profile. An
         // entry whose count has not loaded yet sorts as 0 until it arrives.
         let counts = sort.needsChapterCounts ? filterCounts : [:]
-        let keyed: [(item: Entry, facts: LibrarySortFacts)] = novels.map { entry in
-            let known = counts[entry.persistentModelID]
-            return (item: entry, facts: LibrarySortFacts(
-                title: entry.displayTitle,
-                dateAdded: entry.dateAdded,
-                lastReadAt: entry.lastReadAt,
-                lastChecked: entry.lastUpdate,
-                total: known?.total ?? 0,
-                unread: known?.unread ?? 0,
-                latestUpload: known?.latestUpload,
-                latestFetch: known?.latestFetch
-            ))
-        }
-        // The sort itself is an ICU compare per element; the facts above are
-        // plain reads. Building them costs a fraction of sorting, so the answer
-        // is reused whenever the facts come out the same.
-        return bodyCache.sorted(keyed, by: sort)
+        return sort.sorted(novels, counts: counts, cache: bodyCache.order)
     }
 
 }
@@ -925,22 +908,9 @@ private final class LibraryBodyCache {
 
     // MARK: Sort
 
-    private var sortFacts: [LibrarySortFacts] = []
-    private var sortBy: LibrarySort?
-    private var sortResult: [Entry] = []
-
-    /// The sort for these facts, computed only when they differ from the last
-    /// answer's. Comparing the facts is a struct compare; sorting them is an
-    /// ICU compare per element.
-    func sorted(_ keyed: [(item: Entry, facts: LibrarySortFacts)], by sort: LibrarySort) -> [Entry] {
-        let facts = keyed.map(\.facts)
-        if sortBy == sort, facts == sortFacts { return sortResult }
-        let result = LibrarySorter.sorted(keyed, by: sort)
-        sortFacts = facts
-        sortBy = sort
-        sortResult = result
-        return result
-    }
+    /// The last answer `sortedNovels` got, kept here because this is what `body`
+    /// holds between passes. `LibrarySort.sorted` owns the rule.
+    let order = LibrarySortCache()
 
     // MARK: Held page
 

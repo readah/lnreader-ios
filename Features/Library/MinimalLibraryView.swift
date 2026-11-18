@@ -55,6 +55,18 @@ struct MinimalLibraryView: View {
     /// Scroll haptics: the row under the reading line and when it last changed.
     @State private var scrollPhase: ScrollPhase = .idle
     @State private var lastRowChange: TimeInterval = 0
+    /// The order the library tab's All page is set to. The shelf is the whole
+    /// library, so it has no category of its own to ask.
+    @AppStorage("general.defaultSortOrder") private var defaultSortOrder: SortOrder = .lastRead
+    @AppStorage("general.defaultSortDirection") private var defaultSortDirection: SortDirection = .descending
+    /// The per-category overrides; only the All entry is read here.
+    @AppStorage("library.sorts") private var sortsJSON = "{}"
+    /// Chapter counts for the orders that rank by them, loaded off the main
+    /// thread. `body` never walks `entry.chapters` (see `LibraryChapterCounts`).
+    @State private var counts: [PersistentIdentifier: LibraryChapterCounts.Counts] = [:]
+    /// The last order this shelf drew, reused between passes: `body` re-runs on
+    /// every row the scroll crosses, and a sort is an ICU compare per element.
+    @State private var sortCache = LibrarySortCache()
 
     private let rowHeight: CGFloat = 122
     private let topInset: CGFloat = 84
@@ -106,6 +118,7 @@ struct MinimalLibraryView: View {
             // which clears the value so it cannot push twice.
             .onChange(of: openedEntry) { openLinkedEntry() }
             .task { openLinkedEntry() }
+            .task(id: countsKey) { await loadCounts() }
             .fileImporter(
                 isPresented: $showFileImporter,
                 allowedContentTypes: [UTType(filenameExtension: "epub"), .pdf].compactMap { $0 },
@@ -318,8 +331,9 @@ struct MinimalLibraryView: View {
 
     // MARK: - Entries
 
-    /// Search first, then most recently read first, so the book in progress is
-    /// at the top of the shelf.
+    /// Search first, then the order the library tab is set to — the same rule
+    /// the grid runs, so the two never disagree about where a book belongs.
+    /// The grid's filters are not applied: this is the whole library.
     private var entries: [Entry] {
         let base = searchText.isEmpty
             ? novels
@@ -327,9 +341,37 @@ struct MinimalLibraryView: View {
                 $0.displayTitle.localizedCaseInsensitiveContains(searchText)
                     || ($0.displayAuthor ?? "").localizedCaseInsensitiveContains(searchText)
             }
-        return base.sorted {
-            ($0.lastReadAt ?? .distantPast, $0.dateAdded) > ($1.lastReadAt ?? .distantPast, $1.dateAdded)
+        return activeSort.sorted(base, counts: counts, cache: sortCache)
+    }
+
+    // MARK: - Sort
+
+    /// The All page's sort: a per-category override if one was set, else the
+    /// library's default order and direction.
+    private var activeSort: LibrarySort {
+        LibrarySortStore(json: sortsJSON)
+            .sort(for: nil, default: LibrarySort(order: defaultSortOrder, direction: defaultSortDirection))
+    }
+
+    /// Re-run the count pass when the order starts needing counts, the library
+    /// changes, or a write invalidated a count.
+    private var countsKey: String {
+        "\(activeSort.needsChapterCounts)|\(novels.count)|\(LibraryChapterCounts.shared.revision)"
+    }
+
+    private func loadCounts() async {
+        let sort = activeSort
+        guard sort.needsChapterCounts, !novels.isEmpty else {
+            counts = [:]
+            return
         }
+        let loaded = await LibraryChapterCounts.shared.counts(
+            for: novels.map(\.persistentModelID),
+            container: modelContext.container,
+            extras: sort.countExtras
+        )
+        if Task.isCancelled { return }
+        counts = loaded
     }
 
     // MARK: - Actions
