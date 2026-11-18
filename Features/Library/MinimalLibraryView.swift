@@ -61,8 +61,9 @@ struct MinimalLibraryView: View {
     @AppStorage("general.defaultSortDirection") private var defaultSortDirection: SortDirection = .descending
     /// The per-category overrides; only the All entry is read here.
     @AppStorage("library.sorts") private var sortsJSON = "{}"
-    /// Chapter counts for the orders that rank by them, loaded off the main
-    /// thread. `body` never walks `entry.chapters` (see `LibraryChapterCounts`).
+    /// Chapter counts for the covers' unread badges and for the orders that
+    /// rank by them, loaded off the main thread. `body` never walks
+    /// `entry.chapters` (see `LibraryChapterCounts`).
     @State private var counts: [PersistentIdentifier: LibraryChapterCounts.Counts] = [:]
     /// The last order this shelf drew, reused between passes: `body` re-runs on
     /// every row the scroll crosses, and a sort is an ICU compare per element.
@@ -187,6 +188,7 @@ struct MinimalLibraryView: View {
                     ForEach(Array(items.enumerated()), id: \.element.persistentModelID) { index, entry in
                         MinimalLibraryRow(
                             entry: entry,
+                            unread: counts[entry.persistentModelID]?.unread ?? 0,
                             rowHeight: rowHeight,
                             screenHeight: screenHeight,
                             namespace: bookTransitions
@@ -353,22 +355,22 @@ struct MinimalLibraryView: View {
             .sort(for: nil, default: LibrarySort(order: defaultSortOrder, direction: defaultSortDirection))
     }
 
-    /// Re-run the count pass when the order starts needing counts, the library
-    /// changes, or a write invalidated a count.
+    /// Re-run the count pass when the library changes, when a write invalidated
+    /// a count, or when the order starts reading chapter dates. Unread is
+    /// always counted: the shelf shows it on every cover.
     private var countsKey: String {
-        "\(activeSort.needsChapterCounts)|\(novels.count)|\(LibraryChapterCounts.shared.revision)"
+        "\(activeSort.needsChapterDates)|\(novels.count)|\(LibraryChapterCounts.shared.revision)"
     }
 
     private func loadCounts() async {
-        let sort = activeSort
-        guard sort.needsChapterCounts, !novels.isEmpty else {
+        guard !novels.isEmpty else {
             counts = [:]
             return
         }
         let loaded = await LibraryChapterCounts.shared.counts(
             for: novels.map(\.persistentModelID),
             container: modelContext.container,
-            extras: sort.countExtras
+            extras: activeSort.countExtras
         )
         if Task.isCancelled { return }
         counts = loaded
@@ -397,10 +399,16 @@ struct MinimalLibraryView: View {
 /// re-evaluates a row's body.
 private struct MinimalLibraryRow: View {
     let entry: Entry
+    /// Unread chapters, from the shelf's count pass. Zero draws nothing.
+    let unread: Int
     let rowHeight: CGFloat
     let screenHeight: CGFloat
     var namespace: Namespace.ID
     let onTap: () -> Void
+
+    /// The same switch the grid's covers obey: a reader who turned unread
+    /// badges off in Settings does not want them back on the shelf.
+    private var badgePrefs = LibraryBadgePrefs()
 
     /// The share of the screen, from the bottom, where rows blur out.
     nonisolated static var bottomBand: CGFloat { MinimalMode.bottomBand }
@@ -446,8 +454,17 @@ private struct MinimalLibraryRow: View {
 
             EntryCoverView(url: entry.displayThumbnailURL, aspectRatio: 2 / 3, cornerRadius: 5)
                 .frame(width: Self.coverWidth)
+                // Inside the rotation, so the badge tilts with the cover and
+                // reads as printed on it rather than floating over it. The same
+                // badge the grid puts on a cover, at the same corner. After the
+                // shadows, so the badge does not cast one of its own.
                 .shadow(color: .black.opacity(0.6), radius: 10, x: 2, y: -4)
                 .shadow(color: .black.opacity(0.4), radius: 14, x: 4, y: 8)
+                .overlay {
+                    if shownUnread > 0 {
+                        LibraryCoverBadges(badges: LibraryBadges(unread: shownUnread))
+                    }
+                }
                 .visualEffect { content, proxy in
                     let frame = proxy.frame(in: .named(MinimalPageSpace.name))
                     // The cover blurs a little later than its label.
@@ -465,9 +482,14 @@ private struct MinimalLibraryRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(entry.displayTitle)
+        .accessibilityLabel(shownUnread > 0 ? "\(entry.displayTitle), \(shownUnread) unread" : entry.displayTitle)
         .accessibilityHint("Opens the book")
         .accessibilityAddTraits(.isButton)
+    }
+
+    /// The count actually drawn: nothing when the badge is off in Settings.
+    private var shownUnread: Int {
+        unread > 0 && badgePrefs.settings.unread ? unread : 0
     }
 
     /// 0...1 for how far the row is under the title (`top`) and into the bottom
