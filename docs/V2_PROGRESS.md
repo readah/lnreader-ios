@@ -13,9 +13,9 @@ Migration from v1 is **dropped by decision**: the v1 store is discarded. The app
 import already covers a manga library.
 
 **Built** means it compiles and passes its headless checks. **Verified** means it has also been
-used on the iPhone. The readers and the library are verified. Downloads, update scheduling,
-backup/restore and narration are built but have never been exercised on a device — see
-[Next, in order](#next-in-order).
+used on the iPhone. The readers, the library, downloads, backup and restore are verified. Update
+scheduling (including scheduled downloads) and narration are built but have never been exercised
+on a device — see [Next, in order](#next-in-order).
 
 ## At a glance
 
@@ -28,10 +28,10 @@ backup/restore and narration are built but have never been exercised on a device
 | Native sources | **Built** | Light novels: Novel Fire, Novel Phoenix, Free Web Novel. Manga: MangaFire, AllManga, Manhwa18, 4KHD, Omega Scans, Atsumaru, Weeb Central, Kagane, MetArt Hunter (ported from keiyoushi). All tested on a real device |
 | Chapter lists | **Built** | Number ordering, all-chapters for manga, scanlator priority |
 | Browse | **Built** | Split into Light Novels / Manga; native search, glass switcher |
-| Downloads | **Built** | Novel text and manga pages, durable queue, offline reader paths, pause/retry/remove, Wi-Fi and storage guards. Not exercised on a device |
+| Downloads | **Verified** | Novel text and manga pages, durable queue, offline reader paths, pause/retry/remove, Wi-Fi and storage guards — checked on device. Scheduled downloads have not run on a device |
 | Update scheduling | **Built** | App refresh, continued/processing tasks, per-title policy, notifications, new-chapter downloads. Not exercised on a device |
 | Trackers | **AniList built** | Implicit-flow login, bind/edit sheet on detail, auto-update on finish, offline queue. Others not started |
-| Backup / restore | **Built (local)** | Encrypted `.lnbk` snapshots, recovery key, merge restore; `.tachibk` import and export. Cloud sync remains deferred. Not exercised on a device |
+| Backup / restore | **Verified (local)** | Encrypted `.lnbk` snapshots, recovery key, merge restore; `.tachibk` import and export — checked on device. Cloud sync remains deferred |
 | Library | **Verified** | Filters, per-category sort / display / update scope, badges — all checked on device. The category editor (More › Categories) is **Built**, not verified |
 | Chapter fetching | **Verified** | Opening an entry no longer refetches; last-fetched time and a Refresh button |
 | Entry links | **Built** | The detail screen shares a `lnreader://entry` link (source key + source-relative url + kind + title, see `Services/EntryLink.swift`); opening one pushes that entry onto the library stack. Custom scheme only — no universal link, so the link is tappable in Messages and Safari but not everywhere. Not exercised on a device |
@@ -241,11 +241,9 @@ only. **The backend docs have not caught up** — see open issue 6. Playback on 
 
 ## Next, in order
 
-1. **Device pass on the parts that have never been exercised.** Readers and the library are
-   verified; what is left is offline reading in airplane mode (both kinds), queue
-   cancellation and recovery after relaunch, `.lnbk` export/import through Files with a
-   fresh-device recovery key, background scheduling and expiration with notifications, and
-   Breeze narration playback.
+1. **Device pass on what is left.** Readers, the library, downloads and backup/restore are
+   verified. What remains is update scheduling — background refresh, expiration with
+   notifications, scheduled new-chapter downloads — and Breeze narration playback.
 2. **Then R11 → R14** (duplicates, migrate source, incognito, download UI).
 
 Sources are native Swift. The extension repository UI, the JS bridge and the Kotlin/JS shims were removed.
