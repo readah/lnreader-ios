@@ -40,6 +40,8 @@ final class KaganeSource: MangaSource {
         baseURL: "https://kagane.moe",
         headers: KaganeSource.apiHeaders
     )
+
+    var homepage: URL? { URL(string: site.baseURL) }
     private let apiURL = "https://kagane.moe/api/v2"
     private let state = KaganeState()
 

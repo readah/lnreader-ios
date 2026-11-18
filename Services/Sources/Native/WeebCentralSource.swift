@@ -27,6 +27,8 @@ final class WeebCentralSource: MangaSource {
         baseURL: "https://weebcentral.com"
     )
 
+    var homepage: URL? { URL(string: site.baseURL) }
+
     /// The site ignores `limit` and answers 32 cards per request regardless.
     private static let fetchLimit = 32
 

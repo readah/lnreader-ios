@@ -35,6 +35,8 @@ final class AtsumaruSource: MangaSource {
         headers: ["Accept": "*/*", "Content-Type": "application/json"]
     )
 
+    var homepage: URL? { URL(string: site.baseURL) }
+
     /// Pages are served from `cdn.atsu.moe`; `atsu.moe/static/...` answers 410.
     private let cdnURL = "https://cdn.atsu.moe"
 

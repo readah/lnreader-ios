@@ -28,6 +28,8 @@ final class MangaFireSource: MangaSource {
         headers: ["Accept": "application/json", "Referer": "https://mangafire.to/"]
     )
 
+    var homepage: URL? { URL(string: site.baseURL) }
+
     // MARK: Browsing
 
     func popular(page: Int, filters: FilterState) async throws -> EntriesPage {

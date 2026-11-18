@@ -32,6 +32,11 @@ protocol CatalogSource: Identifiable, Sendable {
     func filtersAreComplete(_ filters: [SourceFilter]) -> Bool
     /// Whether the whole source is adult content; Browse marks it with an 18+ chip.
     var isAdult: Bool { get }
+    /// The site itself, for opening it in the app's web view. A login or a solved
+    /// Cloudflare challenge earned there is what the scraper then uses, so this is
+    /// the way in when a source starts answering with a challenge page. Nil when
+    /// the source has no site to show.
+    var homepage: URL? { get }
 
     // MARK: Browsing
 
@@ -58,6 +63,7 @@ extension CatalogSource {
     var id: String { key }
 
     var iconURL: String? { nil }
+    var homepage: URL? { nil }
     func webURL(_ entryURL: String) -> URL? { nil }
     var iconAsset: String? { nil }
     var supportsLatest: Bool { false }

@@ -32,6 +32,8 @@ final class AllMangaSource: MangaSource {
     private let client = SiteClient(sourceKey: SourceKey.makeBuiltin(id: "allmanga"), baseURL: AllMangaSource.base)
     private let state = AllMangaAPIState()
 
+    var homepage: URL? { URL(string: client.baseURL) }
+
     // MARK: - Filters
 
     private static let sortOptions = [

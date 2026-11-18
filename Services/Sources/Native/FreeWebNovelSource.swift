@@ -72,6 +72,8 @@ final class FreeWebNovelSource: NovelSource {
         ]
     ))
 
+    var homepage: URL? { URL(string: engine.site.baseURL) }
+
     func filters() async throws -> [SourceFilter] { engine.filters() }
 
     func popular(page: Int, filters: FilterState) async throws -> EntriesPage {

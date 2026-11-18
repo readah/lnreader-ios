@@ -31,6 +31,8 @@ final class OmegaScansSource: MangaSource {
         )
     )
 
+    var homepage: URL? { URL(string: engine.config.baseURL) }
+
     func filters() async throws -> [SourceFilter] { try await engine.filters() }
     func popular(page: Int, filters: FilterState) async throws -> EntriesPage { try await engine.popular(page: page) }
     func latest(page: Int, filters: FilterState) async throws -> EntriesPage { try await engine.latest(page: page) }

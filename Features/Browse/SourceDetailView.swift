@@ -25,6 +25,9 @@ struct SourceDetailView: View {
     @State private var filterRefreshFailed = false
     @State private var filterState = FilterState()
     @State private var showFilters = false
+    /// The source's own site, in the app's web view. What it earns — a login, a
+    /// solved challenge — is exported to the scraper's cookies when it closes.
+    @State private var showWebsite = false
     /// Why the last load came back empty. Shown in place of the generic empty state, so a broken
     /// source says what went wrong instead of "returned nothing".
     @State private var loadError: String?
@@ -78,6 +81,10 @@ struct SourceDetailView: View {
     private var source: (any CatalogSource)? {
         sourceManager.source(forKey: sourceKey)
     }
+
+    /// The site itself, when there is one to open. A source that is no longer
+    /// installed has none, and the bar loses the button with it.
+    private var homepage: URL? { source?.homepage }
 
     var body: some View {
         ScrollView {
@@ -148,9 +155,20 @@ struct SourceDetailView: View {
             }
             .appPresentationDetents([.medium, .large])
         }
+        .appSheet(isPresented: $showWebsite) {
+            if let homepage { EntryWebView(url: homepage, title: title) }
+        }
         .appToolbar {
-            if hasFilters {
-                AppToolbarItem(placement: .primaryAction) {
+            // One group, so the browser button and Filters stay a single cluster
+            // instead of drifting apart: Filters is the one you press all the
+            // time, so it takes the right end of the bar.
+            AppToolbarItemGroup(placement: .primaryAction) {
+                if let homepage {
+                    Button { showWebsite = true } label: {
+                        AppLabel("Open website", systemName: "safari", size: 17, relativeTo: .body)
+                    }
+                }
+                if hasFilters {
                     Button { showFilters = true } label: {
                         AppLabel("Filters", systemName: activeFilterCount > 0
                             ? "line.3.horizontal.decrease.circle.fill"

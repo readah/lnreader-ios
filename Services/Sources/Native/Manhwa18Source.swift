@@ -25,6 +25,8 @@ final class Manhwa18Source: MangaSource {
         headers: ["Referer": "https://manhwa18.com/"]
     )
 
+    var homepage: URL? { URL(string: site.baseURL) }
+
     // MARK: Filters
 
     private static let sortOptions = [

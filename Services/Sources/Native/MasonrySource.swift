@@ -27,6 +27,8 @@ final class MasonrySource: MangaSource {
 
     private let site: SiteClient
 
+    var homepage: URL? { URL(string: site.baseURL) }
+
     init(id: String, name: String, baseURL: String, iconAsset: String? = nil) {
         let builtinKey = SourceKey.makeBuiltin(id: id)
         self.key = builtinKey

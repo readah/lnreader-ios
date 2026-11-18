@@ -16,6 +16,8 @@ final class NovelFireSource: NovelSource {
         baseURL: "https://novelfire.net", defaultSort: "date"
     )
 
+    var homepage: URL? { URL(string: engine.client.baseURL) }
+
     func filters() async throws -> [SourceFilter] { engine.filters() }
 
     func popular(page: Int, filters: FilterState) async throws -> EntriesPage {

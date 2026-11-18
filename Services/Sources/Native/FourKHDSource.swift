@@ -23,6 +23,8 @@ final class FourKHDSource: MangaSource {
         sourceKey: SourceKey.makeBuiltin(id: "fourkhd"),
         baseURL: "https://www.4khd.com"
     )
+
+    var homepage: URL? { URL(string: site.baseURL) }
     private let pageSize = 20
 
     // MARK: Browsing

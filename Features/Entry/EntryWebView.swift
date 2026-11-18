@@ -1,4 +1,5 @@
-// EntryWebView.swift - An entry's page on its site, opened from the detail toolbar.
+// EntryWebView.swift - A page of the site, opened from the entry's toolbar or a
+// source's screen in Browse.
 //
 // The page runs in the app's own WebKit data store with the scraper's User-Agent,
 // and cookies are synced both ways: what the scraper holds goes in before the

@@ -14,6 +14,9 @@ Copy a small one as a starting point: `FourKHDSource.swift` (manga, JSON API) or
 - **Network:** build a `SiteClient(sourceKey:baseURL:)`. It goes through the shared `HTTPClient`,
   so rate limits, cookies and Cloudflare handling are not per source. Parse with SwiftSoup or
   `Codable`. Mind the `Element` helpers in `NativeSupport.swift`.
+- **Website:** `homepage` is the site's root, which Browse's browser button opens in the app's
+  web view; a login or a solved challenge earned there is exported to the scraper's cookies.
+  One line, next to the client: `var homepage: URL? { URL(string: site.baseURL) }`.
 - **Browsing:** `popular`, `latest` (set `supportsLatest`), `search`, `filters()`. Filters are
   definitions (`SourceFilter`); the user's choices arrive as `FilterState`.
 - **Reading:** manga returns `pages(_:)` and, if the CDN needs headers, a `URLRequest` from
