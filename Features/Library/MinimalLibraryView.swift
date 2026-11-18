@@ -1,11 +1,12 @@
 // MinimalLibraryView.swift
-// Minimal Mode: the library alone on a full-screen dark surface, no tabs.
+// Minimal Mode's library page: the shelf alone on the dark surface.
 //
 // Rows of tilted, overlapping covers that stack as they scroll under a floating
-// serif title, over an ambient wash coloured by the book read most recently
-// (`CoverTint`). A Liquid Glass bar at the bottom holds search, continue
-// reading and refresh. It is a reader-style surface, so the dark background is
-// the exception to the app's light field.
+// serif title. The bar at the bottom is the container's, not this page's: it
+// stays put while the shelf moves behind it, so the page draws only the shelf,
+// its title and its scrims. The page lives inside `MinimalModeView`'s vertical
+// pager, which draws the ambient wash and owns the swipe. It is a reader-style
+// surface, so the dark background is the exception to the app's light field.
 
 import SwiftData
 import SwiftUI
@@ -14,17 +15,23 @@ import UniformTypeIdentifiers
 /// The Minimal Mode preference, shared by the Appearance screen and `ContentView`.
 enum MinimalMode {
     static let enabledKey = "appearance.minimalMode"
+    /// The share of the screen, from the bottom, where the glass bar sits: the
+    /// rows blur out into it and the container darkens the same band behind it.
+    /// One number, because the two have to line up exactly.
+    static let bottomBand: CGFloat = 0.14
 }
 
 struct MinimalLibraryView: View {
     /// An entry a `lnreader://entry` link asked for, pushed when it arrives.
     @Binding var openedEntry: SourceEntry?
+    /// The full screen height, measured by the pager container.
+    let screenHeight: CGFloat
+    /// The safe-area band this page's chrome has to stay inside. The page is
+    /// full screen so the pages tile without a gap, so the inset the container
+    /// would otherwise give it is applied by hand.
+    let safeTop: CGFloat
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) private var modelContext
-    @Environment(SourceManager.self) private var sourceManager
-    @Environment(LibraryManager.self) private var libraryManager
-    @Environment(ReaderRouter.self) private var readerRouter
 
     @Query(
         filter: #Predicate<Entry> { $0.inLibrary },
@@ -34,11 +41,14 @@ struct MinimalLibraryView: View {
 
     @Namespace private var bookTransitions
     @State private var navigationPath = NavigationPath()
-    @State private var searchText = ""
-    @State private var showSearch = false
+    /// Owned by the container, because the bar that toggles it is no longer
+    /// this page's: it sits above the pages and never moves.
+    @Binding var searchText: String
+    @Binding var showSearch: Bool
+    /// Pull-to-refresh runs the same update as the bar's button, which lives in
+    /// the container.
+    let onRefresh: () -> Void
     @FocusState private var searchFocused: Bool
-    /// The colour of the most recently read book's cover, once `CoverTint` has it.
-    @State private var ambientTint: Color?
     @State private var showFileImporter = false
     @State private var importError: String?
     @State private var showImportError = false
@@ -46,87 +56,38 @@ struct MinimalLibraryView: View {
     @State private var scrollPhase: ScrollPhase = .idle
     @State private var lastRowChange: TimeInterval = 0
     @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
-    @State private var showUpdateSheet = false
-    @State private var showNewChapters = false
-    /// A row chosen in the new-chapters sheet. The sheet closes first; the
-    /// push or the reader happens in its `onDismiss`.
-    @State private var pendingEntryOpen: Entry?
-    @State private var pendingChapterOpen: ReaderRequest?
 
     private let rowHeight: CGFloat = 122
     private let topInset: CGFloat = 84
 
     var body: some View {
         AppNavigationStack(path: $navigationPath) {
-            GeometryReader { screenGeo in
-                // Rows measure themselves in global space, so the blur bands
-                // are worked out against the whole screen, safe areas included.
-                let screenHeight = screenGeo.size.height
-                    + screenGeo.safeAreaInsets.top + screenGeo.safeAreaInsets.bottom
+            ZStack {
+                shelf(screenHeight: screenHeight)
 
-                ZStack {
-                    ambientBackground
-                        .ignoresSafeArea()
-                        .animation(.easeInOut(duration: 0.55), value: ambientTint)
+                // Above the shelf, below the chrome: the title and the bar stay
+                // full strength while the rows darken into them.
+                vignettes(screenHeight: screenHeight)
 
-                    shelf(screenHeight: screenHeight)
-
-                    vignettes(screenHeight: screenHeight)
-
-                    VStack(spacing: 10) {
-                        headerBar
-                        if showSearch {
-                            searchField
-                                .appReveal(edge: .top)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                        }
-                        Spacer()
+                VStack(spacing: 10) {
+                    MinimalPageHeader(title: "Library") { overflowMenu }
+                    if showSearch {
+                        searchField
+                            .appReveal(edge: .top)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                     }
-
-                    VStack(spacing: 10) {
-                        Spacer()
-                        if let state = updateCardState {
-                            MinimalUpdateCard(
-                                state: state,
-                                onOpen: openUpdateCard,
-                                onDismiss: {
-                                    Haptics.shared.selection()
-                                    libraryManager.dismissUpdateSummary()
-                                }
-                            )
-                            .padding(.horizontal, 20)
-                            .appReveal(edge: .bottom)
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        }
-                        MinimalLibraryBar(
-                            resumeCoverURL: resumeEntry?.displayThumbnailURL,
-                            canResume: resumeEntry != nil,
-                            isSearching: showSearch,
-                            isUpdating: libraryManager.isUpdating,
-                            onSearch: toggleSearch,
-                            onResume: resumeReading,
-                            onRefresh: refreshLibrary
-                        )
-                        .padding(.bottom, 14)
-                    }
-                    .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: updateCardState)
+                    Spacer()
                 }
+                .padding(.top, safeTop)
             }
-            .appSheet(isPresented: $showUpdateSheet) {
-                LibraryUpdateSheet().appPresentationDetents([.medium, .large])
-            }
-            .appSheet(isPresented: $showNewChapters, onDismiss: openFromNewChapters) {
-                MinimalNewChaptersSheet(
-                    onOpenEntry: { entry in
-                        pendingEntryOpen = entry
-                        showNewChapters = false
-                    },
-                    onOpenChapter: { request in
-                        pendingChapterOpen = request
-                        showNewChapters = false
-                    }
-                )
-                .appPresentationDetents([.medium, .large])
+            // Rows measure themselves against this, not the screen: a page
+            // being swiped must not blur its own rows on the way out.
+            .coordinateSpace(.named(MinimalPageSpace.name))
+            // The bar's search button lives outside this page now, so the field
+            // takes its focus from the state rather than from the tap.
+            .onChange(of: showSearch) { _, showing in
+                searchFocused = showing
+                if !showing { searchText = "" }
             }
             .appNavigationDestination(for: Entry.self) { novel in
                 // A migrated entry takes the place of the one that left the
@@ -146,13 +107,6 @@ struct MinimalLibraryView: View {
             // which clears the value so it cannot push twice.
             .onChange(of: openedEntry) { openLinkedEntry() }
             .task { openLinkedEntry() }
-            .task(id: resumeEntry?.persistentModelID) {
-                guard let url = resumeEntry?.displayThumbnailURL else {
-                    ambientTint = nil
-                    return
-                }
-                ambientTint = await CoverTint.color(for: url)
-            }
             .fileImporter(
                 isPresented: $showFileImporter,
                 allowedContentTypes: [UTType(filenameExtension: "epub"), .pdf].compactMap { $0 },
@@ -204,8 +158,14 @@ struct MinimalLibraryView: View {
     private func shelf(screenHeight: CGFloat) -> some View {
         let items = entries
         return ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                Color.clear.frame(height: topInset)
+            // Lazy, and it matters: a `VStack` builds every row of the library
+            // — covers, two blur effects each — before the first frame is
+            // drawn, which is what made turning Minimal Mode on crawl in a big
+            // library.
+            LazyVStack(spacing: 0) {
+                // The page starts at the screen top now, so the title's band is
+                // the safe area plus the room the header takes.
+                Color.clear.frame(height: safeTop + topInset)
 
                 if novels.isEmpty {
                     emptyLibraryState
@@ -231,7 +191,7 @@ struct MinimalLibraryView: View {
             }
         }
         .ignoresSafeArea(edges: .bottom)
-        .refreshable { refreshLibrary() }
+        .refreshable { onRefresh() }
         .onScrollPhaseChange { _, phase in scrollPhase = phase }
         .onScrollGeometryChange(for: Int.self) { geometry in
             Int(((geometry.contentOffset.y + geometry.contentInsets.top) / rowHeight).rounded(.down))
@@ -253,8 +213,12 @@ struct MinimalLibraryView: View {
         Haptics.shared.shelfRowPassed(speed: speed)
     }
 
-    /// Darken the top under the title and only the last ~14% at the bottom,
-    /// where the glass bar sits.
+    // MARK: - Vignettes
+
+    /// Darken the top under the title and only the last band at the bottom,
+    /// where the glass bar sits. This page draws its own scrims rather than the
+    /// pager container, so the title and the bar are never dimmed by them and
+    /// they travel with the shelf while it is being swiped away.
     private func vignettes(screenHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
             LinearGradient(
@@ -279,47 +243,13 @@ struct MinimalLibraryView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: screenHeight * MinimalLibraryRow.bottomBand)
+            .frame(height: screenHeight * MinimalMode.bottomBand)
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }
 
     // MARK: - Header
-
-    private var headerBar: some View {
-        HStack(spacing: 12) {
-            Text("Library")
-                .font(.system(.largeTitle, design: .serif, weight: .bold))
-                .foregroundStyle(.white)
-                .contentShape(.rect)
-                .gesture(
-                    DragGesture(minimumDistance: 12)
-                        .onEnded { value in
-                            guard LibrarySwipeInteraction.isTitleSwipe(
-                                horizontal: value.translation.width,
-                                vertical: value.translation.height
-                            ) else { return }
-                            leaveMinimalMode()
-                        }
-                )
-                .accessibilityHint("Swipe up or down to show the standard library.")
-                .accessibilityAction(named: "Show standard library", leaveMinimalMode)
-
-            Spacer(minLength: 0)
-
-            overflowMenu
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 10)
-    }
-
-    private func leaveMinimalMode() {
-        Haptics.shared.selection()
-        withAnimation(AppMotion.tabSwitch(reduceMotion: reduceMotion)) {
-            minimalMode = false
-        }
-    }
 
     /// Several actions, so the `…` menu earns its place; leaving Minimal Mode is
     /// the one that matters most, since the tab bar is the only other way out.
@@ -361,33 +291,6 @@ struct MinimalLibraryView: View {
             .padding(.vertical, 11)
             .appGlassEffect(.regular.tint(.white.opacity(0.12)).interactive(), in: .capsule)
             .padding(.horizontal, 20)
-    }
-
-    // MARK: - Ambient background
-
-    /// The most recently read book's colour, washed over near-black. Neutral
-    /// until `CoverTint` has an answer.
-    private var ambientBackground: some View {
-        let tint = ambientTint ?? Color(white: 0.08)
-        return ZStack {
-            Color(white: 0.03)
-            tint.opacity(0.25)
-            RadialGradient(
-                colors: [tint.opacity(0.38), Color.black.opacity(0.9)],
-                center: UnitPoint(x: 0.25, y: 0.22),
-                startRadius: 20,
-                endRadius: 520
-            )
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.15),
-                    Color.black.opacity(0.45),
-                    Color.black.opacity(0.75)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
     }
 
     // MARK: - Empty states
@@ -454,59 +357,6 @@ struct MinimalLibraryView: View {
         }
     }
 
-    /// The library book read most recently: what the bar's centre resumes.
-    private var resumeEntry: Entry? {
-        var best: Entry?
-        var bestDate = Date.distantPast
-        for entry in novels {
-            guard let date = entry.lastReadAt, date > bestDate else { continue }
-            best = entry
-            bestDate = date
-        }
-        return best
-    }
-
-    // MARK: - Updates
-
-    /// Only a refresh the user started earns a card. Automatic launch updates
-    /// and a background count of new chapters must not surface one on its own.
-    private var updateCardState: MinimalUpdateCard.State? {
-        guard let progress = libraryManager.updateProgress, !progress.automatic else { return nil }
-        if !progress.isFinished || progress.note != nil || progress.wasCancelled || !progress.failures.isEmpty {
-            return .progress(progress)
-        }
-        if progress.newChapters > 0 { return .newChapters(progress.newChapters) }
-        return .progress(progress)
-    }
-
-    private func openUpdateCard() {
-        guard let state = updateCardState else { return }
-        Haptics.shared.selection()
-        switch state {
-        case .newChapters:
-            showNewChapters = true
-        case .progress(let progress):
-            if progress.isFinished && progress.newChapters > 0 {
-                showNewChapters = true
-            } else {
-                showUpdateSheet = true
-            }
-        }
-    }
-
-    private func openFromNewChapters() {
-        let entry = pendingEntryOpen
-        let request = pendingChapterOpen
-        pendingEntryOpen = nil
-        pendingChapterOpen = nil
-        if let request {
-            Haptics.shared.impact(.light)
-            readerRouter.request = request
-        } else if let entry, entry.inLibrary {
-            open(entry)
-        }
-    }
-
     // MARK: - Actions
 
     private func open(_ entry: Entry) {
@@ -514,239 +364,11 @@ struct MinimalLibraryView: View {
         navigationPath.append(entry)
     }
 
-    private func toggleSearch() {
-        Haptics.shared.selection()
-        withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
-            showSearch.toggle()
-        }
-        if showSearch {
-            searchFocused = true
-        } else {
-            searchText = ""
-            searchFocused = false
-        }
-    }
-
-    /// Opens the last chapter read in a library book, where the reader left it.
-    /// One small fetch on tap, not a `@Query` this screen keeps alive.
-    private func resumeReading() {
-        var descriptor = FetchDescriptor<History>(sortBy: [SortDescriptor(\.lastRead, order: .reverse)])
-        descriptor.fetchLimit = 25
-        let recent = (try? modelContext.fetch(descriptor)) ?? []
-        guard let chapter = recent.lazy.compactMap(\.chapter).first(where: { $0.entry?.inLibrary == true }),
-              let entry = chapter.entry else {
-            if let entry = resumeEntry { open(entry) }
-            return
-        }
-        Haptics.shared.impact(.light)
-        readerRouter.open(
-            sourceKey: entry.sourceKey,
-            entryURL: entry.url,
-            kind: entry.kind,
-            chapterURL: chapter.url,
-            chapterName: chapter.name
-        )
-    }
-
-    private func refreshLibrary() {
-        Haptics.shared.impact(.light)
-        let context = modelContext, sources = sourceManager
-        Task {
-            await libraryManager.updateLibrary(context: context, sourceManager: sources)
-        }
-    }
-
     /// Push the entry a link asked for, once.
     private func openLinkedEntry() {
         guard let entry = openedEntry else { return }
         openedEntry = nil
         navigationPath.append(entry)
-    }
-}
-
-// MARK: - Update card and new chapters
-
-private struct MinimalUpdateCard: View {
-    enum State: Equatable {
-        case progress(LibraryUpdateProgress)
-        case newChapters(Int)
-
-        var title: String {
-            switch self {
-            case .newChapters(let count): return "\(count) new \(count == 1 ? "chapter" : "chapters")"
-            case .progress(let progress):
-                if !progress.isFinished { return progress.isCancelling ? "Stopping update…" : "Updating library" }
-                if progress.wasCancelled { return "Update stopped" }
-                if progress.note != nil { return "Update skipped" }
-                return progress.failures.isEmpty ? "Library updated" : "Update needs attention"
-            }
-        }
-
-        var subtitle: String {
-            switch self {
-            case .newChapters: return "Choose a chapter to read"
-            case .progress(let progress):
-                if let note = progress.note { return note }
-                if !progress.isFinished {
-                    return progress.inFlight.first ?? "\(progress.completed) of \(progress.total) titles"
-                }
-                if progress.newChapters == 0 && progress.failures.isEmpty {
-                    return "No new chapters"
-                }
-                let added = "\(progress.newChapters) new \(progress.newChapters == 1 ? "chapter" : "chapters")"
-                return progress.failures.isEmpty ? added : "\(added) · \(progress.failures.count) failed"
-            }
-        }
-
-        var symbol: String {
-            switch self {
-            case .newChapters: "books.vertical"
-            case .progress(let progress):
-                progress.wasCancelled ? "stop.circle" : (progress.note != nil || !progress.failures.isEmpty ? "exclamationmark.circle" : "checkmark.circle")
-            }
-        }
-
-        var fraction: Double? {
-            if case .progress(let progress) = self, !progress.isFinished { return progress.fraction }
-            return nil
-        }
-
-        var canDismiss: Bool {
-            if case .progress(let progress) = self { return progress.isFinished }
-            return true
-        }
-    }
-
-    let state: State
-    let onOpen: () -> Void
-    let onDismiss: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @GestureState private var dragX: CGFloat = 0
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Button(action: onOpen) {
-                HStack(spacing: 12) {
-                    if let fraction = state.fraction {
-                        ProgressView(value: fraction).progressViewStyle(.circular)
-                            .frame(width: 24, height: 24)
-                    } else {
-                        AppIcon(systemName: state.symbol, size: 22)
-                            .frame(width: 24)
-                    }
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(state.title).font(Typography.headline)
-                        Text(state.subtitle).font(Typography.caption)
-                            .foregroundStyle(.secondary).lineLimit(2)
-                    }
-                    Spacer(minLength: 0)
-                    AppIcon(systemName: "chevron.up", size: 12)
-                }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(.rect)
-            }
-            .buttonStyle(AppPlainButtonStyle())
-            if state.canDismiss {
-                Button(action: onDismiss) {
-                    AppIcon(systemName: "xmark", size: 13).frame(width: 44, height: 44)
-                }
-                .buttonStyle(AppPlainButtonStyle())
-                .accessibilityLabel("Dismiss update summary")
-            }
-        }
-        .foregroundStyle(.primary)
-        .padding(14)
-        .appGlassEffect(.regular.interactive(), in: .rect(cornerRadius: 24))
-        // Swipe left to dismiss only once the update has finished. A held
-        // finger drags the card; release past the threshold dismisses, a
-        // shorter drag springs back. Vertical movement never dismisses.
-        .offset(x: state.canDismiss ? dragX : 0)
-        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85), value: dragX)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 20)
-                .updating($dragX) { value, current, _ in
-                    guard state.canDismiss, value.translation.width < 0,
-                          abs(value.translation.width) > abs(value.translation.height) else { return }
-                    current = max(-140, value.translation.width)
-                }
-                .onEnded { value in
-                    guard state.canDismiss, value.translation.width < -80,
-                          abs(value.translation.width) > abs(value.translation.height) else { return }
-                    Haptics.shared.selection()
-                    onDismiss()
-                }
-        )
-        .accessibilityHint(state.canDismiss ? "Swipe left to dismiss" : "")
-    }
-}
-
-private enum MinimalNewChaptersFeed {
-    static var predicate: Predicate<Chapter> {
-        #Predicate<Chapter> {
-            $0.dateFetch != nil && !$0.hidden && !$0.read
-        }
-    }
-
-    static let limit = 300
-    static var descriptor: FetchDescriptor<Chapter> {
-        var descriptor = FetchDescriptor<Chapter>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\Chapter.dateFetch, order: .reverse)])
-        descriptor.fetchLimit = limit
-        return descriptor
-    }
-}
-
-private struct MinimalNewChaptersSheet: View {
-    @Environment(\.appDismiss) private var dismiss
-    @Query private var allChapters: [Chapter]
-    let onOpenEntry: (Entry) -> Void
-    let onOpenChapter: (ReaderRequest) -> Void
-
-    private var chapters: [Chapter] {
-        allChapters.filter { $0.entry?.inLibrary == true }
-    }
-
-    init(onOpenEntry: @escaping (Entry) -> Void, onOpenChapter: @escaping (ReaderRequest) -> Void) {
-        self.onOpenEntry = onOpenEntry
-        self.onOpenChapter = onOpenChapter
-        _allChapters = Query(MinimalNewChaptersFeed.descriptor)
-    }
-
-    var body: some View {
-        AppNavigationStack {
-            List {
-                if chapters.isEmpty {
-                    ContentUnavailableView("No new chapters", systemImage: "checkmark.circle",
-                                           description: Text("New unread chapters from your library will appear here."))
-                        .listRowBackground(Color.clear)
-                } else {
-                    ForEach(chapters) { chapter in
-                        UpdateRow(chapter: chapter, onOpenEntry: {
-                            if let entry = chapter.entry { onOpenEntry(entry) }
-                        }, onOpenChapter: { openChapter(chapter) })
-                        .listRowBackground(Color.clear)
-                    }
-                    if chapters.count == MinimalNewChaptersFeed.limit {
-                        Text("Showing the latest \(MinimalNewChaptersFeed.limit) unread chapters. Open a book to see its full chapter list.")
-                            .font(Typography.caption).foregroundStyle(.secondary)
-                            .listRowBackground(Color.clear)
-                    }
-                }
-            }
-            .listStyle(.plain)
-            .appNavigationTitle("New chapters")
-            .appToolbar {
-                AppToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
-            }
-        }
-    }
-
-    private func openChapter(_ chapter: Chapter) {
-        guard let entry = chapter.entry, entry.inLibrary, !chapter.hidden else { return }
-        onOpenChapter(ReaderRequest(sourceKey: entry.sourceKey, entryURL: entry.url, kind: entry.kind,
-                                    chapterURL: chapter.url, chapterName: chapter.name))
     }
 }
 
@@ -764,7 +386,7 @@ private struct MinimalLibraryRow: View {
     let onTap: () -> Void
 
     /// The share of the screen, from the bottom, where rows blur out.
-    nonisolated static let bottomBand: CGFloat = 0.14
+    nonisolated static var bottomBand: CGFloat { MinimalMode.bottomBand }
 
     private static let coverLeading: CGFloat = 24
     private static let coverWidth: CGFloat = 92
@@ -799,7 +421,7 @@ private struct MinimalLibraryRow: View {
             .padding(.leading, Self.textLeading)
             .padding(.trailing, 20)
             .visualEffect { content, proxy in
-                let fade = Self.fade(proxy.frame(in: .global), screenHeight: height, bandStart: 1 - Self.bottomBand)
+                let fade = Self.fade(proxy.frame(in: .named(MinimalPageSpace.name)), screenHeight: height, bandStart: 1 - Self.bottomBand)
                 return content
                     .blur(radius: fade.top * 8 + pow(fade.bottom, 1.35) * 12)
                     .opacity(max(0.18, 1 - fade.top * 0.45 - fade.bottom * 0.7))
@@ -810,7 +432,7 @@ private struct MinimalLibraryRow: View {
                 .shadow(color: .black.opacity(0.6), radius: 10, x: 2, y: -4)
                 .shadow(color: .black.opacity(0.4), radius: 14, x: 4, y: 8)
                 .visualEffect { content, proxy in
-                    let frame = proxy.frame(in: .global)
+                    let frame = proxy.frame(in: .named(MinimalPageSpace.name))
                     // The cover blurs a little later than its label.
                     let fade = Self.fade(frame, screenHeight: height, bandStart: 1 - Self.bottomBand * 0.75)
                     let drift = Double((frame.midY / max(1, height)) - 0.45) * 2.2
@@ -848,86 +470,18 @@ private struct MinimalLibraryRow: View {
     }
 }
 
-// MARK: - Bottom bar
-
-/// The Liquid Glass bar: search on the left, continue reading in a recessed
-/// centre pill with the book's cover, refresh on the right.
-private struct MinimalLibraryBar: View {
-    let resumeCoverURL: String?
-    let canResume: Bool
-    let isSearching: Bool
-    let isUpdating: Bool
-    let onSearch: () -> Void
-    let onResume: () -> Void
-    let onRefresh: () -> Void
-
-    private let pillWidth: CGFloat = 236
-    private let pillHeight: CGFloat = 62
-    private let innerPillWidth: CGFloat = 120
-    private let innerPillHeight: CGFloat = 46
-    private let ink = Color.white
-
-    var body: some View {
-        ZStack {
-            Button(action: onResume) {
-                HStack(spacing: 9) {
-                    EntryCoverView(url: resumeCoverURL, aspectRatio: 2 / 3, cornerRadius: 3)
-                        .frame(width: 22)
-                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                    Text("Resume")
-                        .font(.system(.subheadline, design: .serif, weight: .semibold))
-                        .foregroundStyle(ink)
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 12)
-                .frame(width: innerPillWidth, height: innerPillHeight)
-                .contentShape(.capsule)
-            }
-            .buttonStyle(AppPlainButtonStyle())
-            .appGlassEffect(.clear.interactive(), in: .capsule)
-            .disabled(!canResume)
-            .opacity(canResume ? 1 : 0.5)
-            .accessibilityLabel("Continue reading")
-
-            HStack(spacing: 0) {
-                sideButton(systemName: isSearching ? "xmark" : "magnifyingglass", action: onSearch)
-                    .accessibilityLabel(isSearching ? "Close search" : "Search library")
-
-                Spacer().frame(width: innerPillWidth)
-
-                Group {
-                    if isUpdating {
-                        ProgressView()
-                            .tint(ink)
-                            .frame(width: (pillWidth - innerPillWidth) / 2, height: pillHeight)
-                    } else {
-                        sideButton(systemName: "arrow.triangle.2.circlepath", action: onRefresh)
-                    }
-                }
-                .accessibilityLabel(isUpdating ? "Updating library" : "Refresh library")
-            }
-            .frame(width: pillWidth, height: pillHeight)
-        }
-        .frame(width: pillWidth, height: pillHeight)
-        .appGlassEffect(.clear.interactive(), in: .capsule)
-        .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 8)
-    }
-
-    private func sideButton(systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            AppIcon(systemName: systemName, size: 19)
-                .foregroundStyle(ink)
-                .frame(width: (pillWidth - innerPillWidth) / 2, height: pillHeight)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(AppPlainButtonStyle())
-    }
-}
-
 #Preview {
-    MinimalLibraryView(openedEntry: .constant(nil))
-        .modelContainer(for: [Entry.self, Chapter.self, History.self, Category.self], inMemory: true)
-        .environment(SourceManager())
-        .environment(LibraryManager())
-        .environment(ReaderRouter())
+    MinimalLibraryView(
+        openedEntry: .constant(nil),
+        screenHeight: 852,
+        safeTop: 59,
+        searchText: .constant(""),
+        showSearch: .constant(false),
+        onRefresh: {}
+    )
+    .environment(MinimalPager())
+    .modelContainer(for: [Entry.self, Chapter.self, History.self, Category.self], inMemory: true)
+    .environment(SourceManager())
+    .environment(LibraryManager())
+    .environment(ReaderRouter())
 }

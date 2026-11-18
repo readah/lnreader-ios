@@ -27,14 +27,21 @@ struct ContentView: View {
 
     var body: some View {
         // Minimal Mode is the library alone: no tab bar, no other sections. The
-        // `…` menu on that screen is the way back to the full app.
+        // `…` menu on that screen is the way back to the full app. Its three
+        // pages — Library, History, Updates — are one vertical pager, so the
+        // library can be swapped for either neighbour with a swipe.
+        //
+        // A crossfade, not the spring-unblur: that transition blurs the whole
+        // subtree, and the subtree on the way out of Minimal Mode is the entire
+        // library. Blurring hundreds of covers on every frame is what made the
+        // switch crawl.
         ZStack {
             if minimalMode {
-                MinimalLibraryView(openedEntry: $openedEntry)
-                    .transition(modeTransition)
+                MinimalModeView(openedEntry: $openedEntry)
+                    .transition(.opacity)
             } else {
                 tabRoot
-                    .transition(modeTransition)
+                    .transition(.opacity)
             }
         }
         .animation(springUnblurMotion ? AppMotion.reveal(reduceMotion: reduceMotion) : AppMotion.tabSwitch(reduceMotion: reduceMotion), value: minimalMode)
@@ -105,10 +112,6 @@ struct ContentView: View {
         }
         .environment(\.noLiquidGlass, noLiquidGlass)
         .modifier(AppRootButtonStyle())
-    }
-
-    private var modeTransition: AnyTransition {
-        springUnblurMotion && !reduceMotion ? .appSpringUnblur : .opacity
     }
 
     /// The full app: five tabs on Liquid Glass. The tab-only chrome lives here

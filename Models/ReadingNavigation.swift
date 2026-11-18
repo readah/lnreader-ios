@@ -69,6 +69,43 @@ struct PullToRefreshState {
     }
 }
 
+/// One upward swipe on the Minimal Mode pager moves exactly one page, however
+/// far the finger travels or flicks. The pages do not slide: they lift off
+/// their resting place against friction and come back down, and the page is
+/// exchanged at the top of the lift. There is no downward direction: the pager
+/// is a cycle, so there is always a page next, and a downward drag from the
+/// bottom of an iPhone belongs to the system's one-handed mode.
+enum MinimalPageSwipe {
+    /// Finger distance that commits on release, without needing a flick.
+    static let commitDistance = 70.0
+    /// Predicted distance a shorter flick needs to commit.
+    static let flickDistance = 160.0
+    /// How far the pages can be lifted, at most. The lift approaches this and
+    /// never passes it, however hard the finger pulls.
+    static let maxLift = 64.0
+
+    /// The drag must be mostly vertical to page at all; horizontal drags belong
+    /// to the rows and the shelf.
+    static func isVertical(horizontal: Double, vertical: Double) -> Bool {
+        abs(vertical) >= abs(horizontal)
+    }
+
+    /// How far the pages lift for a given upward travel. One to one at first,
+    /// then less and less — the component has weight, so the further it is
+    /// pulled the harder it pulls back. Asymptotic: `maxLift` is a ceiling, not
+    /// a clamp, so the pages never stop dead under the finger.
+    static func lift(translation: Double) -> Double {
+        let travel = max(0, -translation)
+        return maxLift * travel / (travel + maxLift)
+    }
+
+    /// Whether an upward drag, on release, moves to the next page: past the
+    /// drag threshold, or a flick predicted to travel further than it did.
+    static func commits(translation: Double, predicted: Double) -> Bool {
+        max(0, -translation) >= commitDistance || max(0, -predicted) >= flickDistance
+    }
+}
+
 enum SheetDragDecision: Equatable {
     case dismiss, expand, restore
 

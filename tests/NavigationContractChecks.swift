@@ -44,6 +44,23 @@ import Foundation
             precondition(!sourceSwipe.allowsActivation(at: 40.1))
             precondition(sourceSwipe.allowsActivation(at: 40.3))
         }
+        precondition(!MinimalPageSwipe.isVertical(horizontal: 40, vertical: 20), "A horizontal drag never pages")
+        precondition(MinimalPageSwipe.isVertical(horizontal: 20, vertical: -40))
+        precondition(MinimalPageSwipe.commits(translation: -80, predicted: -90), "An upward drag past the threshold pages")
+        precondition(MinimalPageSwipe.commits(translation: -20, predicted: -220), "A flick commits below the drag threshold")
+        precondition(!MinimalPageSwipe.commits(translation: -20, predicted: -25), "A short drag springs back")
+        precondition(!MinimalPageSwipe.commits(translation: 200, predicted: 300), "A downward drag never pages")
+        precondition(!MinimalPageSwipe.commits(translation: 80, predicted: -20), "A drag that ends downward does not page")
+        precondition(MinimalPageSwipe.lift(translation: 100) == 0, "A downward drag lifts nothing")
+        precondition(MinimalPageSwipe.lift(translation: -12) > 0, "An upward drag lifts at once")
+        precondition(MinimalPageSwipe.lift(translation: -100) > MinimalPageSwipe.lift(translation: -12),
+                     "The lift keeps growing with the finger")
+        precondition(MinimalPageSwipe.lift(translation: -200) > MinimalPageSwipe.lift(translation: -100),
+                     "The lift never stops growing, it only slows")
+        precondition(MinimalPageSwipe.lift(translation: -5000) < MinimalPageSwipe.maxLift,
+                     "The lift approaches its ceiling without reaching it")
+        precondition(MinimalPageSwipe.lift(translation: -MinimalPageSwipe.commitDistance) < MinimalPageSwipe.maxLift,
+                     "A committing drag is a lift, not a page of travel")
         precondition(SheetDragDecision.resolve(translation: 100, predicted: 110, canDismiss: true) == .dismiss)
         precondition(SheetDragDecision.resolve(translation: 30, predicted: 220, canDismiss: true) == .dismiss)
         precondition(SheetDragDecision.resolve(translation: 100, predicted: 220, canDismiss: false) == .restore)
@@ -72,6 +89,6 @@ import Foundation
         pull.changed(distance: 120)
         pull.cancel()
         precondition(!pull.end(distance: 120, enabled: true) && pull.distance == 0, "Cancelled touches cannot refresh")
-        print("PASS: chapter pages, title gestures, tap suppression, sheet drags and pull-to-refresh lifecycle")
+        print("PASS: chapter pages, title gestures, tap suppression, minimal page swipes, sheet drags and pull-to-refresh lifecycle")
     }
 }

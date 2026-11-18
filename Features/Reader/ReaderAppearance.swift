@@ -91,6 +91,28 @@ enum AppMotion {
         reduceMotion ? nil : .smooth(duration: 0.4)
     }
 
+    /// A Minimal Mode page finishing the move a finger started, or returning
+    /// when the drag did not commit. The spring begins at the speed the finger
+    /// was dragging, so the drag and the snap are one motion instead of a stop
+    /// followed by an animation; it is sticky, settling into place without
+    /// bouncing past it.
+    ///
+    /// `initialVelocity` is not points per second: it is a fraction of the
+    /// animated distance per second, so the finger's speed is divided by what
+    /// is left to travel and clamped to the documented 0…1.
+    static func pageSticky(speed: Double, distance: Double, reduceMotion: Bool) -> Animation? {
+        guard !reduceMotion else { return nil }
+        let fraction = min(1, max(0, abs(speed) / max(1, distance)))
+        return .interpolatingSpring(stiffness: 300, damping: 34, initialVelocity: fraction)
+    }
+
+    /// The Minimal Mode pages exchanging places at the top of a lift: the page
+    /// that left fades out over the one that arrived. Not a spring — a fade
+    /// that overshoots only flickers.
+    static func pageDissolve(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.28)
+    }
+
     /// Glass controls splitting from or merging into each other, such as the
     /// detail screen's actions when an entry joins or leaves the library.
     static func glassMorph(reduceMotion: Bool) -> Animation? {
