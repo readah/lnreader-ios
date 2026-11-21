@@ -130,8 +130,7 @@ struct BrowseView: View {
         AppSlidingPicker(
             title: "Catalogue",
             selection: $kindRaw,
-            options: BrowseKind.allCases.map(\.rawValue),
-            classicSelectionIndicator: true
+            options: BrowseKind.allCases.map(\.rawValue)
         ) { raw in
             (BrowseKind(rawValue: raw) ?? .novels).title
         }

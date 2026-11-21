@@ -28,8 +28,7 @@ struct LibraryOptionsSheet: View {
                 AppSlidingPicker(
                     title: "Options",
                     selection: $tab,
-                    options: Tab.allCases,
-                    classicSelectionIndicator: true
+                    options: Tab.allCases
                 ) { tab in
                     tab.rawValue
                 }

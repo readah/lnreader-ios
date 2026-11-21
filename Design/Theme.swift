@@ -99,64 +99,206 @@ struct AppToggleStyle: ToggleStyle {
 
 // MARK: - Sliding selection
 
-/// Shared by the library and source catalogues, including their swipe selection.
+/// Shared by the library, source catalogues, reader settings, and options sheets.
+/// Supports both tap-to-switch and continuous drag-to-scrub across the glass lens.
 struct AppSlidingPicker<Selection: Hashable>: View {
     let title: String
     @Binding var selection: Selection
     let options: [Selection]
-    var classicSelectionIndicator = false
     let label: (Selection) -> String
-    @Environment(\.noLiquidGlass) private var classic
+
     @Namespace private var indicator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.coverTint) private var coverTint
+
+    @State private var isDragging = false
+    @State private var dragX: CGFloat?
+
+    private var selectedIndex: Int {
+        options.firstIndex(of: selection) ?? 0
+    }
+
+    private var isDark: Bool { colorScheme == .dark }
+
+    private var lensSpring: Animation {
+        reduceMotion ? .easeOut(duration: 0.16) : .spring(duration: 0.32, bounce: 0.18)
+    }
 
     var body: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: 4))
-            : AnyLayout(HStackLayout(spacing: 4))
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibilityStack
+            } else {
+                horizontalBar
+            }
+        }
+        .hapticFeedback(.selection, trigger: selection)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
+    }
 
-        layout {
-            ForEach(options, id: \.self) { option in
-                Button {
-                    withAnimation(AppMotion.tabSwitch(reduceMotion: reduceMotion)) {
-                        selection = option
+    // MARK: - Horizontal Liquid Glass Lens Bar
+
+    private var horizontalBar: some View {
+        let inset: CGFloat = 3
+        let barHeight: CGFloat = 42
+
+        return GeometryReader { geo in
+            let count = max(options.count, 1)
+            let innerWidth = max(1, geo.size.width - inset * 2)
+            let segmentWidth = innerWidth / CGFloat(count)
+            let maxOffset = max(0, innerWidth - segmentWidth)
+
+            let visualIndex = layoutDirection == .rightToLeft
+                ? (count - 1 - selectedIndex)
+                : selectedIndex
+            let restingX = CGFloat(visualIndex) * segmentWidth
+
+            let lensX: CGFloat = {
+                guard let dragX else { return restingX }
+                let centered = dragX - inset - segmentWidth * 0.5
+                if centered < 0 { return dampedOverdrag(centered) }
+                if centered > maxOffset { return maxOffset + dampedOverdrag(centered - maxOffset) }
+                return centered
+            }()
+
+            ZStack(alignment: .leading) {
+                // Quiet recessed channel — stays out of the way on black.
+                Capsule(style: .continuous)
+                    .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.045))
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .strokeBorder(
+                                (isDark ? Color.white : Color.black).opacity(0.07),
+                                lineWidth: 0.5
+                            )
                     }
+
+                // Pure Liquid Glass lens + subtle bottom accent hairline.
+                Capsule(style: .continuous)
+                    .fill(.clear)
+                    .appGlassEffect(.regular.interactive(), in: .capsule)
+                    .overlay(alignment: .bottom) {
+                        Capsule()
+                            .fill((coverTint ?? (isDark ? Color.white : Color.black)).opacity(isDragging ? 0.85 : 0.45))
+                            .frame(width: isDragging ? 20 : 14, height: 2.5)
+                            .padding(.bottom, 3.5)
+                    }
+                    .frame(width: segmentWidth, height: barHeight - inset * 2)
+                    .scaleEffect(
+                        isDragging && !reduceMotion ? CGSize(width: 1.03, height: 1.05) : CGSize(width: 1, height: 1)
+                    )
+                    .offset(x: inset + lensX)
+                    .allowsHitTesting(false)
+
+                // Segment labels
+                HStack(spacing: 0) {
+                    ForEach(options, id: \.self) { option in
+                        let isSelected = selection == option
+                        Button {
+                            withAnimation(lensSpring) { selection = option }
+                        } label: {
+                            Text(label(option))
+                                .font(Typography.subheadline)
+                                .fontWeight(isSelected ? .semibold : .regular)
+                                .foregroundStyle(
+                                    isSelected
+                                        ? AnyShapeStyle(.primary)
+                                        : AnyShapeStyle(.primary.opacity(0.48))
+                                )
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .contentShape(.capsule)
+                        }
+                        .buttonStyle(AppPlainButtonStyle())
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    }
+                }
+                .padding(inset)
+            }
+            .contentShape(.capsule)
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 8)
+                    .onChanged { value in
+                        guard abs(value.translation.width) >= abs(value.translation.height) * 0.8 else { return }
+                        if !isDragging {
+                            withAnimation(reduceMotion ? nil : .spring(duration: 0.2, bounce: 0.15)) {
+                                isDragging = true
+                            }
+                        }
+                        dragX = value.location.x
+
+                        let localX = min(max(value.location.x - inset, 0), innerWidth - 0.01)
+                        let rawIdx = min(max(Int(localX / segmentWidth), 0), count - 1)
+                        let logicalIdx = layoutDirection == .rightToLeft ? (count - 1 - rawIdx) : rawIdx
+                        if options.indices.contains(logicalIdx), options[logicalIdx] != selection {
+                            selection = options[logicalIdx]
+                        }
+                    }
+                    .onEnded { _ in
+                        withAnimation(lensSpring) {
+                            isDragging = false
+                            dragX = nil
+                        }
+                    }
+            )
+            .animation(isDragging ? .interactiveSpring(response: 0.14, dampingFraction: 0.88) : lensSpring, value: lensX)
+            .animation(lensSpring, value: selection)
+        }
+        .frame(height: barHeight)
+    }
+
+    // MARK: - Accessibility Vertical Fallback
+
+    private var accessibilityStack: some View {
+        VStack(spacing: 4) {
+            ForEach(options, id: \.self) { option in
+                let isSelected = selection == option
+                Button {
+                    withAnimation(lensSpring) { selection = option }
                 } label: {
                     Text(label(option))
                         .font(Typography.body)
-                        .fontWeight(selection == option ? .semibold : .regular)
-                        .foregroundStyle(.primary.opacity(!classic || selection == option ? 1 : 0.55))
+                        .fontWeight(isSelected ? .semibold : .regular)
+                        .foregroundStyle(
+                            isSelected
+                                ? AnyShapeStyle(.primary)
+                                : AnyShapeStyle(.primary.opacity(0.5))
+                        )
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .background {
-                            if selection == option && (!classic || classicSelectionIndicator) {
-                                Group {
-                                    if classic {
-                                        Capsule().fill(.primary.opacity(0.16))
-                                            .overlay { Capsule().strokeBorder(AppTheme.hairline, lineWidth: 0.5) }
-                                    } else {
-                                        Capsule().fill(.clear)
-                                            .glassEffect(.regular.tint(.primary.opacity(0.08)), in: .capsule)
-                                    }
-                                }
-                                .matchedGeometryEffect(id: "selection", in: indicator)
+                            if isSelected {
+                                Capsule(style: .continuous)
+                                    .fill(.clear)
+                                    .appGlassEffect(.regular.interactive(), in: .capsule)
+                                    .matchedGeometryEffect(id: "selection", in: indicator)
                             }
                         }
                         .contentShape(.capsule)
                 }
                 .buttonStyle(AppPlainButtonStyle())
-                .accessibilityAddTraits(selection == option ? .isSelected : [])
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
         .padding(4)
-        .appGlassEffect(.regular, in: .rect(cornerRadius: 28))
-        .animation(AppMotion.tabSwitch(reduceMotion: reduceMotion), value: selection)
-        .hapticFeedback(.selection, trigger: selection)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(title)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.045))
+        )
+        .animation(lensSpring, value: selection)
+    }
+
+    private func dampedOverdrag(_ excess: CGFloat) -> CGFloat {
+        let sign: CGFloat = excess < 0 ? -1 : 1
+        let magnitude = abs(excess)
+        return sign * (4.0 * magnitude / (magnitude + 36.0))
     }
 }
 
@@ -207,6 +349,10 @@ enum Typography {
 
     /// Body text — 15pt regular.
     static let body: Font = .subheadline
+
+    /// Interactive controls — the same 15pt face as `body`, named for the
+    /// UI-sans role it plays in the classic (non-glass) surface system.
+    static let subheadline: Font = .subheadline
 
     /// Captions and metadata — 13pt medium.
     static let caption: Font = .footnote.weight(.medium)

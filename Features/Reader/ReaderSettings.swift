@@ -595,8 +595,7 @@ struct ReaderSettings: View {
                     AppSlidingPicker(
                         title: "Focused lines",
                         selection: $localLineFocusLines,
-                        options: [1, 2, 3],
-                        classicSelectionIndicator: true
+                        options: [1, 2, 3]
                     ) { lines in
                         lines == 1 ? "1 Line" : "\(lines) Lines"
                     }
@@ -610,8 +609,7 @@ struct ReaderSettings: View {
                     AppSlidingPicker(
                         title: "Background dimming",
                         selection: $localLineFocusDulling,
-                        options: ["low", "mid", "high"],
-                        classicSelectionIndicator: true
+                        options: ["low", "mid", "high"]
                     ) { dulling in
                         switch dulling {
                         case "low": return "Low"

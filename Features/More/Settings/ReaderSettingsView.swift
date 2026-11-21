@@ -70,8 +70,7 @@ struct ReaderSettingsView: View {
         AppSlidingPicker(
             title: "Reader",
             selection: $selectedTab,
-            options: Tab.allCases,
-            classicSelectionIndicator: true
+            options: Tab.allCases
         ) { tab in
             tab.title
         }
