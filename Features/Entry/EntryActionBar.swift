@@ -1,10 +1,11 @@
 // EntryActionBar.swift
 // The detail screen's compact secondary dock: tracking, downloads, audio.
 //
-// Library moved into the hero beside Continue Reading, so these are slim glass
-// capsules in the hero's glass container. Only actions that carry state belong
-// here. Refresh is a toolbar button; occasional actions (migrate, edit) go in a
-// toolbar menu; see docs/DETAIL_SCREEN.md.
+// Library moved into the hero beside Continue Reading. The remaining actions
+// share one glass capsule, divided by hairlines, so the row reads as a single
+// control instead of three competing buttons. Only actions that carry state
+// belong here. Refresh is a toolbar button; occasional actions (migrate, edit)
+// go in a toolbar menu; see docs/DETAIL_SCREEN.md.
 
 import SwiftUI
 
@@ -19,47 +20,55 @@ struct EntryActionBar: View {
     @State private var confirmDeleteDownloads = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.coverTint) private var coverTint
-    @Namespace private var actionGlass
 
     private var inLibrary: Bool { entry?.inLibrary ?? false }
     private var showsAnyAction: Bool { (entry != nil && inLibrary) || !isManga }
 
     var body: some View {
         if showsAnyAction {
-            HStack(spacing: 8) {
+            HStack(spacing: 0) {
                 if let entry, inLibrary {
-                    Button(action: onTracking) {
-                        actionPillLabel(
-                            title: trackingTitle,
-                            systemImage: track == nil ? "chart.bar" : "chart.bar.fill",
-                            active: track != nil
-                        )
-                    }
-                    .entryGlassPill(active: track != nil, tint: coverTint)
-                    .glassEffectID("tracking", in: actionGlass)
-                    .accessibilityLabel("Tracking")
-                    .accessibilityValue(trackingTitle)
-                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
+                    trackingButton
 
                     if !entry.isLocal {
-                        downloadPill(entry)
-                            .glassEffectID("download", in: actionGlass)
-                            .transition(.asymmetric(insertion: .opacity, removal: .identity))
+                        separator
+                        downloadMenu(entry)
                     }
                 }
 
                 if !isManga {
-                    Button(action: onAudio) {
-                        actionPillLabel(title: "Audio", systemImage: "headphones", active: false)
-                    }
-                    .entryGlassPill(active: false, tint: coverTint)
-                    .glassEffectID("audio", in: actionGlass)
-                    .accessibilityLabel("Chapter audio downloads")
+                    if let entry, inLibrary { separator }
+                    audioButton
                 }
             }
+            .frame(height: 46)
+            .appGlassEffect(.regular, in: .capsule)
             .animation(AppMotion.glassMorph(reduceMotion: reduceMotion), value: inLibrary)
             .hapticFeedback(.success, trigger: inLibrary)
+            .accessibilityElement(children: .contain)
         }
+    }
+
+    private var trackingButton: some View {
+        Button(action: onTracking) {
+            actionPillLabel(
+                title: trackingTitle,
+                systemImage: track == nil ? "chart.bar" : "chart.bar.fill",
+                active: track != nil
+            )
+        }
+        .buttonStyle(AppPlainButtonStyle())
+        .accessibilityLabel("Tracking")
+        .accessibilityValue(trackingTitle)
+        .transition(.asymmetric(insertion: .opacity, removal: .identity))
+    }
+
+    private var audioButton: some View {
+        Button(action: onAudio) {
+            actionPillLabel(title: "Audio", systemImage: "headphones", active: false)
+        }
+        .buttonStyle(AppPlainButtonStyle())
+        .accessibilityLabel("Chapter audio downloads")
     }
 
     private func actionPillLabel(title: String, systemImage: String, active: Bool) -> some View {
@@ -72,11 +81,19 @@ struct EntryActionBar: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .foregroundStyle(active ? (coverTint ?? .white) : .white.opacity(0.92))
+        .foregroundStyle(active ? AnyShapeStyle(coverTint ?? .white) : AnyShapeStyle(.white.opacity(0.85)))
         .frame(maxWidth: .infinity)
-        .frame(height: 38)
+        .frame(height: 46)
         .padding(.horizontal, 12)
-        .contentShape(.capsule)
+        .contentShape(.rect)
+    }
+
+    /// A hairline between segments; the capsule is the only glass.
+    private var separator: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.16))
+            .frame(width: 0.5, height: 18)
+            .accessibilityHidden(true)
     }
 
     private var trackingTitle: String {
@@ -85,7 +102,7 @@ struct EntryActionBar: View {
     }
 
     /// Mihon's download menu: the next few unread chapters, all unread, or all.
-    private func downloadPill(_ entry: Entry) -> some View {
+    private func downloadMenu(_ entry: Entry) -> some View {
         AppMenu {
             Button("Next chapter") { ChapterDownloadManager.shared.enqueueUnread(1, in: entry) }
             Button("Next 5 chapters") { ChapterDownloadManager.shared.enqueueUnread(5, in: entry) }
@@ -99,7 +116,7 @@ struct EntryActionBar: View {
         } label: {
             actionPillLabel(title: "Download", systemImage: "arrow.down.circle", active: false)
         }
-        .entryGlassPill(active: false, tint: coverTint)
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityLabel("Download chapters")
         .appConfirmationDialog(
             "Delete every downloaded chapter of this title?",
@@ -107,18 +124,5 @@ struct EntryActionBar: View {
         ) {
             Button("Delete downloads", role: .destructive) { ChapterDownloadManager.shared.deleteDownloads(in: entry) }
         }
-    }
-}
-
-private extension View {
-    func entryGlassPill(active: Bool, tint: Color?) -> some View {
-        self
-            .buttonStyle(AppPlainButtonStyle())
-            .appGlassEffect(
-                active
-                    ? .regular.tint((tint ?? .white).opacity(0.28)).interactive()
-                    : .regular.interactive(),
-                in: .capsule
-            )
     }
 }

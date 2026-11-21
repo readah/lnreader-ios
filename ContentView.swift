@@ -174,7 +174,9 @@ struct ContentView: View {
                 AppTabLabel(title: AppTab.more.title, systemName: AppTab.more.icon)
             }
         }
-        .tabBarMinimizeBehavior(noLiquidGlass ? .never : .onScrollDown)
+        // The system bar, always at full size: it must not shrink as a page
+        // scrolls, in either the glass or the classic appearance.
+        .tabBarMinimizeBehavior(.never)
         // Lists and forms stay clear so each screen's `appBackdrop` reaches the
         // edges instead of sitting around an opaque card.
         .scrollContentBackground(.hidden)
