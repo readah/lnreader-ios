@@ -139,16 +139,17 @@ struct EntryDetailView: View {
                     isFinished: isFinished,
                     continueChapterName: resumeChapter?.name,
                     canStartReading: !allChapters.isEmpty && !isFinished,
+                    inLibrary: localEntry?.inLibrary ?? false,
+                    isAddingToLibrary: isAddingToLibrary,
                     onContinueReading: continueReading,
+                    onToggleLibrary: toggleLibrary,
                     onScrollToCurrent: scrollToCurrentChapter,
                     onCopyTitle: copyTitle
                 ) {
                     EntryActionBar(
                         entry: localEntry,
                         isManga: isManga,
-                        isAddingToLibrary: isAddingToLibrary,
                         track: localEntry.flatMap { tracking.aniListTrack(for: $0) },
-                        onToggleLibrary: toggleLibrary,
                         onTracking: { showTracker = true },
                         onAudio: { showAudioDownloads = true }
                     )
@@ -171,10 +172,6 @@ struct EntryDetailView: View {
                         genres: displayGenres,
                         showFullDescription: $showFullDescription
                     )
-
-                    Divider()
-                        .padding(.horizontal)
-                        .padding(.vertical, 20)
 
                     ChapterListView(
                         entry: localEntry,

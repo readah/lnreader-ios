@@ -5,9 +5,11 @@ import SwiftUI
 import Glur
 
 struct EntryHeaderView<Actions: View>: View {
+    @Environment(\.coverTint) private var coverTint
     /// A hold ends with a lift the button also reads as a tap; without this the
     /// tap would open the reader right after the hold scrolled the list.
     @State private var suppressTap = false
+
     var transitionNamespace: Namespace.ID? = nil
     let name: String
     let author: String?
@@ -17,14 +19,17 @@ struct EntryHeaderView<Actions: View>: View {
     /// Source name, shown on the status line.
     var source: String? = nil
     var hasStartedReading: Bool = true
-    /// All chapters are read: the button is disabled and says "You're all caught up".
+    /// All chapters are read: the button is disabled and says "All caught up".
     var isFinished: Bool = false
     /// Name of the chapter the button opens, shown under the label.
     var continueChapterName: String? = nil
     /// False until there is a chapter to open. The button used to look enabled
     /// and do nothing when tapped.
     var canStartReading: Bool = true
+    var inLibrary: Bool = false
+    var isAddingToLibrary: Bool = false
     let onContinueReading: () -> Void
+    let onToggleLibrary: () -> Void
     /// Held the primary button: bring the chapter it would open into view.
     var onScrollToCurrent: (() -> Void)? = nil
     /// Held the title. The hero owns the gesture only: the screen that knows what
@@ -37,23 +42,13 @@ struct EntryHeaderView<Actions: View>: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Hero background with extension effect
             heroBackground
-
-            // Gradient for text legibility over backgroundExtensionEffect
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.3), .black.opacity(0.7)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            // Content overlay
             contentOverlay
         }
-        .frame(height: 560)
+        .frame(height: 520)
     }
 
-    // MARK: - Hero Background
+    // MARK: - Seamless Hero Background
 
     @ViewBuilder
     private var heroBackground: some View {
@@ -63,34 +58,44 @@ struct EntryHeaderView<Actions: View>: View {
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(
-                            minWidth: 0, maxWidth: .infinity,
-                            minHeight: 0, maxHeight: .infinity
-                        )
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                         .clipped()
                         .backgroundExtensionEffect()
                 } placeholder: {
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.primary.opacity(0.12), .clear],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+                    Rectangle().fill(Color.white.opacity(0.06))
                 }
             } else {
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.primary.opacity(0.12), .clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                Rectangle().fill(Color.white.opacity(0.06))
             }
         }
-        .glur(radius: 20.0, offset: 0.75, interpolation: 0.25, direction: .down)
+        // Progressive blur starts halfway down so the bottom blends naturally into the canvas.
+        .glur(radius: 26.0, offset: 0.48, interpolation: 0.45, direction: .down)
+        // Soft legibility gradient only behind the typography & controls.
+        .overlay {
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.22), location: 0.0),
+                    .init(color: .clear, location: 0.22),
+                    .init(color: .black.opacity(0.35), location: 0.62),
+                    .init(color: .black.opacity(0.72), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        // Alpha dissolve at the bottom edge — eliminates any hard seam into the description.
+        .mask {
+            LinearGradient(
+                stops: [
+                    .init(color: .white, location: 0.0),
+                    .init(color: .white, location: 0.62),
+                    .init(color: .white.opacity(0.55), location: 0.86),
+                    .init(color: .clear, location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
     }
 
     // MARK: - Content Overlay
@@ -114,14 +119,14 @@ struct EntryHeaderView<Actions: View>: View {
     /// The hero holds the title and the one primary action. Every other entry
     /// action lives in `EntryActionBar` or the toolbar menu.
     private var contentOverlay: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Spacer()
 
             Text(name)
                 .font(Typography.largeTitle)
                 .foregroundStyle(.white)
                 .lineLimit(3)
-                .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
+                .shadow(color: .black.opacity(0.45), radius: 8, y: 2)
                 // Hold to copy, in place of a context menu: the title is the one
                 // thing on this screen worth pasting somewhere else.
                 .onLongPressGesture(minimumDuration: 0.5) { onCopyTitle?() }
@@ -132,33 +137,35 @@ struct EntryHeaderView<Actions: View>: View {
             if let byline {
                 Text(byline)
                     .font(Typography.headline)
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(.white.opacity(0.86))
                     .lineLimit(2)
-                    .shadow(radius: 2)
             }
 
             if !statusLine.isEmpty {
                 Label {
                     Text(statusLine)
                 } icon: {
-                    AppIcon(systemName: status.iconName, size: 13, relativeTo: .footnote)
+                    AppIcon(systemName: status.iconName, size: 12, relativeTo: .footnote)
                 }
                 .font(Typography.caption)
-                .foregroundStyle(.white.opacity(0.75))
+                .foregroundStyle(.white.opacity(0.68))
                 .lineLimit(1)
-                .shadow(radius: 2)
             }
 
+            // Unified Liquid Glass container: primary CTA + inline library heart + compact secondary dock.
             AppGlassEffectContainer(spacing: 10) {
                 VStack(spacing: 10) {
-                    continueButton
+                    HStack(spacing: 10) {
+                        continueButton
+                        libraryCircleButton
+                    }
                     actions
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, 10)
         }
-        .padding()
-        .padding(.bottom, 8)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 12)
     }
 
     /// Primary action: a solid white glass capsule over the dark hero.
@@ -170,26 +177,33 @@ struct EntryHeaderView<Actions: View>: View {
             }
             onContinueReading()
         } label: {
-            VStack(spacing: 2) {
-                AppLabel(isFinished ? "You're all caught up" : (hasStartedReading ? "Continue reading" : "Start reading"), systemName: isFinished ? "checkmark.circle.fill" : "book.fill", size: 17, relativeTo: .body)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+            VStack(spacing: 1) {
+                AppLabel(
+                    isFinished ? "All caught up" : (hasStartedReading ? "Continue" : "Start reading"),
+                    systemName: isFinished ? "checkmark.circle.fill" : "book.fill",
+                    size: 16,
+                    relativeTo: .body
+                )
+                .font(Typography.body)
+                .lineLimit(1)
+
                 if !isFinished, let continueChapterName, !continueChapterName.isEmpty {
                     Text(continueChapterName)
-                        .font(Typography.caption)
+                        .font(Typography.small)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .opacity(0.65)
                 }
             }
             .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .contentShape(.capsule)
         }
-        .appGlassButtonStyle(prominent: true)
-        .tint(.white)
+        .buttonStyle(AppPlainButtonStyle())
         .foregroundStyle(.black)
-        .controlSize(.large)
-        .buttonBorderShape(.capsule)
+        .appGlassEffect(.regular.tint(.white.opacity(0.92)).interactive(), in: .capsule)
         .disabled(!canStartReading)
+        .opacity(canStartReading ? 1 : 0.45)
         // Hold to find the chapter in the list. Nothing on screen says the button
         // can be held, so VoiceOver is offered the same action by name.
         .simultaneousGesture(
@@ -205,5 +219,34 @@ struct EntryHeaderView<Actions: View>: View {
         .accessibilityAction(named: Text("Scroll to current chapter")) { onScrollToCurrent?() }
         .glassEffectID("continue", in: namespace)
         .bookTransitionSource("continue", in: transitionNamespace)
+    }
+
+    private var libraryCircleButton: some View {
+        // When in library: tint the glass button itself with `coverTint` (or white),
+        // and keep the heart high-contrast (white on color, black on white).
+        let heartColor: Color = if inLibrary {
+            coverTint == nil ? .black : .white
+        } else {
+            .white
+        }
+
+        return Button(action: onToggleLibrary) {
+            Image(systemName: inLibrary ? "heart.fill" : "heart")
+                .font(.system(size: 18, weight: .medium))
+                .contentTransition(.symbolEffect(.replace))
+                .foregroundStyle(heartColor)
+                .frame(width: 50, height: 50)
+                .contentShape(.circle)
+        }
+        .buttonStyle(AppPlainButtonStyle())
+        .appGlassEffect(
+            inLibrary
+                ? .regular.tint(coverTint ?? .white).interactive()
+                : .regular.interactive(),
+            in: .circle
+        )
+        .disabled(isAddingToLibrary)
+        .accessibilityLabel(inLibrary ? "Remove from library" : "Add to library")
+        .glassEffectID("library", in: namespace)
     }
 }

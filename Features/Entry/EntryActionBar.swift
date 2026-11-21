@@ -1,87 +1,91 @@
 // EntryActionBar.swift
-// The detail screen's row of entry actions: library, tracking, downloads, audio.
+// The detail screen's compact secondary dock: tracking, downloads, audio.
 //
-// Glass buttons over the hero, under the primary action, in the same glass
-// container so the two rows read as one control group.
-//
-// Only actions that carry state belong here, at most four of them. Refresh is
-// a toolbar button; occasional actions (migrate, edit) go in a toolbar menu;
-// see docs/DETAIL_SCREEN.md.
+// Library moved into the hero beside Continue Reading, so these are slim glass
+// capsules in the hero's glass container. Only actions that carry state belong
+// here. Refresh is a toolbar button; occasional actions (migrate, edit) go in a
+// toolbar menu; see docs/DETAIL_SCREEN.md.
 
 import SwiftUI
 
 struct EntryActionBar: View {
     let entry: Entry?
     let isManga: Bool
-    let isAddingToLibrary: Bool
     /// The bound AniList entry, when there is one.
     let track: Track?
-    let onToggleLibrary: () -> Void
     let onTracking: () -> Void
     let onAudio: () -> Void
 
     @State private var confirmDeleteDownloads = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.coverTint) private var coverTint
+    @Namespace private var actionGlass
 
     private var inLibrary: Bool { entry?.inLibrary ?? false }
+    private var showsAnyAction: Bool { (entry != nil && inLibrary) || !isManga }
 
     var body: some View {
-        HStack(spacing: 10) {
-            libraryTile
-            // Tracking and downloads hang off a stored entry; a browse result
-            // gets them once it is added. Local books have nothing to download.
-            if let entry, inLibrary {
-                Button(action: onTracking) {
-                    EntryActionTile(
-                        title: trackingTitle,
-                        systemImage: track == nil ? "chart.bar" : "chart.bar.fill",
-                        isActive: track != nil)
-                }
-                .entryActionStyle()
-                .accessibilityLabel("Tracking")
-                .accessibilityValue(trackingTitle)
-                .transition(Self.libraryAction)
+        if showsAnyAction {
+            HStack(spacing: 8) {
+                if let entry, inLibrary {
+                    Button(action: onTracking) {
+                        actionPillLabel(
+                            title: trackingTitle,
+                            systemImage: track == nil ? "chart.bar" : "chart.bar.fill",
+                            active: track != nil
+                        )
+                    }
+                    .entryGlassPill(active: track != nil, tint: coverTint)
+                    .glassEffectID("tracking", in: actionGlass)
+                    .accessibilityLabel("Tracking")
+                    .accessibilityValue(trackingTitle)
+                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
 
-                if !entry.isLocal {
-                    downloadTile(entry).transition(Self.libraryAction)
+                    if !entry.isLocal {
+                        downloadPill(entry)
+                            .glassEffectID("download", in: actionGlass)
+                            .transition(.asymmetric(insertion: .opacity, removal: .identity))
+                    }
+                }
+
+                if !isManga {
+                    Button(action: onAudio) {
+                        actionPillLabel(title: "Audio", systemImage: "headphones", active: false)
+                    }
+                    .entryGlassPill(active: false, tint: coverTint)
+                    .glassEffectID("audio", in: actionGlass)
+                    .accessibilityLabel("Chapter audio downloads")
                 }
             }
-            // Audio is generated from chapter text, which manga don't have.
-            if !isManga {
-                Button(action: onAudio) {
-                    EntryActionTile(title: "Audio", systemImage: "headphones", isActive: false)
-                }
-                .entryActionStyle()
-                .accessibilityLabel("Chapter audio downloads")
-            }
+            .animation(AppMotion.glassMorph(reduceMotion: reduceMotion), value: inLibrary)
+            .hapticFeedback(.success, trigger: inLibrary)
         }
-        .animation(AppMotion.glassMorph(reduceMotion: reduceMotion), value: inLibrary)
-        .hapticFeedback(.success, trigger: inLibrary)
     }
 
-    /// Fades in; leaves at once. A glass button fading out inside the
-    /// container leaves its glass behind until it is gone.
-    private static let libraryAction: AnyTransition = .asymmetric(insertion: .opacity, removal: .identity)
-
-    private var libraryTile: some View {
-        Button(action: onToggleLibrary) {
-            EntryActionTile(
-                title: inLibrary ? "In library" : "Add to library",
-                systemImage: inLibrary ? "heart.fill" : "heart",
-                isActive: inLibrary)
+    private func actionPillLabel(title: String, systemImage: String, active: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .contentTransition(.symbolEffect(.replace))
+            Text(title)
+                .font(Typography.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .entryActionStyle()
-        .disabled(isAddingToLibrary)
-        .accessibilityLabel(inLibrary ? "Remove from library" : "Add to library")
+        .foregroundStyle(active ? (coverTint ?? .white) : .white.opacity(0.92))
+        .frame(maxWidth: .infinity)
+        .frame(height: 38)
+        .padding(.horizontal, 12)
+        .contentShape(.capsule)
     }
 
     private var trackingTitle: String {
-        guard let track else { return "Tracking" }
+        guard let track else { return "Track" }
         return (TrackStatus(rawValue: track.status) ?? .planning).title
     }
 
     /// Mihon's download menu: the next few unread chapters, all unread, or all.
-    private func downloadTile(_ entry: Entry) -> some View {
+    private func downloadPill(_ entry: Entry) -> some View {
         AppMenu {
             Button("Next chapter") { ChapterDownloadManager.shared.enqueueUnread(1, in: entry) }
             Button("Next 5 chapters") { ChapterDownloadManager.shared.enqueueUnread(5, in: entry) }
@@ -93,9 +97,9 @@ struct EntryActionBar: View {
             Divider()
             Button("Delete downloads", systemImage: "trash", role: .destructive) { confirmDeleteDownloads = true }
         } label: {
-            EntryActionTile(title: "Download", systemImage: "arrow.down.circle", isActive: false)
+            actionPillLabel(title: "Download", systemImage: "arrow.down.circle", active: false)
         }
-        .entryActionStyle()
+        .entryGlassPill(active: false, tint: coverTint)
         .accessibilityLabel("Download chapters")
         .appConfirmationDialog(
             "Delete every downloaded chapter of this title?",
@@ -106,41 +110,15 @@ struct EntryActionBar: View {
     }
 }
 
-/// One action: a symbol over a short label. State shows in the symbol
-/// (filled when on), never in the button's shape, so every action is the same
-/// glass and none competes with the primary button above.
-struct EntryActionTile: View {
-    let title: String
-    let systemImage: String
-    let isActive: Bool
-
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: systemImage)
-                .font(.body.weight(.semibold))
-                .contentTransition(.symbolEffect(.replace))
-                .frame(height: 22)
-            Text(title)
-                .font(Typography.small.weight(.medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .allowsTightening(true)
-                .contentTransition(.interpolate)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 2)
-    }
-}
-
 private extension View {
-    /// The hero's secondary glass, matching the primary capsule above it.
-    ///
-    /// `.regular`, not `.large`: four tiles share one row, and the large
-    /// control's side padding left "Download" too narrow to fit its label.
-    func entryActionStyle() -> some View {
-        appGlassButtonStyle()
-            .buttonBorderShape(.roundedRectangle(radius: 18))
-            .controlSize(.regular)
-            .foregroundStyle(.white)
+    func entryGlassPill(active: Bool, tint: Color?) -> some View {
+        self
+            .buttonStyle(AppPlainButtonStyle())
+            .appGlassEffect(
+                active
+                    ? .regular.tint((tint ?? .white).opacity(0.28)).interactive()
+                    : .regular.interactive(),
+                in: .capsule
+            )
     }
 }

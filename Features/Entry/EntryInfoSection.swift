@@ -36,7 +36,7 @@ struct EntryInfoSection: View {
                                 .foregroundStyle(.secondary)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(AppTheme.surface, in: .capsule)
+                                .background(.thinMaterial, in: .capsule)
                         }
                     }
                 }
@@ -45,5 +45,6 @@ struct EntryInfoSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal)
+        .padding(.bottom, 20)
     }
 }
