@@ -196,6 +196,7 @@ struct EntryDetailView: View {
                 hideKeyboard()
             }
         )
+        .scrollDisabled(chapterSelection.isDragSelecting)
         .chapterSelectionToolbar(
             selection: chapterSelection, entry: localEntry,
             ordered: pagedChapters, allChapters: allChapters, sourceKey: sourceKey)

@@ -31,6 +31,7 @@ struct ChapterListView: View {
     @AppStorage(ChapterOrder.ascendingKey) private var ascending = false
     /// Colour from the open book's cover, when Settings › Appearance turns it on.
     @Environment(\.coverTint) private var coverTint
+    @Environment(\.coverTintStrength) private var tintStrength
     @State private var showSearchField = false
     @State private var showScanlators = false
     @FocusState private var searchFocused: Bool
@@ -45,15 +46,22 @@ struct ChapterListView: View {
         }
     }
 
-    /// The chapter card. Same surface as everywhere else, with the cover colour
-    /// laid over it when tinting is on — a `Color` cannot be blended with
-    /// another `Color`, so the two are stacked and clipped together.
+    /// The chapter card: Liquid Glass over the living backdrop, so the list
+    /// reads as one refracting surface rather than an opaque box.
     private var chapterCard: some View {
-        ZStack {
-            AppTheme.cardBackground
-            if let coverTint { coverTint.opacity(0.12) }
-        }
-        .clipShape(.rect(cornerRadius: 18))
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .fill(Color.black.opacity(0.24))
+            .overlay {
+                if let coverTint, tintStrength > 0 {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(coverTint.opacity(tintStrength * 0.14))
+                }
+            }
+            .appGlassEffect(.regular, in: .rect(cornerRadius: 22))
+    }
+
+    private var searchAnimation: Animation {
+        reduceMotion ? .easeOut(duration: 0.16) : .spring(duration: 0.36, bounce: 0.14)
     }
 
     private var searchButton: some View {
@@ -61,7 +69,7 @@ struct ChapterListView: View {
             symbol: showSearchField ? "xmark" : "magnifyingglass",
             label: showSearchField ? "Close chapter search" : "Search chapters"
         ) {
-            withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+            withAnimation(searchAnimation) {
                 showSearchField.toggle()
                 if !showSearchField { searchText = "" }
             }
@@ -123,7 +131,7 @@ struct ChapterListView: View {
 
             if showSearchField {
                 GlassSearchField(prompt: "Chapter name or number", text: $searchText, focus: $searchFocused)
-                    .transition(.opacity.combined(with: .offset(y: -4)))
+                    .transition(.blurReplace.combined(with: .offset(y: -6)))
             }
 
             if chapters.isEmpty && isLoading {
@@ -138,13 +146,13 @@ struct ChapterListView: View {
                         let joins = selection?.neighbours(at: index, in: chapters) ?? (above: false, below: false)
                         let selected = selection?.paths.contains(chapter.path) == true
                         ChapterRow(chapter: chapter, entry: entry, sourceKey: sourceKey,
-                                   selection: selection, orderedPaths: { chapters.map(\.path) },
+                                   selection: selection,
                                    joinsAbove: joins.above, joinsBelow: joins.below,
                                    showsNumber: showsChapterNumbers)
                             .overlay {
                                 if chapter.id == highlightedChapterID {
                                     Rectangle()
-                                        .fill((coverTint ?? AppTheme.primaryFill).opacity(0.16))
+                                        .fill(coverTint?.opacity(0.10 + tintStrength * 0.16) ?? AppTheme.primaryFill.opacity(0.16))
                                         .allowsHitTesting(false)
                                         .transition(.opacity)
                                 }
@@ -155,12 +163,14 @@ struct ChapterListView: View {
                         }
                     }
                 }
+                .coordinateSpace(name: ChapterSelection.coordinateSpace)
+                .chapterDragSelection(selection, orderedPaths: { chapters.map(\.path) })
                 .background(chapterCard)
-                .clipShape(.rect(cornerRadius: 18))
+                .clipShape(.rect(cornerRadius: 22))
             }
         }
         .padding(.horizontal)
-        .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: showSearchField)
+        .animation(searchAnimation, value: showSearchField)
         .onAppear { showSearchField = !searchText.isEmpty }
         .appSheet(isPresented: $showScanlators) {
             if let scanlatorSettings {
@@ -363,6 +373,7 @@ extension ChapterDisplay: ChapterOrdered {
 struct ChapterDirectoryView: View {
     @Environment(\.appDismiss) private var dismiss
     @Environment(\.coverTint) private var coverTint
+    @AppStorage(AppearanceTint.strengthKey) private var tintStrength = AppearanceTint.defaultStrength
     let entry: Entry?
     let sourceEntry: SourceEntry?
     let chapters: [ChapterDisplay]
@@ -476,39 +487,22 @@ struct ChapterDirectoryView: View {
                 }
                 Section {
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, chapter in
-                        let joins = selection.neighbours(at: index, in: rows)
-                        let picked = selection.paths.contains(chapter.path)
-                        HStack(spacing: 8) {
-                            Text(String(chapter.position + 1)).font(.caption.monospacedDigit()).foregroundStyle(chapter.path == currentChapterPath ? .primary : .secondary).fontWeight(chapter.path == currentChapterPath ? .semibold : .regular).frame(minWidth: 32)
-                            if let onSelect {
-                                Button { onSelect(chapter) } label: {
-                                    HStack {
-                                        Text(chapter.name).font(.subheadline).fontWeight(chapter.path == currentChapterPath ? .semibold : .regular).foregroundStyle(.primary).lineLimit(2)
-                                        Spacer()
-                                        if chapter.path == currentChapterPath { AppIcon(systemName: "book.fill", size: 17, relativeTo: .body).foregroundStyle(coverTint ?? .primary) }
-                                        else if chapter.bookmarked { AppIcon(systemName: "bookmark.fill", size: 17, relativeTo: .body).foregroundStyle(.secondary) }
-                                    }.frame(minHeight: 44).contentShape(Rectangle())
-                                }.buttonStyle(AppPlainButtonStyle())
-                            } else {
-                                ChapterRow(chapter: chapter, entry: entry, sourceKey: sourceKey,
-                                           selection: entry == nil ? nil : selection, orderedPaths: { paths },
-                                           joinsAbove: joins.above, joinsBelow: joins.below)
-                                    .listRowInsets(EdgeInsets())
-                            }
-                        }
-                        .listRowSeparator(picked || joins.below ? .hidden : .automatic)
-                        .id(chapter.path)
+                        directoryRow(chapter, index: index, rows: rows)
                     }
                     if rows.isEmpty { ContentUnavailableView("No chapters", systemImage: "text.magnifyingglass", description: Text("Try another number, title, or filter.")) }
                 } header: { Text(search.isEmpty ? "Chapters \(label(for: page, in: items))" : "\(items.count) results") }
             }
             .listStyle(.insetGrouped)
+            .coordinateSpace(name: ChapterSelection.coordinateSpace)
+            .chapterDragSelection(entry == nil ? nil : selection, orderedPaths: { paths })
+            .scrollDisabled(selection.isDragSelecting)
             .scrollContentBackground(.hidden)
-            .appBackdrop()
             .background {
-                if let coverTint {
-                    coverTint.opacity(0.10).ignoresSafeArea()
-                }
+                EntryAtmosphericBackdrop(
+                    coverURL: entry?.displayThumbnailURL ?? sourceEntry?.thumbnailURL,
+                    tint: coverTint,
+                    strength: tintStrength
+                )
             }
             .id("\(search.isEmpty ? page : -1)-\(selectedFilter.rawValue)")
             .appSearchable(text: $search, prompt: "Search every chapter")
@@ -556,5 +550,58 @@ struct ChapterDirectoryView: View {
         search = ""; selectedFilter = .all; page = index / pageSize
         scrollTarget = chapters[index].path; scrollRequest = UUID()
         jumpNumber = ""; jumpError = nil; jumpFocused = false
+    }
+
+    /// One row of the directory `List`.
+    ///
+    /// Split out of the `ForEach` body: the inline row was an `HStack` of a
+    /// ternaried number, a bracketed `if let`/`else`, a nested label `HStack`
+    /// and a second `if`/`else if`, all in one expression — heavy enough that
+    /// the type checker gave up on the whole `body`. Passing `rows` in keeps the
+    /// run detection identical to what the list drew before.
+    @ViewBuilder
+    private func directoryRow(_ chapter: ChapterDisplay, index: Int, rows: [ChapterDisplay]) -> some View {
+        let joins = selection.neighbours(at: index, in: rows)
+        let picked = selection.paths.contains(chapter.path)
+        HStack(spacing: 8) {
+            Text(String(chapter.position + 1))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(chapter.path == currentChapterPath ? .primary : .secondary)
+                .fontWeight(chapter.path == currentChapterPath ? .semibold : .regular)
+                .frame(minWidth: 32)
+            if let onSelect {
+                Button { onSelect(chapter) } label: { selectableLabel(chapter) }
+                    .buttonStyle(AppPlainButtonStyle())
+            } else {
+                ChapterRow(chapter: chapter, entry: entry, sourceKey: sourceKey,
+                           selection: entry == nil ? nil : selection,
+                           joinsAbove: joins.above, joinsBelow: joins.below)
+                    .listRowInsets(EdgeInsets())
+            }
+        }
+        .listRowSeparator(picked || joins.below ? .hidden : .automatic)
+        .id(chapter.path)
+    }
+
+    /// The tappable half of a directory row when the sheet hands selection back
+    /// to the caller rather than to `ChapterRow`.
+    private func selectableLabel(_ chapter: ChapterDisplay) -> some View {
+        HStack {
+            Text(chapter.name)
+                .font(.subheadline)
+                .fontWeight(chapter.path == currentChapterPath ? .semibold : .regular)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+            Spacer()
+            if chapter.path == currentChapterPath {
+                AppIcon(systemName: "book.fill", size: 17, relativeTo: .body)
+                    .foregroundStyle(coverTint.map(AnyShapeStyle.init) ?? AnyShapeStyle(.primary))
+            } else if chapter.bookmarked {
+                AppIcon(systemName: "bookmark.fill", size: 17, relativeTo: .body)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(minHeight: 60)
+        .contentShape(Rectangle())
     }
 }

@@ -1,27 +1,64 @@
 // ChapterRow.swift
 // Single chapter row with unread indicator, release time, and status icons.
 
+import QuartzCore
 import SwiftData
 import SwiftUI
+import UIKit
+
+// Shared blur + spring reveal for buttons and selection controls.
+private struct BlurSpringReveal: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let visible: Bool
+    var scale: CGFloat = 0.86
+    var offsetY: CGFloat = 12
+    var blurRadius: CGFloat = 8
+    var delay: Double = 0
+
+    func body(content: Content) -> some View {
+        let animation: Animation = reduceMotion
+            ? .easeOut(duration: 0.16)
+            : .spring(duration: 0.36, bounce: 0.14).delay(visible ? delay : 0)
+
+        content
+            .opacity(visible ? 1 : 0)
+            .scaleEffect(visible || reduceMotion ? 1 : scale)
+            .offset(y: visible || reduceMotion ? 0 : offsetY)
+            .blur(radius: visible || reduceMotion ? 0 : blurRadius)
+            .animation(animation, value: visible)
+    }
+}
+
+extension View {
+    func blurSpringReveal(
+        _ visible: Bool,
+        scale: CGFloat = 0.86,
+        offsetY: CGFloat = 12,
+        blurRadius: CGFloat = 8,
+        delay: Double = 0
+    ) -> some View {
+        modifier(BlurSpringReveal(
+            visible: visible,
+            scale: scale,
+            offsetY: offsetY,
+            blurRadius: blurRadius,
+            delay: delay
+        ))
+    }
+}
 
 struct ChapterRow: View {
     @Environment(ReaderRouter.self) private var readerRouter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var chapterTransition
     @ObservedObject private var audioLibrary = TTSOfflineLibrary.shared
     @State private var showAudioDownloads = false
-    /// A hold ends with a lift that the button also reads as a tap; without this
-    /// the tap would toggle the row the hold just selected straight back off.
-    /// Cleared on the next press-start (see `ChapterRowButtonStyle`), so a long
-    /// hold whose lift comes late still suppresses that lift's tap.
-    @State private var suppressTap = false
     let chapter: ChapterDisplay
     let entry: Entry?
     let sourceKey: String
     /// Hold-to-select state shared with the list that owns this row. `nil`
     /// where selecting makes no sense (a browse result has no stored chapters).
     var selection: ChapterSelection? = nil
-    /// The list's current order, read only when a long press needs a range.
-    var orderedPaths: () -> [String] = { [] }
     /// Whether the neighbouring rows are selected too. A run of selected rows is
     /// drawn as one rounded block instead of a fill per row.
     var joinsAbove = false
@@ -31,9 +68,8 @@ struct ChapterRow: View {
     var showsNumber = false
     private var isSelecting: Bool { selection?.isActive == true }
     private var isSelected: Bool { selection?.paths.contains(chapter.path) == true }
-    /// Whether the metadata line under the title has anything to show. A row
-    /// with no scanlator, date or progress is just the title, so it gets extra
-    /// vertical padding to keep the same height as a row that has the line.
+    /// Whether the metadata line under the title has anything to show. Rows are
+    /// a fixed minimum height either way; this only decides whether to draw it.
     private var hasMetadata: Bool {
         if let scanlator = chapter.scanlator, !scanlator.isEmpty { return true }
         if chapter.releaseDate != nil { return true }
@@ -44,16 +80,34 @@ struct ChapterRow: View {
     private var bookID: String { TTSBookIdentity.make(pluginId: sourceKey, novelPath: bookPath) }
     private var audioCount: Int { audioLibrary.downloads(bookId: bookID, chapterId: chapter.path).filter(\.isAvailable).count }
 
-    /// The selection circle, shown only while picking. Unread is carried by the
-    /// title colour alone, so there is no slot to reserve the rest of the time.
-    @ViewBuilder private var leadingIndicator: some View {
-        if isSelecting {
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+    private var selectionSpring: Animation {
+        reduceMotion ? .easeOut(duration: 0.16) : .spring(duration: 0.34, bounce: 0.14)
+    }
+
+    /// The selection circle. Two static layers cross-fade instead of a symbol
+    /// replacement: `ChapterListView` re-evaluates rows whenever `paths` changes,
+    /// and `.contentTransition(.symbolEffect(.replace))` replayed on every pass,
+    /// flickering the tick on rows that never changed state.
+    private var leadingIndicator: some View {
+        ZStack {
+            Image(systemName: "circle")
                 .font(.title3)
-                .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
-                .frame(width: 22)
-                .accessibilityHidden(true)
+                .foregroundStyle(.tertiary)
+                .opacity(isSelected ? 0 : 1)
+
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title3)
+                .foregroundStyle(.tint)
+                .scaleEffect(isSelected ? 1 : 0.4)
+                .opacity(isSelected ? 1 : 0)
         }
+        .frame(width: 24, height: 24)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: isSelected)
+        // Entrance/exit of the indicator column itself.
+        .opacity(isSelecting ? 1 : 0)
+        .scaleEffect(isSelecting || reduceMotion ? 1 : 0.65)
+        .animation(selectionSpring, value: isSelecting)
+        .accessibilityHidden(true)
     }
 
     /// Download is offered for stored chapters of titles in the library; local
@@ -63,27 +117,52 @@ struct ChapterRow: View {
     var body: some View {
         HStack(spacing: 0) {
             mainButton
+
             if let entry, showsDownload {
+                // The control keeps its 52pt slot at all times. Only opacity and
+                // scale change on selection: animating its width (and the
+                // indicator's) used to change the title's proposed width on
+                // every frame, re-wrapping text and re-measuring every row.
                 ChapterDownloadControl(entry: entry, chapter: chapter)
                     .padding(.trailing, 8)
+                    .frame(width: 52, height: 44)
                     .opacity(isSelecting ? 0 : 1)
+                    .scaleEffect(isSelecting && !reduceMotion ? 0.72 : 1)
                     .allowsHitTesting(!isSelecting)
+                    .animation(selectionSpring, value: isSelecting)
             }
         }
+        .frame(minHeight: 60)
         .background { selectionBackground }
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .named(ChapterSelection.coordinateSpace))
+        } action: { frame in
+            selection?.updateFrame(frame, for: chapter.path)
+        }
+        .onDisappear {
+            selection?.removeFrame(for: chapter.path)
+        }
     }
 
-    @ViewBuilder private var selectionBackground: some View {
-        if isSelected {
-            UnevenRoundedRectangle(
-                topLeadingRadius: joinsAbove ? 0 : 14, bottomLeadingRadius: joinsBelow ? 0 : 14,
-                bottomTrailingRadius: joinsBelow ? 0 : 14, topTrailingRadius: joinsAbove ? 0 : 14,
-                style: .continuous)
-                .fill(.tint.opacity(0.16))
-                .padding(.horizontal, 6)
-                .padding(.top, joinsAbove ? 0 : 3)
-                .padding(.bottom, joinsBelow ? 0 : 3)
-        }
+    private var selectionBackground: some View {
+        UnevenRoundedRectangle(
+            topLeadingRadius: joinsAbove ? 0 : 14,
+            bottomLeadingRadius: joinsBelow ? 0 : 14,
+            bottomTrailingRadius: joinsBelow ? 0 : 14,
+            topTrailingRadius: joinsAbove ? 0 : 14,
+            style: .continuous
+        )
+        .fill(.tint.opacity(0.16))
+        .padding(.horizontal, 6)
+        .padding(.top, joinsAbove ? 0 : 3)
+        .padding(.bottom, joinsBelow ? 0 : 3)
+        .opacity(isSelected ? 1 : 0)
+        .scaleEffect(isSelected || reduceMotion ? 1 : 0.985)
+        // No live `.blur(radius:)`: a blurred fill on every visible row cost a
+        // separate GPU pass while scrolling and while toggling selection.
+        .animation(selectionSpring, value: isSelected)
+        .animation(selectionSpring, value: joinsAbove)
+        .animation(selectionSpring, value: joinsBelow)
     }
 
     private var mainButton: some View {
@@ -92,11 +171,9 @@ struct ChapterRow: View {
         // every download record.
         let audio = audioCount
         return Button {
-            if suppressTap {
-                suppressTap = false
-                return
-            }
+            if selection?.consumeSuppressedTap() == true { return }
             if let selection, selection.isActive {
+                Haptics.shared.selection()
                 selection.toggle(chapter.path)
                 return
             }
@@ -108,8 +185,6 @@ struct ChapterRow: View {
             )
         } label: {
             HStack(spacing: 12) {
-                leadingIndicator
-
                 if showsNumber {
                     Text(String(chapter.position + 1))
                         .font(Typography.small.monospacedDigit())
@@ -147,7 +222,7 @@ struct ChapterRow: View {
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 8)
 
                 // Status icons
                 HStack(spacing: 8) {
@@ -162,50 +237,29 @@ struct ChapterRow: View {
                     }
                 }
             }
+            // Pure GPU shift — Text's proposed width never changes, so rows
+            // never reflow. The title glides into the 52pt the download button
+            // vacates while the indicator rides in from the leading overlay.
+            .offset(x: isSelecting ? 34 : 0)
+            .animation(selectionSpring, value: isSelecting)
             .padding(.leading, 16)
             .padding(.trailing, showsDownload ? 4 : 16)
-            .padding(.vertical, hasMetadata ? 10 : 18)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+            .overlay(alignment: .leading) {
+                leadingIndicator
+                    .padding(.leading, 16)
+            }
             .contentShape(Rectangle())
             .bookTransitionSource(chapter.path, in: chapterTransition)
         }
-        .buttonStyle(ChapterRowButtonStyle { suppressTap = false })
-        // Hold to start selecting; hold another row while selecting to take
-        // everything between. Per-chapter actions (download, audio) live in the
-        // selection bar, so there is no context menu competing for the hold.
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.4).onEnded { _ in
-                guard let selection else { return }
-                Haptics.shared.impact(.medium)
-                suppressTap = true
-                if selection.isActive {
-                    selection.extend(to: chapter.path, in: orderedPaths())
-                } else {
-                    selection.begin(chapter.path)
-                }
-            }
-        )
+        .buttonStyle(AppPlainButtonStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityValue(chapter.unread ? "Unread" : "Read")
     }
 }
 
 // MARK: - Download control
-
-/// A plain button style that reports the start of each press. The row uses it
-/// to clear `suppressTap` on a fresh touch, so the lift-tap of a hold (the same
-/// touch) stays suppressed while the next real tap is not — no timer involved.
-private struct ChapterRowButtonStyle: ButtonStyle {
-    let onPressStart: () -> Void
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .appPressFeedback(configuration.isPressed)
-            .onChange(of: configuration.isPressed) { _, pressed in
-                if pressed { onPressStart() }
-            }
-    }
-}
 
 /// The download button at the end of a chapter row. One tap downloads; once a
 /// download exists the same spot opens a menu for what can be done to it.
@@ -313,19 +367,118 @@ struct DownloadProgressRing: View {
 /// the list so its action bar can pin to the screen rather than scroll away.
 @Observable
 final class ChapterSelection {
-    private(set) var isActive = false
+    static let coordinateSpace = "chapterListSelection"
+
+    private(set) var isDragSelecting = false
     private(set) var paths: Set<String> = []
     /// The row selection grows from: the last one tapped or held.
     private(set) var anchor: String?
 
+    /// Selection mode is exactly "at least one chapter picked", derived from
+    /// the picked set instead of kept in a flag of its own.
+    ///
+    /// A stored flag can be left standing after the set empties — a sweep that
+    /// lifted on nothing, a filter change or a list rebuild that dropped the
+    /// rows — and the action bar then hangs over a list with no selection at
+    /// all, which is the "menu is still visible with nothing selected" bug.
+    /// Derived, the two cannot disagree: nothing picked, nothing on screen.
+    var isActive: Bool { !paths.isEmpty }
+
+    // Ignored by @Observable so scrolling never triggers re-renders on frame updates.
+    @ObservationIgnored private var rowFrames: [String: CGRect] = [:]
+    @ObservationIgnored private var dragAnchor: String?
+    @ObservationIgnored private var dragBasePaths: Set<String> = []
+    @ObservationIgnored private var dragAdding = true
+    @ObservationIgnored private var lastDragPath: String?
+    /// A hold's lift can still land as a tap on the row's button, since the
+    /// recogniser only begins cancelling touches once it reports `.began`. The
+    /// button asks `consumeSuppressedTap()` before acting, so that lift never
+    /// flips back the row the sweep just selected.
+    @ObservationIgnored private var suppressTapUntil: TimeInterval = 0
+
+    /// `true` once for the tap that follows a hold's lift.
+    func consumeSuppressedTap() -> Bool {
+        guard ProcessInfo.processInfo.systemUptime < suppressTapUntil else { return false }
+        suppressTapUntil = 0
+        return true
+    }
+
+    func updateFrame(_ frame: CGRect, for path: String) {
+        rowFrames[path] = frame
+    }
+
+    func removeFrame(for path: String) {
+        rowFrames.removeValue(forKey: path)
+    }
+
+    func path(atY y: CGFloat) -> String? {
+        rowFrames.first { _, rect in y >= rect.minY && y <= rect.maxY }?.key
+    }
+
     func begin(_ path: String) {
-        isActive = true
         paths = [path]
         anchor = path
     }
 
+    /// Starts an Apple Photos-style hold-and-swipe pass. Holding an unselected row
+    /// sweeps to add; holding an already-selected row sweeps to deselect.
+    ///
+    /// A deselect pass never drops the row it started on, so the sweep can begin
+    /// from a lone pick without the set — and the bar with it — blinking out.
+    func beginDrag(at path: String, in order: [String]) {
+        if paths.isEmpty {
+            dragBasePaths = []
+            dragAdding = true
+            paths = [path]
+        } else {
+            dragBasePaths = paths
+            dragAdding = !paths.contains(path)
+            if dragAdding { paths.insert(path) }
+            else if paths.count > 1 { paths.remove(path) }
+        }
+        isDragSelecting = true
+        anchor = path
+        dragAnchor = path
+        lastDragPath = path
+        suppressTapUntil = ProcessInfo.processInfo.systemUptime + 0.25
+    }
+
+    /// Updates the swept range as the finger moves. Returns `true` when crossing into a new row.
+    @discardableResult
+    func updateDrag(to target: String, in order: [String]) -> Bool {
+        guard isDragSelecting,
+              target != lastDragPath,
+              let start = dragAnchor.flatMap({ order.firstIndex(of: $0) }),
+              let end = order.firstIndex(of: target) else { return false }
+
+        lastDragPath = target
+        anchor = target
+        let range = order[min(start, end)...max(start, end)]
+        if dragAdding {
+            paths = dragBasePaths.union(range)
+        } else {
+            let remaining = dragBasePaths.subtracting(range)
+            // Keep the anchor: a deselect sweep that covered the whole base
+            // still leaves the row it began on picked.
+            paths = remaining.isEmpty ? dragBasePaths.intersection([dragAnchor].compactMap { $0 }) : remaining
+        }
+        return true
+    }
+
+    func endDrag() {
+        guard isDragSelecting else { return }
+        isDragSelecting = false
+        dragAnchor = nil
+        dragBasePaths = []
+        lastDragPath = nil
+        suppressTapUntil = ProcessInfo.processInfo.systemUptime + 0.25
+        // A sweep that ended on nothing picked has nothing to grow from.
+        if paths.isEmpty { anchor = nil }
+    }
+
     func toggle(_ path: String) {
         if paths.contains(path) { paths.remove(path) } else { paths.insert(path); anchor = path }
+        if paths.isEmpty { anchor = nil }
     }
 
     /// Add every chapter between the anchor and `path`, inclusive.
@@ -345,9 +498,16 @@ final class ChapterSelection {
 
     func selectAll(in order: [String]) { paths = Set(order) }
 
-    func invert(in order: [String]) { paths = Set(order).subtracting(paths) }
+    func invert(in order: [String]) {
+        paths = Set(order).subtracting(paths)
+        if paths.isEmpty { anchor = nil }
+    }
 
-    func end() { isActive = false; paths = []; anchor = nil }
+    func end() {
+        endDrag()
+        paths = []
+        anchor = nil
+    }
 
     /// Whether the rows around `index` are selected, for drawing runs as one block.
     func neighbours(at index: Int, in order: [ChapterDisplay]) -> (above: Bool, below: Bool) {
@@ -370,7 +530,8 @@ extension Notification.Name {
 /// `chapterSelectionToolbar`, so the host's own bottom items stay untouched
 /// while nothing is selected. The bar is a `AppGlassEffectContainer`, so entering
 /// and leaving selection morphs the controls with the system glass animation.
-struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) private var modelContext
+struct ChapterSelectionToolbar: ViewModifier {
+    @Environment(\.modelContext) private var modelContext
     @Environment(TrackingManager.self) private var tracking
     @Environment(\.noLiquidGlass) private var noLiquidGlass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -397,25 +558,38 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
     func body(content: Content) -> some View {
         content
             .overlay(alignment: .bottom) {
-                // Kept mounted and faded like the reader toolbar, so the glass
-                // container persists and its controls morph with the system
-                // glass animation instead of being rebuilt on every selection.
-                ChapterSelectionBar(
-                    selection: selection,
-                    onMarkRead: { setRead(true) },
-                    onMarkUnread: { setRead(false) },
-                    moreMenu: { moreMenuItems }
-                )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-                .appUnblurVisibility(selection.isActive)
-                .opacity(selection.isActive ? 1 : 0)
-                .allowsHitTesting(selection.isActive)
-                .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: selection.isActive)
+                // Mounted only while chapters are picked. The bar used to stay
+                // mounted and hide behind an opacity of zero, but a
+                // `GlassEffectContainer` renders its glass in its own pass, so a
+                // faded control could still leave its glass on screen with
+                // nothing selected. Building it only when there is a selection
+                // removes that path entirely.
+                ZStack {
+                    if selection.isActive {
+                        ChapterSelectionBar(
+                            selection: selection,
+                            onMarkRead: { setRead(true) },
+                            onMarkUnread: { setRead(false) },
+                            moreMenu: { moreMenuItems }
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                        .transition(.blurReplace.combined(with: .offset(y: 12)))
+                    }
+                }
+                // Keep the animation strictly on the overlay. Animating `content`
+                // here also animated the bottom safe-area shift caused by
+                // `.toolbarVisibility(…, for: .tabBar)`, leaving the bar offset.
+                .animation(revealAnimation, value: selection.isActive)
             }
             .toolbarVisibility(noLiquidGlass || selection.isActive ? .hidden : .automatic, for: .tabBar)
             .preference(key: ClassicTabBarHiddenKey.self, value: selection.isActive)
             .appSheet(isPresented: $showAudio) { audioSheet }
+    }
+
+    private var revealAnimation: Animation {
+        reduceMotion ? .easeOut(duration: 0.18) : .spring(duration: 0.34, bounce: 0.12)
     }
 
     @ViewBuilder private var moreMenuItems: some View {
@@ -506,9 +680,9 @@ struct ChapterSelectionToolbar: ViewModifier {    @Environment(\.modelContext) p
 }
 
 /// The floating selection bar. One glass container of the same interactive
-/// glass the reader toolbar uses, so the controls morph in and out together
-/// with the system glass animation: a red cancel capsule, the read/unread pair
+/// glass the reader toolbar uses: a red cancel capsule, the read/unread pair
 /// merged into one capsule beside it, and a same-sized menu pushed to the right.
+/// Only built while a selection exists, so nothing of it can outlive the picks.
 private struct ChapterSelectionBar<MenuItems: View>: View {
     let selection: ChapterSelection
     let onMarkRead: () -> Void
@@ -539,7 +713,9 @@ private struct ChapterSelectionBar<MenuItems: View>: View {
         Button { selection.end() } label: {
             HStack(spacing: 6) {
                 AppIcon(systemName: "xmark", size: 15, relativeTo: .subheadline)
-                Text("\(selection.paths.count)").monospacedDigit()
+                Text("\(selection.paths.count)")
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.white)
@@ -562,5 +738,289 @@ extension View {
         modifier(ChapterSelectionToolbar(
             selection: selection, entry: entry, ordered: ordered,
             allChapters: allChapters, sourceKey: sourceKey))
+    }
+}
+
+// MARK: - Hold-and-swipe recogniser
+
+extension View {
+    /// Installs one UIKit long-press recogniser on the enclosing scroll view,
+    /// scoped to this view's bounds, so normal scrolling is never intercepted.
+    /// A hold then sweeps a selection across the rows, Photos-style.
+    func chapterDragSelection(
+        _ selection: ChapterSelection?,
+        orderedPaths: @escaping () -> [String]
+    ) -> some View {
+        background {
+            if let selection {
+                ChapterDragSelectBridge(selection: selection, orderedPaths: orderedPaths)
+            }
+        }
+    }
+}
+
+/// Edge auto-scroll for a hold-and-sweep selection. While the finger sits in
+/// the top or bottom edge zone, a `CADisplayLink` moves the enclosing scroll
+/// view and re-runs the drag hit-test each frame, so rows revealed by the
+/// scroll are picked up continuously — the list itself is scroll-disabled
+/// during a sweep.
+@MainActor
+final class DragAutoScroller {
+    private var displayLink: CADisplayLink?
+    private weak var scrollView: UIScrollView?
+    private var velocity: CGFloat = 0          // points per second (+down, -up)
+    private var lastTimestamp: CFTimeInterval = 0
+    private var onScrollTick: (() -> Void)?
+
+    /// Call on every `.changed` event of the UIKit sweep recognizer.
+    /// - Parameters:
+    ///   - pointInWindow: `gesture.location(in: nil)`
+    ///   - scrollView: The enclosing `UIScrollView` (found via `findScrollView(from:)`).
+    ///   - onScrollTick: Re-evaluates the drag hit-test at the current finger position.
+    func update(pointInWindow: CGPoint, scrollView: UIScrollView?, onScrollTick: @escaping () -> Void) {
+        guard let scrollView, let window = scrollView.window else {
+            stop()
+            return
+        }
+        self.scrollView = scrollView
+        self.onScrollTick = onScrollTick
+
+        // The scroll view's visible frame, in window coordinates.
+        let visibleFrame = scrollView.convert(scrollView.bounds, to: window)
+        let topZone: CGFloat = scrollView.adjustedContentInset.top + 68
+        let bottomZone: CGFloat = scrollView.adjustedContentInset.bottom + 96 // clears the selection bar
+        let maxSpeed: CGFloat = 520
+
+        let distFromTop = pointInWindow.y - visibleFrame.minY
+        let distFromBottom = visibleFrame.maxY - pointInWindow.y
+
+        if distFromTop < topZone {
+            let intensity = min(max(1 - (distFromTop / topZone), 0), 1)
+            velocity = -maxSpeed * (0.2 + 0.8 * intensity * intensity)
+            startIfNeeded()
+        } else if distFromBottom < bottomZone {
+            let intensity = min(max(1 - (distFromBottom / bottomZone), 0), 1)
+            velocity = maxSpeed * (0.2 + 0.8 * intensity * intensity)
+            startIfNeeded()
+        } else {
+            stop()
+        }
+    }
+
+    func stop() {
+        displayLink?.invalidate()
+        displayLink = nil
+        velocity = 0
+        lastTimestamp = 0
+        onScrollTick = nil
+    }
+
+    private func startIfNeeded() {
+        guard displayLink == nil else { return }
+        lastTimestamp = CACurrentMediaTime()
+        let link = CADisplayLink(target: self, selector: #selector(step(_:)))
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+    }
+
+    @objc private func step(_ link: CADisplayLink) {
+        guard let scrollView, velocity != 0 else { stop(); return }
+        let dt = min(link.timestamp - lastTimestamp, 1.0 / 30.0)
+        lastTimestamp = link.timestamp
+
+        let minY = -scrollView.adjustedContentInset.top
+        let maxY = max(minY, scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom)
+        let nextY = min(max(scrollView.contentOffset.y + velocity * CGFloat(dt), minY), maxY)
+
+        if abs(nextY - scrollView.contentOffset.y) > 0.25 {
+            scrollView.contentOffset.y = nextY
+            onScrollTick?()
+        }
+    }
+
+    /// Walks up the view hierarchy from a bridge host view to find its `UIScrollView`.
+    static func findScrollView(from view: UIView?) -> UIScrollView? {
+        var current = view
+        while let candidate = current {
+            if let scroll = candidate as? UIScrollView { return scroll }
+            current = candidate.superview
+        }
+        return nil
+    }
+}
+
+/// A long-press on the chapter list that keeps tracking the touch after it
+/// begins, so one hold can sweep a selection across rows.
+///
+/// Attached to the enclosing `UIScrollView` rather than expressed as a SwiftUI
+/// `LongPressGesture.sequenced(before: DragGesture(minimumDistance: 0))`: a
+/// sequenced drag joins the gesture arena on touch-down and fights the scroll
+/// view's pan, so ordinary scrolling stutters. `UILongPressGestureRecognizer`
+/// is a continuous UIKit recogniser — movement past `allowableMovement` before
+/// the hold fails it and hands the touch straight back to the pan.
+private struct ChapterDragSelectBridge: UIViewRepresentable {
+    let selection: ChapterSelection
+    let orderedPaths: () -> [String]
+
+    func makeCoordinator() -> Coordinator { Coordinator(selection: selection) }
+
+    func makeUIView(context: Context) -> HostView {
+        let view = HostView()
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        context.coordinator.hostView = view
+        context.coordinator.orderedPaths = orderedPaths
+        view.onAttach = { [weak coordinator = context.coordinator] in
+            coordinator?.attachIfNeeded()
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: HostView, context: Context) {
+        context.coordinator.selection = selection
+        context.coordinator.orderedPaths = orderedPaths
+        context.coordinator.attachIfNeeded()
+    }
+
+    static func dismantleUIView(_ uiView: HostView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class HostView: UIView {
+        var onAttach: (() -> Void)?
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            onAttach?()
+        }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var selection: ChapterSelection
+        var orderedPaths: () -> [String] = { [] }
+        weak var hostView: UIView?
+
+        private weak var scrollView: UIScrollView?
+        private var recognizer: UILongPressGestureRecognizer?
+        private let autoScroller = DragAutoScroller()
+
+        init(selection: ChapterSelection) {
+            self.selection = selection
+        }
+
+        func attachIfNeeded() {
+            guard let hostView, hostView.window != nil else { return }
+            guard let target = findScrollView(from: hostView) else { return }
+            if scrollView === target, recognizer != nil { return }
+
+            detach()
+            let press = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+            press.minimumPressDuration = 0.35
+            press.allowableMovement = 10
+            press.cancelsTouchesInView = true
+            press.delaysTouchesBegan = false
+            press.delegate = self
+            target.addGestureRecognizer(press)
+
+            scrollView = target
+            recognizer = press
+        }
+
+        func detach() {
+            autoScroller.stop()
+            if let recognizer {
+                scrollView?.removeGestureRecognizer(recognizer)
+            }
+            recognizer = nil
+            scrollView = nil
+        }
+
+        /// Walks up for a `ScrollView` (the `LazyVStack` case), or searches
+        /// siblings for the `List`'s backing collection view.
+        private func findScrollView(from view: UIView) -> UIScrollView? {
+            var current: UIView? = view.superview
+            while let node = current {
+                if let scrollView = node as? UIScrollView { return scrollView }
+                current = node.superview
+            }
+            return view.superview.flatMap(firstScrollView(in:))
+        }
+
+        private func firstScrollView(in root: UIView) -> UIScrollView? {
+            if let scrollView = root as? UIScrollView { return scrollView }
+            for subview in root.subviews {
+                if let found = firstScrollView(in: subview) { return found }
+            }
+            return nil
+        }
+
+        @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+            guard let hostView else { return }
+            let location = gesture.location(in: hostView)
+
+            switch gesture.state {
+            case .began:
+                guard let path = selection.path(atY: location.y) else {
+                    // Not on a row: hand the touch back to the scroll view.
+                    gesture.isEnabled = false
+                    gesture.isEnabled = true
+                    return
+                }
+                Haptics.shared.impact(.medium)
+                selection.beginDrag(at: path, in: orderedPaths())
+
+            case .changed:
+                updateSelection(for: gesture)
+
+                // Keep sweeping as the list auto-scrolls under a finger held at
+                // an edge. The tick re-runs the same hit-test at the live touch.
+                autoScroller.update(
+                    pointInWindow: gesture.location(in: nil),
+                    scrollView: scrollView
+                ) { [weak self, weak gesture] in
+                    guard let self, let gesture else { return }
+                    self.updateSelection(for: gesture)
+                }
+
+            case .ended, .cancelled, .failed:
+                autoScroller.stop()
+                selection.endDrag()
+
+            default:
+                break
+            }
+        }
+
+        /// Re-runs the row hit-test and extends the swept range at the gesture's
+        /// current location. Shared by the gesture callback and the display-link
+        /// auto-scroll tick.
+        private func updateSelection(for gesture: UILongPressGestureRecognizer) {
+            guard let hostView else { return }
+            let y = gesture.location(in: hostView).y
+            if let target = selection.path(atY: y),
+               selection.updateDrag(to: target, in: orderedPaths()) {
+                Haptics.shared.selection()
+            }
+        }
+
+        /// Only begin when the hold lands inside the chapter list's bounds, so
+        /// holds on the hero title or the Continue button stay untouched.
+        nonisolated func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            MainActor.assumeIsolated {
+                guard let hostView, hostView.window != nil else { return false }
+                let point = gestureRecognizer.location(in: hostView)
+                guard hostView.bounds.contains(point) else { return false }
+                return selection.path(atY: point.y) != nil
+            }
+        }
+
+        /// Never run alongside the scroll view's pan: a quick drag scrolls at
+        /// once, while a 0.35s hold locks the pan out for the sweep.
+        nonisolated func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            MainActor.assumeIsolated { otherGestureRecognizer !== scrollView?.panGestureRecognizer }
+        }
     }
 }
