@@ -120,8 +120,129 @@ struct FrostedSurface<S: Shape>: View {
 }
 
 private extension Shape {
-    func strokeBorderFallback(_ color: Color, lineWidth: CGFloat) -> some View {
-        stroke(color, lineWidth: lineWidth).clipShape(self)
+    func strokeBorderFallback<S: ShapeStyle>(_ style: S, lineWidth: CGFloat) -> some View {
+        stroke(style, lineWidth: lineWidth).clipShape(self)
+    }
+}
+
+// MARK: - Classic Elevation & Surface System
+
+/// Material ladder for the non-Liquid-Glass surfaces. On OLED black a drop
+/// shadow disappears, so depth is carried by material density and a crisp
+/// 0.5pt hairline instead.
+enum ClassicElevation {
+    /// Scrolled nav bars, tab bar, bottom toolbars.
+    case chromeBar
+    /// Sheets and in-popups.
+    case sheet
+    /// Floating anchored popovers & context menus.
+    case popover
+    /// Flat nested card inside a sheet (avoids double-material muddiness).
+    case card
+
+    var material: Material {
+        switch self {
+        case .chromeBar: .thinMaterial
+        case .sheet: .thickMaterial
+        case .popover: .regularMaterial
+        case .card: .ultraThinMaterial
+        }
+    }
+}
+
+struct ClassicSurface<S: Shape>: View {
+    let shape: S
+    var elevation: ClassicElevation = .card
+    var tint: Color? = nil
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var isDark: Bool { colorScheme == .dark }
+
+    var body: some View {
+        Group {
+            if elevation == .card {
+                shape.fill(isDark ? Color.white.opacity(0.07) : Color.black.opacity(0.045))
+            } else if reduceTransparency {
+                shape.fill(AppTheme.surface)
+            } else {
+                shape.fill(elevation.material)
+            }
+        }
+        .overlay {
+            if let tint { shape.fill(tint) }
+        }
+        .overlay {
+            shape.strokeBorderFallback(
+                (isDark ? Color.white : Color.black).opacity(
+                    contrast == .increased ? 0.35 : (elevation == .popover ? 0.14 : 0.09)
+                ),
+                lineWidth: contrast == .increased ? 1 : 0.5
+            )
+        }
+        .shadow(
+            color: .black.opacity(elevation == .popover ? (isDark ? 0.32 : 0.12) : 0),
+            radius: elevation == .popover ? 18 : 0,
+            x: 0,
+            y: elevation == .popover ? 8 : 0
+        )
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Unified Spring + Unblur Motion
+
+enum ClassicMotion {
+    static func micro(reduceMotion: Bool) -> Animation {
+        reduceMotion ? .easeOut(duration: 0.14) : .spring(duration: 0.24, bounce: 0.12)
+    }
+
+    static func reveal(reduceMotion: Bool, delay: Double = 0) -> Animation {
+        reduceMotion ? .easeOut(duration: 0.16) : .spring(duration: 0.32, bounce: 0.10).delay(delay)
+    }
+
+    static func sheetContent(reduceMotion: Bool, delay: Double = 0) -> Animation {
+        reduceMotion ? .easeOut(duration: 0.16) : .spring(duration: 0.36, bounce: 0.08).delay(delay)
+    }
+}
+
+private struct ClassicUnblurAppear: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let scale: CGFloat
+    let offsetY: CGFloat
+    let blurRadius: CGFloat
+    let delay: Double
+    let isSheet: Bool
+    @State private var appeared = false
+
+    func body(content: Content) -> some View {
+        let animation = isSheet
+            ? ClassicMotion.sheetContent(reduceMotion: reduceMotion, delay: delay)
+            : ClassicMotion.reveal(reduceMotion: reduceMotion, delay: delay)
+
+        content
+            .opacity(appeared ? 1 : 0)
+            .scaleEffect(appeared || reduceMotion ? 1 : scale)
+            .offset(y: appeared || reduceMotion ? 0 : offsetY)
+            .blur(radius: appeared || reduceMotion ? 0 : blurRadius)
+            .onAppear {
+                withAnimation(animation) { appeared = true }
+            }
+    }
+}
+
+extension View {
+    /// Spring + unblur entrance for popovers, menus, and inline chrome.
+    func classicReveal(scale: CGFloat = 0.96, offsetY: CGFloat = -4, blur: CGFloat = 6, delay: Double = 0) -> some View {
+        modifier(ClassicUnblurAppear(scale: scale, offsetY: offsetY, blurRadius: blur, delay: delay, isSheet: false))
+    }
+
+    /// Spring + unblur entrance for sheet/popup content blocks.
+    func classicSheetReveal(offsetY: CGFloat = 8, blur: CGFloat = 6, delay: Double = 0) -> some View {
+        modifier(ClassicUnblurAppear(scale: 0.99, offsetY: offsetY, blurRadius: blur, delay: delay, isSheet: true))
     }
 }
 
