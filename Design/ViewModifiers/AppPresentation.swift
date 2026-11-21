@@ -51,14 +51,92 @@ private struct AppCornerModifier: ViewModifier {
 }
 private final class DeferredPopupAction { var action: (() -> Void)? }
 
-/// Opaque under Reduce Transparency, ultra-thin otherwise. The sheet's own
-/// glass never shows through because this is the presentation background.
+/// Opaque under Reduce Transparency, the sheet's thick material otherwise,
+/// with the cover tint washed over it. The sheet's own glass never shows
+/// through because this is the presentation background.
 private struct AppSheetBackground: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.coverTint) private var coverTint
+    @Environment(\.coverTintStrength) private var strength
+
     var body: some View {
-        Rectangle()
-            .fill(reduceTransparency ? AnyShapeStyle(AppTheme.surface) : AnyShapeStyle(Material.thick))
-            .ignoresSafeArea()
+        ZStack {
+            Rectangle()
+                .fill(reduceTransparency ? AnyShapeStyle(AppTheme.surface) : AnyShapeStyle(Material.thickMaterial))
+            if let coverTint, strength > 0 {
+                coverTint.opacity(strength * 0.16)
+            }
+        }
+        .ignoresSafeArea()
+    }
+}
+
+/// Automatically sizes short informational/alert sheets to their content height.
+private struct FitContentDetent: ViewModifier {
+    @State private var measuredHeight: CGFloat = 220
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                if height > 0 { measuredHeight = height }
+            }
+            .presentationDetents([.height(min(measuredHeight, 560)), .large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(18) // Crisp iOS 18 sheet radius
+    }
+}
+
+extension View {
+    func appCompactSheetDetent() -> some View {
+        modifier(FitContentDetent())
+    }
+}
+
+// MARK: - Sheet Header
+
+/// Mathematically centered sheet header with borderless iOS 18 actions. The
+/// title sits in a ZStack, so it stays dead-center even when the leading and
+/// trailing slots differ in width.
+struct ClassicSheetHeader<Leading: View, Trailing: View>: View {
+    let title: Text
+    @ViewBuilder var leading: () -> Leading
+    @ViewBuilder var trailing: () -> Trailing
+
+    init(
+        title: Text,
+        @ViewBuilder leading: @escaping () -> Leading = { EmptyView() },
+        @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }
+    ) {
+        self.title = title
+        self.leading = leading
+        self.trailing = trailing
+    }
+
+    var body: some View {
+        ZStack {
+            // Always dead-center; horizontal padding reserves room for side actions.
+            title
+                .font(Typography.navigationTitle)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 56)
+
+            HStack {
+                leading()
+                Spacer(minLength: 0)
+                trailing()
+            }
+        }
+        .frame(minHeight: 44)
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppTheme.hairline.opacity(0.45))
+                .frame(height: 0.5)
+        }
     }
 }
 
@@ -171,10 +249,10 @@ extension EnvironmentValues {
     /// Pushed screens still pop; only a sheet's root uses the animated exit.
     var appDismiss: AppDismissAction {
         let native = dismiss
-        let navigation = classicNavigation
+        let isPushed = appNavigationDepth > 0
         let close = appSheetClose
         return AppDismissAction {
-            if navigation?.canGoBack == true { native() }
+            if isPushed { native() }
             else if let close { close() }
             else { native() }
         }
@@ -192,37 +270,76 @@ extension EnvironmentValues {
 
 /// Popup actions keep their native Button semantics, roles and disabled state,
 /// but their activation and rendering are ours, including automatic dismissal.
+/// Text is monochrome except for the one reserved destructive role.
 struct ClassicPopupButtonStyle: PrimitiveButtonStyle {
     @Environment(\.appPopupDismiss) private var close
     @Environment(\.appPopupAction) private var performAfterDismissal
     @Environment(\.appCompactRow) private var compact
     @Environment(\.isEnabled) private var enabled
+
     func makeBody(configuration: Configuration) -> some View {
-        Button(role: configuration.role) {
-            // Finish this presentation before an action opens another sheet or
-            // changes navigation; otherwise UIKit drops competing presentations.
-            if let performAfterDismissal {
+        let isDestructive = configuration.role == .destructive
+        let isCancel = configuration.role == .cancel
+        // Exact concentric match with `AppPopupMenuSurface`: 14pt container
+        // radius minus its 4pt row gutter. A square-ish highlight inside a
+        // rounded card is what reads as misaligned.
+        let radius: CGFloat = AppPopupMenuMetrics.rowCornerRadius
+
+        Button {
+            Haptics.shared.selection()
+            if let performAfterDismissal, !compact {
                 performAfterDismissal { configuration.trigger() }
             } else {
-                configuration.trigger()
                 close?()
+                configuration.trigger()
             }
         } label: {
-            configuration.label
-                .font(Typography.body)
-                .foregroundStyle(configuration.role == .destructive ? AppTheme.destructive : AppTheme.accent)
-                .frame(maxWidth: .infinity, minHeight: compact ? 44 : 46, alignment: .leading)
-                .padding(.horizontal, compact ? 10 : 14)
-                .background {
-                    if !compact {
-                        AppTheme.surface.opacity(0.4).clipShape(RoundedRectangle(cornerRadius: 16))
-                    }
+            HStack(spacing: 10) {
+                configuration.label
+                    .font(compact ? Typography.subheadline : Typography.body.weight(isCancel ? .regular : .medium))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 8)
+            }
+            .foregroundStyle(
+                isDestructive ? AppTheme.destructive :
+                (isCancel ? .secondary : .primary)
+            )
+            .padding(.horizontal, compact ? 12 : 14)
+            .padding(.vertical, compact ? 9 : 13)
+            .frame(maxWidth: .infinity, minHeight: compact ? 38 : 48, alignment: .leading)
+            .background {
+                if !compact {
+                    ClassicSurface(
+                        shape: RoundedRectangle(cornerRadius: radius, style: .continuous),
+                        elevation: .card,
+                        tint: isDestructive ? AppTheme.destructive.opacity(0.10) : nil
+                    )
                 }
-                .contentShape(.rect)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         }
-        .buttonStyle(AppPlainButtonStyle())
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.4)
+        .buttonStyle(ClassicPopupPressStyle(compact: compact, radius: radius))
+        .opacity(enabled ? 1 : 0.38)
+    }
+}
+
+private struct ClassicPopupPressStyle: ButtonStyle {
+    let compact: Bool
+    let radius: CGFloat
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background {
+                if compact, configuration.isPressed {
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .fill((colorScheme == .dark ? Color.white : Color.black).opacity(0.08))
+                }
+            }
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+            .animation(ClassicMotion.micro(reduceMotion: reduceMotion), value: configuration.isPressed)
     }
 }
 
@@ -230,29 +347,41 @@ struct ClassicPopup<Content: View>: View {
     @Environment(\.appDismiss) private var dismiss
     var title: Text? = nil
     @ViewBuilder var content: () -> Content
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
             if let title {
-                HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    title.font(Typography.navigationTitle)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 12)
-                    Button { dismiss() } label: { AppIcon(systemName: "xmark", size: 15) }
-                        .buttonStyle(ClassicChromeButtonStyle())
-                        .accessibilityLabel("Close")
+                ClassicSheetHeader(title: title) {
+                    EmptyView()
+                } trailing: {
+                    Button {
+                        Haptics.shared.selection()
+                        dismiss()
+                    } label: {
+                        AppIcon(systemName: "xmark", size: 16)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, height: 36)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(AppPlainButtonStyle())
+                    .accessibilityLabel("Close")
                 }
+                .classicSheetReveal(offsetY: 4, blur: 4, delay: 0)
             }
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 8, content: content)
                     .buttonStyle(ClassicPopupButtonStyle())
                     .environment(\.appPopupDismiss, { dismiss() })
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 20)
             }
             .scrollBounceBehavior(.basedOnSize)
+            .classicSheetReveal(offsetY: 8, blur: 6, delay: 0.025)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 12)
-        .padding(.bottom, 20)
-        .appPresentationDetents([.medium, .large])
+        .appCompactSheetDetent()
     }
 }

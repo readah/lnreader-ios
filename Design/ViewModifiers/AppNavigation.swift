@@ -4,28 +4,73 @@ import UIKit
 // The system stack is a routing engine only in classic mode. None of its bars,
 // back buttons, toolbar backgrounds or search chrome are displayed.
 struct AppNavigationStack<Root: View>: View {
-    private let makeStack: () -> NavigationStack<NavigationPath, Root>
+    @Environment(\.noLiquidGlass) private var classic
+    private let path: Binding<NavigationPath>?
+    private let root: () -> Root
     @State private var navigation = ClassicNavigationState()
 
     init(@ViewBuilder root: @escaping () -> Root) {
-        makeStack = { NavigationStack { root() } }
+        path = nil
+        self.root = root
     }
     init(path: Binding<NavigationPath>, @ViewBuilder root: @escaping () -> Root) {
-        makeStack = { NavigationStack(path: path) { root() } }
+        self.path = path
+        self.root = root
     }
+
     var body: some View {
-        makeStack()
-            .environment(\.classicNavigation, navigation)
+        // One bridge per stack, sitting in the root's background: it outlives
+        // every push, so the interactive pop delegate is never left dangling by
+        // a screen that popped and deallocated.
+        let stackRoot = root().background {
+            ClassicInteractivePopBridge(enabled: classic)
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
+        }
+
+        Group {
+            if let path {
+                NavigationStack(path: path) { stackRoot }
+            } else {
+                NavigationStack { stackRoot }
+            }
+        }
+        .environment(\.classicNavigation, navigation)
+        .onAppear { syncPop() }
+    }
+
+    private func syncPop() {
+        guard let path else { navigation.pop = nil; return }
+        navigation.pop = {
+            guard !path.wrappedValue.isEmpty else { return false }
+            path.wrappedValue.removeLast()
+            return true
+        }
     }
 }
 
 struct AppPathNavigationStack<Data: MutableCollection & RandomAccessCollection & RangeReplaceableCollection, Root: View>: View where Data.Element: Hashable {
+    @Environment(\.noLiquidGlass) private var classic
     @Binding var path: Data
     @ViewBuilder var root: () -> Root
     @State private var navigation = ClassicNavigationState()
+
     var body: some View {
-        NavigationStack(path: $path) { root() }
-            .environment(\.classicNavigation, navigation)
+        NavigationStack(path: $path) {
+            root().background {
+                ClassicInteractivePopBridge(enabled: classic)
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+            }
+        }
+        .environment(\.classicNavigation, navigation)
+        .onAppear {
+            navigation.pop = {
+                guard !path.isEmpty else { return false }
+                path.removeLast()
+                return true
+            }
+        }
     }
 }
 
@@ -59,8 +104,9 @@ extension AppNavigationLink where Label == Text {
 }
 
 @Observable final class ClassicNavigationState {
-    var canGoBack = false
-    var back: (() -> Void)?
+    /// Fallback pop for path-backed stacks, used only when a destination was not
+    /// wrapped in `appPushedScreen()` and so has no dismiss action of its own.
+    var pop: (() -> Bool)?
 }
 private struct ClassicNavigationKey: EnvironmentKey {
     static let defaultValue: ClassicNavigationState? = nil
@@ -247,26 +293,29 @@ extension EnvironmentValues {
     }
 }
 
+private struct ClassicPopActionKey: EnvironmentKey {
+    static let defaultValue: (() -> Void)? = nil
+}
+private extension EnvironmentValues {
+    /// The dismiss action of the push this screen belongs to, captured where
+    /// SwiftUI hands it out. Works for links, paths, `isPresented` and `item`
+    /// destinations, and never asks UIKit to pop.
+    var classicPopAction: (() -> Void)? {
+        get { self[ClassicPopActionKey.self] }
+        set { self[ClassicPopActionKey.self] = newValue }
+    }
+}
+
 private struct AppPushedScreen: ViewModifier {
     @Environment(\.appNavigationDepth) private var depth
+    @Environment(\.dismiss) private var dismiss
     func body(content: Content) -> some View {
         content
             .environment(\.classicChromeHosted, false)
             .environment(\.appFormRow, false)
             .environment(\.appPressFeedbackHosted, false)
             .environment(\.appNavigationDepth, depth + 1)
-    }
-}
-
-/// Captures the destination's own dismiss action. Reading `dismiss` from the
-/// chrome modifier resolved to the root's action, so the back button did nothing.
-private struct BackActionReader: View {
-    @Environment(\.dismiss) private var dismiss
-    let onReady: (@escaping () -> Void) -> Void
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onAppear { onReady { dismiss() } }
+            .environment(\.classicPopAction, { dismiss() })
     }
 }
 
@@ -296,17 +345,17 @@ private struct ClassicScreenChrome<Items: AppToolbarContent>: ViewModifier {
     @Environment(\.noLiquidGlass) private var classic
     @Environment(\.classicTabBarHeight) private var tabBarHeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.appSheetClose) private var sheetClose
     @Environment(\.appScreenTitle) private var environmentTitle
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appNavigationDepth) private var depth
+    @Environment(\.classicPopAction) private var popAction
+    @Environment(\.appSheetClose) private var sheetClose
     let navigation: ClassicNavigationState
     let isHost: Bool
     let items: Items
     @State private var title: Text?
     @State private var titleSwipe: AppTitleSwipeAction?
     @State private var headerScrolled = false
-    @State private var backAction: (() -> Void)?
 
     private var isPushed: Bool { depth > 0 }
     private var resolvedTitle: Text? { environmentTitle ?? title }
@@ -330,23 +379,6 @@ private struct ClassicScreenChrome<Items: AppToolbarContent>: ViewModifier {
                     }
                 }
             }
-            .background {
-                ZStack {
-                    if enabled {
-                        // Native interactive pop still needs UIKit's controller.
-                        NavigationDepthBridge(navigation: navigation)
-                            .frame(width: 0, height: 0)
-                            .allowsHitTesting(false)
-                    }
-                    if enabled, isPushed {
-                        BackActionReader { backAction = $0 }
-                            .allowsHitTesting(false)
-                        // Window-level edge swipe: independent of whether UIKit's
-                        // pop gesture is available under a hidden nav bar.
-                        EdgeSwipeDismiss(edges: [.left]) { goBack() }
-                    }
-                }
-            }
             .onPreferenceChange(AppScreenTitleKey.self) { newTitle in
                 var transaction = Transaction()
                 transaction.disablesAnimations = true
@@ -363,16 +395,49 @@ private struct ClassicScreenChrome<Items: AppToolbarContent>: ViewModifier {
     }
 
     private func goBack() {
-        if let native = navigation.back {
-            native()
-        } else if let backAction {
-            backAction()
-        } else {
-            dismiss()
+        // The destination's own dismiss is the only pop SwiftUI will not revert:
+        // it goes through the presentation that actually owns the screen, for
+        // links, paths, `isPresented` and `item` alike. The path binding is the
+        // fallback for a destination pushed without `appPushedScreen()`.
+        if let popAction {
+            popAction()
+            return
+        }
+        if navigation.pop?() == true { return }
+        dismiss()
+    }
+
+    private var isSheetRoot: Bool { sheetClose != nil && !isPushed }
+
+    @ViewBuilder
+    private var header: some View {
+        if isSheetRoot { sheetRootHeader } else { barHeader }
+    }
+
+    /// Dead-center title and borderless iOS 18 actions for a sheet's root.
+    /// The ZStack keeps the title mathematically centered no matter how wide
+    /// the leading/trailing slots grow.
+    private var sheetRootHeader: some View {
+        ClassicSheetHeader(title: resolvedTitle ?? Text(verbatim: "")) {
+            if items.regions.contains(.leading) {
+                HStack(spacing: 8) { items.classic(in: .leading) }
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        } trailing: {
+            if items.regions.contains(.trailing) {
+                HStack(spacing: 8) { items.classic(in: .trailing) }
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        }
+        .background {
+            FrostedBackdrop()
+                .opacity(headerScrolled ? 1 : 0)
+                .animation(AppMotion.gentle(reduceMotion: reduceMotion), value: headerScrolled)
+                .ignoresSafeArea(edges: .top)
         }
     }
 
-    private var header: some View {
+    private var barHeader: some View {
         HStack(spacing: 10) {
             if isPushed {
                 Button {
@@ -432,86 +497,103 @@ private struct ClassicScreenChrome<Items: AppToolbarContent>: ViewModifier {
 struct ClassicChromeButtonStyle: ButtonStyle {
     var prominent = false
     @Environment(\.isEnabled) private var enabled
-    private func isProminent(_ configuration: Configuration) -> Bool { prominent || configuration.role == .close }
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private func isProminent(_ configuration: Configuration) -> Bool {
+        prominent || configuration.role == .close
+    }
+
     func makeBody(configuration: Configuration) -> some View {
+        let prominentStyle = isProminent(configuration)
+        let isDestructive = configuration.role == .destructive
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+
         configuration.label
-            .font(Typography.body.weight(.semibold))
+            .font(Typography.body.weight(prominentStyle ? .semibold : .medium))
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: 44, minHeight: 44)
-            .padding(.horizontal, 12)
+            .frame(minWidth: 36, minHeight: 36)
+            .padding(.horizontal, prominentStyle ? 14 : 6)
             .foregroundStyle(
-                isProminent(configuration) ? Color.white :
-                (configuration.role == .destructive ? AppTheme.destructive : AppTheme.accent)
+                prominentStyle
+                    ? (colorScheme == .dark ? Color.black : Color.white)
+                    : (isDestructive ? AppTheme.destructive : .primary)
             )
             .background {
-                if isProminent(configuration) {
-                    RoundedRectangle(cornerRadius: 15).fill(AppTheme.confirmation)
-                } else { FrostedSurface(shape: RoundedRectangle(cornerRadius: 15)) }
+                if prominentStyle {
+                    shape.fill(colorScheme == .dark ? Color.white : Color.black)
+                }
             }
-            .opacity(enabled ? (configuration.isPressed ? 0.65 : 1) : 0.35)
-            .contentShape(.rect)
-            .appPressFeedback(configuration.isPressed)
+            .opacity(enabled ? (configuration.isPressed ? 0.55 : 1) : 0.35)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .animation(ClassicMotion.micro(reduceMotion: reduceMotion), value: configuration.isPressed)
+            .contentShape(shape)
     }
 }
 
-/// Enables UIKit's native interactive pop gesture when the navigation bar is
-/// hidden. Depth for the back button comes from SwiftUI's destination wrappers,
-/// not from this bridge: a SwiftUI stack reports a single view controller.
-private struct NavigationDepthBridge: UIViewControllerRepresentable {
-    let navigation: ClassicNavigationState
+/// Installed once at each NavigationStack root, so it lives as long as the
+/// stack does. Enables UIKit's native 1:1 interactive pop gesture while the
+/// navigation bar is hidden in classic mode — the system delegate is saved on
+/// first sight and put back when Liquid Glass returns, instead of being
+/// clobbered by every screen that pushes and then leaked by the one that pops.
+private struct ClassicInteractivePopBridge: UIViewControllerRepresentable {
+    let enabled: Bool
+
     func makeUIViewController(context: Context) -> Controller { Controller() }
     func updateUIViewController(_ controller: Controller, context: Context) {
-        controller.navigation = navigation
-        controller.refresh()
+        controller.apply(enabled: enabled)
     }
+
     final class Controller: UIViewController, UIGestureRecognizerDelegate {
-        var navigation: ClassicNavigationState?
-        override func loadView() { view = UIView(); view.isUserInteractionEnabled = false }
+        private var popEnabled = false
+        private weak var originalDelegate: (any UIGestureRecognizerDelegate)?
+        private weak var configuredNav: UINavigationController?
+
+        override func loadView() {
+            view = UIView()
+            view.isUserInteractionEnabled = false
+        }
+
         override func didMove(toParent parent: UIViewController?) {
             super.didMove(toParent: parent)
-            refresh()
+            apply(enabled: popEnabled)
         }
-        override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); refresh() }
-        override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); refresh() }
-        override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); refresh() }
-        func refresh() {
-            guard let nav = navigationController else { return }
-            let pushed = nav.viewControllers.count > 1
-            if let navigation {
-                // Only offer the UIKit pop when the stack really has a screen
-                // to pop; otherwise the SwiftUI dismiss action is the fallback.
-                navigation.back = pushed
-                    ? { [weak nav] in nav?.popViewController(animated: true) }
-                    : nil
+
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            apply(enabled: popEnabled)
+        }
+
+        func apply(enabled: Bool) {
+            popEnabled = enabled
+            guard let nav = navigationController,
+                  let pop = nav.interactivePopGestureRecognizer else { return }
+
+            if configuredNav !== nav {
+                originalDelegate = pop.delegate
+                configuredNav = nav
             }
 
-            // Restore native 1:1 interactive swipe-back when the nav bar is hidden
-            if let popGesture = nav.interactivePopGestureRecognizer {
-                popGesture.isEnabled = pushed
-                if popGesture.delegate !== self {
-                    popGesture.delegate = self
-                }
+            if enabled {
+                pop.isEnabled = true
+                if pop.delegate !== self { pop.delegate = self }
+            } else if pop.delegate === self {
+                pop.delegate = originalDelegate
             }
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard let nav = navigationController else { return false }
-            return nav.viewControllers.count > 1
-        }
-
-        func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-        ) -> Bool {
-            true
+            guard popEnabled, let nav = navigationController else { return false }
+            return nav.viewControllers.count > 1 && nav.transitionCoordinator == nil
         }
 
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            gestureRecognizer is UIScreenEdgePanGestureRecognizer
+            // Prevent horizontal ScrollViews near the left edge from stealing back swipes.
+            gestureRecognizer === navigationController?.interactivePopGestureRecognizer
         }
     }
 }
