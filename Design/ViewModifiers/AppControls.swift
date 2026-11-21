@@ -3,7 +3,7 @@ import SwiftUI
 /// Settings share the same cards in a full screen and in a classic sheet.
 /// Data-heavy lists keep List's reuse and editing behavior instead.
 struct AppForm<Content: View>: View {
-    @AppStorage(ChromeAppearance.systemFormsKey) private var systemForms = false
+    @AppStorage(ChromeAppearance.systemFormsKey) private var systemForms = true
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -45,7 +45,7 @@ struct AppForm<Content: View>: View {
                 }
                 .padding(.horizontal, 20).padding(.vertical, 16)
             }
-            .scrollBounceBehavior(.basedOnSize)
+            .scrollBounceBehavior(.always)
             .scrollDismissesKeyboard(.interactively)
             .buttonStyle(AppFormButtonStyle())
             .environment(\.appFormRow, true)
@@ -90,7 +90,7 @@ private struct AppCompactMenuPopover<Popup: View>: ViewModifier {
         // so it never opens off the top of the viewport.
         content.popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: nil) {
             popup()
-                .appRevealQuick(edge: .top)
+                .classicReveal(scale: 0.93, offsetY: -6, blur: 6)
                 #if os(iOS)
                 .presentationCompactAdaptation(.popover)
                 #endif
@@ -117,18 +117,38 @@ extension EnvironmentValues {
     }
 }
 
+/// Shared menu-surface metrics. Kept non-generic so every caller can read them
+/// without having to infer `AppPopupMenuSurface`'s `Content` parameter.
+enum AppPopupMenuMetrics {
+    /// The gutter between the surface edge and the rows, and the radius the
+    /// rows must subtract from their own: `14 - 4 = 10`. A highlight concentric
+    /// with the container is what makes it read as part of the card rather than
+    /// a slightly-too-square box floating inside it.
+    static let cornerRadius: CGFloat = 14
+    static let rowInset: CGFloat = 4
+    static let rowCornerRadius: CGFloat = cornerRadius - rowInset
+}
+
 struct AppPopupMenuSurface<Content: View>: View {
     @ViewBuilder var content: () -> Content
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 2, content: content)
-                .padding(6)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(AppPopupMenuMetrics.rowInset)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .frame(width: 288)
-        .frame(maxHeight: 420, alignment: .leading)
-        .background { FrostedSurface(shape: RoundedRectangle(cornerRadius: 18)) }
+        .frame(width: 264)
+        .frame(maxHeight: 400, alignment: .leading)
+        // Clip the scrolling content to the corner radius before the surface
+        // draws behind it, so the popover's shadow is not clipped away too.
+        .clipShape(RoundedRectangle(cornerRadius: AppPopupMenuMetrics.cornerRadius, style: .continuous))
+        .background {
+            ClassicSurface(
+                shape: RoundedRectangle(cornerRadius: AppPopupMenuMetrics.cornerRadius, style: .continuous),
+                elevation: .popover
+            )
+        }
         .environment(\.appCompactRow, true)
     }
 }
@@ -287,7 +307,13 @@ struct AppPicker<Selection: Hashable, Content: View, Label: View>: View {
                             .padding(.horizontal, 8)
                             .background {
                                 if !segmented && selection == value {
-                                    RoundedRectangle(cornerRadius: 12).fill(.primary.opacity(0.10))
+                                    // Concentric with the popover surface: the
+                                    // container radius minus the row gutter.
+                                    RoundedRectangle(
+                                        cornerRadius: AppPopupMenuMetrics.rowCornerRadius,
+                                        style: .continuous
+                                    )
+                                    .fill(.primary.opacity(0.10))
                                 }
                                 if segmented && selection == value {
                                     Capsule().fill(.primary.opacity(0.16))
@@ -324,120 +350,63 @@ extension AppPicker where Label == Text {
     }
 }
 
-/// A drawn track and thumb, not UISlider (whose thumb is glass on iOS 26).
+/// The platform slider. An earlier hand-drawn track and thumb read as too
+/// glossy, so this defers to `Slider` while keeping the same call API (the
+/// `tint` chain, an optional `step`, an editing callback and a label).
 struct AppSlider: View {
-    @Environment(\.noLiquidGlass) private var classic
-    @Environment(\.isEnabled) private var enabled
-    @Environment(\.layoutDirection) private var direction
     var tintColor: Color?
     @Binding var value: Double
     var range: ClosedRange<Double>
     var step: Double?
     var onEditingChanged: (Bool) -> Void
-    var label: AnyView
-    @State private var editing = false
+    var label: Text
 
-    init(value: Binding<Double>, in range: ClosedRange<Double> = 0...1, step: Double? = nil, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        _value = value; self.range = range; self.step = step
-        self.onEditingChanged = onEditingChanged; label = AnyView(EmptyView())
+    init(
+        value: Binding<Double>,
+        in range: ClosedRange<Double> = 0...1,
+        step: Double? = nil,
+        onEditingChanged: @escaping (Bool) -> Void = { _ in }
+    ) {
+        _value = value
+        self.range = range
+        self.step = step
+        self.onEditingChanged = onEditingChanged
+        self.label = Text(verbatim: "")
     }
-    init<Label: View>(value: Binding<Double>, in range: ClosedRange<Double> = 0...1, step: Double? = nil, @ViewBuilder label: () -> Label) {
-        _value = value; self.range = range; self.step = step
-        onEditingChanged = { _ in }; self.label = AnyView(label())
+
+    init(
+        value: Binding<Double>,
+        in range: ClosedRange<Double> = 0...1,
+        step: Double? = nil,
+        label: () -> Text
+    ) {
+        _value = value
+        self.range = range
+        self.step = step
+        self.onEditingChanged = { _ in }
+        self.label = label()
     }
+
     func tint(_ color: Color?) -> AppSlider {
         var copy = self
         copy.tintColor = color
         return copy
     }
-    private var fraction: Double {
-        guard range.upperBound > range.lowerBound else { return 0 }
-        return min(max((value - range.lowerBound) / (range.upperBound - range.lowerBound), 0), 1)
-    }
-    var body: some View {
-        let activeTint = tintColor ?? AppTheme.controlFill
-        Group {
-            if classic {
-                GeometryReader { geometry in
-                    let trackHeight: CGFloat = 5
-                    let thumbRadius: CGFloat = 14
-                    let thumbSize: CGFloat = thumbRadius * 2
-                    let width = max(1, geometry.size.width - thumbSize)
-                    let position = (direction == .rightToLeft ? 1 - fraction : fraction) * width
-                    let activeWidth = min(geometry.size.width, position + thumbRadius)
 
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(AppTheme.hairline).frame(height: trackHeight)
-                        Capsule().fill(activeTint).frame(width: activeWidth, height: trackHeight)
-                            .frame(maxWidth: .infinity, alignment: direction == .rightToLeft ? .trailing : .leading)
-                        Circle().fill(AppTheme.primaryFill)
-                            .overlay { Circle().strokeBorder(AppTheme.hairline, lineWidth: 0.5) }
-                            .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
-                            .frame(width: thumbSize, height: thumbSize)
-                            .offset(x: position)
-                    }
-                    .frame(height: 44)
-                    .contentShape(.rect)
-                    .gesture(
-                        DragGesture(minimumDistance: 4)
-                            .onChanged { gesture in
-                                guard enabled else { return }
-                                if !editing {
-                                    if abs(gesture.translation.height) > abs(gesture.translation.width) {
-                                        return
-                                    }
-                                    editing = true
-                                    onEditingChanged(true)
-                                }
-                                let fraction = min(max((gesture.location.x - thumbRadius) / width, 0), 1)
-                                setFraction(direction == .rightToLeft ? 1 - fraction : fraction)
-                            }
-                            .onEnded { _ in finishEditing() }
-                    )
-                    .onTapGesture { location in
-                        guard enabled else { return }
-                        let fraction = min(max((location.x - thumbRadius) / width, 0), 1)
-                        setFraction(direction == .rightToLeft ? 1 - fraction : fraction)
-                    }
+    var body: some View {
+        Group {
+            if let step {
+                Slider(value: $value, in: range, step: step, onEditingChanged: onEditingChanged) {
+                    label
                 }
-                .frame(height: 44)
-                .accessibilityElement(children: .ignore)
-                .accessibilityValue(value.formatted(.number.precision(.fractionLength(0...2))))
-                .accessibilityAdjustableAction { direction in
-                    guard enabled else { return }
-                    onEditingChanged(true)
-                    let increment = step ?? (range.upperBound - range.lowerBound) / 20
-                    value = min(max(value + (direction == .increment ? increment : -increment), range.lowerBound), range.upperBound)
-                    onEditingChanged(false)
-                }
-                .opacity(enabled ? 1 : 0.4)
-            } else if let step {
-                Slider(value: $value, in: range, step: step, onEditingChanged: onEditingChanged) { label }
-                    .tint(activeTint)
-                    .onChange(of: value) { oldValue, newValue in
-                        if oldValue != newValue {
-                            Haptics.shared.selection()
-                        }
-                    }
             } else {
-                Slider(value: $value, in: range, onEditingChanged: onEditingChanged) { label }
-                    .tint(activeTint)
+                Slider(value: $value, in: range, onEditingChanged: onEditingChanged) {
+                    label
+                }
             }
         }
-        .onDisappear { finishEditing() }
+        .tint(tintColor)
     }
-    private func setFraction(_ fraction: Double) {
-        let raw = range.lowerBound + fraction * (range.upperBound - range.lowerBound)
-        let snapped = step.map { range.lowerBound + ((raw - range.lowerBound) / max($0, .leastNonzeroMagnitude)).rounded() * $0 } ?? raw
-        let clamped = min(max(snapped, range.lowerBound), range.upperBound)
-        if clamped != value {
-            value = clamped
-            if step != nil {
-                Haptics.shared.selection()
-            }
-        }
-    }
-    private func finishEditing() { if editing { editing = false; onEditingChanged(false) } }
 }
 
 struct AppButtonToggleStyle: ToggleStyle {
@@ -457,78 +426,75 @@ struct ClassicToggleStyle: ToggleStyle {
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.layoutDirection) private var direction
+    @Environment(\.coverTint) private var coverTint
+
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 12) {
             configuration.label
             Spacer(minLength: 8)
             Button {
                 Haptics.shared.selection()
-                withAnimation(AppMotion.reveal(reduceMotion: reduceMotion)) { configuration.isOn.toggle() }
+                withAnimation(ClassicMotion.micro(reduceMotion: reduceMotion)) {
+                    configuration.isOn.toggle()
+                }
             } label: {
                 EmptyView()
             }
-            .buttonStyle(ClassicSwitchButtonStyle(
-                isOn: configuration.isOn,
-                direction: direction,
-                reduceMotion: reduceMotion
-            ))
-            .accessibilityLabel(configuration.isOn ? "On" : "Off")
+            .buttonStyle(
+                ClassicSwitchButtonStyle(
+                    isOn: configuration.isOn,
+                    activeTint: coverTint ?? AppTheme.controlFill,
+                    direction: direction,
+                    reduceMotion: reduceMotion
+                )
+            )
+            .accessibilityLabel(Text(configuration.isOn ? "On" : "Off"))
         }
         .opacity(enabled ? 1 : 0.4)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isToggle)
-        .accessibilityValue(configuration.isOn ? "On" : "Off")
     }
 }
 
 /// The classic switch draws itself in a ButtonStyle so the knob can react to
-/// `isPressed` without a competing gesture. The ball shrinks while held and
-/// springs back to full size on release, while the value change moves it along
-/// the track in the same beat. Reduce Motion removes both animations.
+/// `isPressed` without a competing gesture. The knob widens while held and the
+/// value change slides it across the track on the same `classicMicro` spring.
+/// Reduce Motion removes both animations.
 private struct ClassicSwitchButtonStyle: ButtonStyle {
     let isOn: Bool
+    let activeTint: Color
     let direction: LayoutDirection
     let reduceMotion: Bool
-    @State private var pressed = false
-    @State private var releaseTask: Task<Void, Never>?
+    @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
-        Capsule().fill(isOn ? AppTheme.controlFill : AppTheme.hairline.opacity(0.5))
-            .frame(width: 50, height: 30)
-            .overlay(alignment: .leading) {
-                Circle().fill(.white)
-                    .frame(width: 24, height: 24)
-                    .scaleEffect(pressed && !reduceMotion ? 0.86 : 1)
-                    .animation(reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.78), value: pressed)
-                    .padding(3)
-                    .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-                    .offset(x: isOn ? (direction == .rightToLeft ? -20 : 20) : 0)
-                    .animation(AppMotion.reveal(reduceMotion: reduceMotion), value: isOn)
-            }
-            .frame(minWidth: 50, minHeight: 44)
-            .contentShape(.rect)
-            // A quick tap's isPressed can last less than a frame. Hold the
-            // down state briefly so the knob shrinks on taps, not just holds.
-            .onChange(of: configuration.isPressed) { _, isDown in
-                if isDown {
-                    releaseTask?.cancel()
-                    releaseTask = nil
-                    pressed = true
-                } else if !reduceMotion {
-                    releaseTask?.cancel()
-                    releaseTask = Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(90))
-                        pressed = false
-                        releaseTask = nil
-                    }
-                } else {
-                    pressed = false
+        let pressed = configuration.isPressed
+        let trackWidth: CGFloat = 50
+        let trackHeight: CGFloat = 30
+        let knobHeight: CGFloat = 24
+        let knobWidth: CGFloat = pressed && !reduceMotion ? 29 : 24
+        let padding: CGFloat = 3
+        let isDark = colorScheme == .dark
+
+        ZStack(alignment: isOn ? .trailing : .leading) {
+            Capsule()
+                .fill(isOn ? activeTint : (isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.12)))
+                .overlay {
+                    Capsule()
+                        .strokeBorder(
+                            (isDark ? Color.white : Color.black).opacity(isOn ? 0.16 : 0.10),
+                            lineWidth: 0.5
+                        )
                 }
-            }
-            .onDisappear {
-                releaseTask?.cancel()
-                pressed = false
-            }
+
+            Capsule()
+                .fill(Color.white)
+                .frame(width: knobWidth, height: knobHeight)
+                .shadow(color: .black.opacity(0.22), radius: 3, y: 1.5)
+                .padding(padding)
+        }
+        .frame(width: trackWidth, height: trackHeight)
+        .contentShape(Capsule())
+        .animation(ClassicMotion.micro(reduceMotion: reduceMotion), value: isOn)
+        .animation(ClassicMotion.micro(reduceMotion: reduceMotion), value: pressed)
     }
 }
 
@@ -656,7 +622,6 @@ struct AppExpandableSearchBar: View {
                             focused = false
                             onSearch?()
                         }
-                        .task { focused = true }
 
                     if !text.isEmpty {
                         Button {
@@ -685,10 +650,7 @@ struct AppExpandableSearchBar: View {
                 .appGlassEffect(.regular, in: .capsule)
                 .matchedGeometryEffect(id: "expandableSearch", in: morph)
             } else {
-                Button {
-                    Haptics.shared.selection()
-                    withAnimation(AppMotion.glassMorph(reduceMotion: reduceMotion)) { expanded = true }
-                } label: {
+                Button(action: expand) {
                     AppLabel(prompt, systemName: "magnifyingglass", size: 17, relativeTo: .body)
                         .font(Typography.body)
                         .padding(.horizontal, 18)
@@ -704,6 +666,17 @@ struct AppExpandableSearchBar: View {
         .animation(AppMotion.glassMorph(reduceMotion: reduceMotion), value: expanded)
         .accessibilityAction(.escape, collapse)
         .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    /// The capsule and the field it becomes share one tap, and that tap also reaches the app's
+    /// window-level keyboard-dismiss recognizer — it resigns whatever it finds focused. Taking
+    /// focus on the next main-queue turn puts the request after that recognizer's turn, which is
+    /// the same one the Clear button waits out, instead of racing it and losing the keyboard
+    /// every so often.
+    private func expand() {
+        Haptics.shared.selection()
+        withAnimation(AppMotion.glassMorph(reduceMotion: reduceMotion)) { expanded = true }
+        DispatchQueue.main.async { focused = true }
     }
 
     private func collapse() {
