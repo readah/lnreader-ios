@@ -73,7 +73,7 @@ final class AtsumaruSource: MangaSource {
 
         var params: [(String, String)] = [
             ("q", trimmed.isEmpty ? "*" : trimmed),
-            ("filter_by", Self.filterBy(filters)),
+            ("filter_by", Self.filterBy(filters, browse: trimmed.isEmpty)),
         ]
         if let sort = Self.sortValue(filters) { params.append(("sort_by", sort)) }
         if !trimmed.isEmpty {
@@ -286,7 +286,11 @@ final class AtsumaruSource: MangaSource {
     }
 
     /// Typesense `filter_by`, clause for clause as upstream builds it.
-    private static func filterBy(_ filters: FilterState) -> String {
+    ///
+    /// `browse` is the empty-query case, where upstream also drops explicitly adult-rated entries
+    /// through a `mbContentRating` clause. Search leaves it out: there it can only hide the entry
+    /// the user typed in.
+    private static func filterBy(_ filters: FilterState, browse: Bool) -> String {
         var clauses = ["hidden:!=true"]
 
         if case .exclude(let included, let excluded)? = filters[Filters.genres] {
@@ -328,8 +332,10 @@ final class AtsumaruSource: MangaSource {
             clauses.append("officialTranslation:=true")
         }
 
-        clauses.append("(mbContentRating:=[`Safe`,`Suggestive`,`Erotica`] || mbContentRating:!=*)")
         clauses.append("medium:!=[`Novel`]")
+        // Only in browse: the endpoint answers this one with "Filter value cannot be empty" when it
+        // rides along with a query, which failed every search with a 400.
+        if browse { clauses.append("mbContentRating:!=[`Pornographic`]") }
         clauses.append("views:>0")
         return clauses.joined(separator: " && ")
     }
