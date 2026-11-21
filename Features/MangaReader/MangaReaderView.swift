@@ -88,7 +88,7 @@ struct MangaReaderView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var isDismissing = false
     @State private var scanlatorSettings: ScanlatorSettings
-    @AppStorage(AppearanceTint.enabledKey) private var tintDetails = true
+    @AppStorage(AppearanceTint.enabledKey) private var tintDetails = false
     @AppStorage(AppearanceTint.strengthKey) private var tintStrength = AppearanceTint.defaultStrength
     @State private var coverTint: Color?
 
@@ -1196,52 +1196,31 @@ struct MangaReaderView: View {
     }
 }
 
-/// A 44-point control so the scrubber aligns with the chapter navigation capsule.
+/// A 44-point page scrubber on the shared `AppSlider`, so the reader matches
+/// every other slider in the app; the page numbers frame the track.
 private struct MangaPageSlider: View {
     @Binding var index: Int
     let pageCount: Int
     @Environment(\.coverTint) private var coverTint
 
-    private var progress: CGFloat {
-        CGFloat(index) / CGFloat(max(pageCount - 1, 1))
+    private var page: Binding<Double> {
+        Binding(get: { Double(index) }, set: { index = Int($0.rounded()) })
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            let trackWidth = max(geometry.size.width - 88, 1)
-            HStack(spacing: 8) {
-                Text("\(index + 1)")
-                    .frame(width: 24, alignment: .trailing)
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.25))
-                    Capsule().fill(coverTint ?? .white)
-                        .frame(width: max(6, trackWidth * progress))
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 6)
-                .accessibilityHidden(true)
-                Text("\(pageCount)")
-                    .frame(width: 24, alignment: .leading)
-            }
-            .font(.caption.monospacedDigit().weight(.semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .appGlassEffect(.regular.interactive(), in: .capsule)
-            .contentShape(Capsule())
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        let fraction = min(max((value.location.x - 44) / trackWidth, 0), 1)
-                        let newIndex = Int((fraction * CGFloat(max(pageCount - 1, 0))).rounded())
-                        if newIndex != index {
-                            index = newIndex
-                            Haptics.shared.selection()
-                        }
-                    }
-            )
+        HStack(spacing: 8) {
+            Text("\(index + 1)")
+                .frame(width: 24, alignment: .trailing)
+            AppSlider(value: page, in: 0...Double(max(pageCount - 1, 1)), step: 1)
+                .tint(coverTint ?? .white)
+            Text("\(pageCount)")
+                .frame(width: 24, alignment: .leading)
         }
+        .font(.caption.monospacedDigit().weight(.semibold))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
         .frame(height: 44)
+        .appGlassEffect(.regular.interactive(), in: .capsule)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Page")
         .accessibilityValue("\(index + 1) of \(pageCount)")
