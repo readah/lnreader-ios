@@ -217,11 +217,16 @@ struct EntryDetailView: View {
         .task(id: coverLookupKey) { await resolveCoverArtIfNeeded() }
         .environment(\.coverTint, coverTint)
         .background {
-            if let coverTint {
-                coverTint.opacity(tintStrength * 0.55).ignoresSafeArea()
+            if tintDetails {
+                EntryAtmosphericBackdrop(
+                    coverURL: displayCover,
+                    tint: coverTint,
+                    strength: tintStrength
+                )
+            } else {
+                OnboardingBackdrop().ignoresSafeArea()
             }
         }
-        .appBackdrop()
         // A screen-level overlay, so the confirmation is where the eye lands
         // after a hold, not inside the hero that scrolls it away.
         .overlay(alignment: .bottom) { copyToast }

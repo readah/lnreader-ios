@@ -9,13 +9,13 @@ struct AppearanceSettingsView: View {
     @AppStorage(IconPack.storageKey) private var iconPack = IconPack.swiftIcons.rawValue
     @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
     @AppStorage(ChromeAppearance.noLiquidGlassKey) private var noLiquidGlass = false
-    @AppStorage(ChromeAppearance.systemFormsKey) private var systemForms = false
+    @AppStorage(ChromeAppearance.systemFormsKey) private var systemForms = true
     @AppStorage(RevealMotion.enabledKey) private var springUnblurMotion = false
 
     var body: some View {
         AppForm {
             Section {
-                Toggle("No Liquid Glass", isOn: $noLiquidGlass)
+                Toggle(isOn: $noLiquidGlass) { betaLabel("No Liquid Glass") }
             } header: {
                 Text("Interface")
             } footer: {
@@ -23,18 +23,7 @@ struct AppearanceSettingsView: View {
             }
 
             Section {
-                Toggle(isOn: $systemForms) {
-                    HStack(spacing: 8) {
-                        Text("Use iOS default forms")
-                        Text("Beta")
-                            .font(Typography.small.weight(.semibold))
-                            .foregroundStyle(AppTheme.accent)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.accent.opacity(0.14), in: .capsule)
-                            .accessibilityHidden(true)
-                    }
-                }
+                Toggle(isOn: $systemForms) { betaLabel("Use iOS default forms") }
             } header: {
                 Text("Beta")
             } footer: {
@@ -62,14 +51,14 @@ struct AppearanceSettingsView: View {
             }
 
             Section {
-                Toggle("Tint details from the cover", isOn: $tintDetails)
+                Toggle("Cover backdrop & tint", isOn: $tintDetails)
                 VStack(alignment: .leading, spacing: 4) {
-                    LabeledContent("Tint strength") {
+                    LabeledContent("Backdrop intensity") {
                         Text("\(Int((strength * 100).rounded()))%")
                             .monospacedDigit()
                     }
-                    AppSlider(value: $strength, in: 0.1...1, step: 0.05) {
-                        Text("Tint strength")
+                    AppSlider(value: $strength, in: 0.0...1.0, step: 0.05) {
+                        Text("Backdrop intensity")
                     }
                     .tint(AppTheme.accent)
                 }
@@ -88,5 +77,19 @@ struct AppearanceSettingsView: View {
             }
         }
         .settingsScreen("Appearance")
+    }
+
+    /// A toggle label with a small "Beta" badge, marking an experimental option.
+    private func betaLabel(_ title: String) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+            Text("Beta")
+                .font(Typography.small.weight(.semibold))
+                .foregroundStyle(AppTheme.accent)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(AppTheme.accent.opacity(0.14), in: .capsule)
+                .accessibilityHidden(true)
+        }
     }
 }

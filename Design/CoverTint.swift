@@ -13,7 +13,108 @@ enum AppearanceTint {
     static let enabledKey = "appearance.tintDetails"
     static let strengthKey = "appearance.tintStrength"
     /// Enough to see the book's colour, little enough to keep text readable.
-    static let defaultStrength = 0.35
+    static let defaultStrength = 0.50
+}
+
+/// One living cover backdrop shared by the detail screen, the audio sheet and
+/// the chapter directory: a blurred, over-saturated cover under a tint glow and
+/// a scrim deep enough for white text. Not a wash of colour over the shader
+/// backdrop — the same canvas at every depth, so nothing seams on push.
+struct EntryAtmosphericBackdrop: View {
+    let coverURL: String?
+    var tint: Color?
+    var strength: Double = AppearanceTint.defaultStrength
+    var scrimDepth: Double = 0.72
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var settled = false
+
+    private var clampedStrength: Double { min(max(strength, 0), 1) }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let maxDim = max(proxy.size.width, proxy.size.height)
+            let isSettled = settled || reduceMotion
+
+            // Driven straight off the settings slider so 10% reads whisper-subtle
+            // and 100% reads vivid, with no fixed floor to flatten the range.
+            let blurOpacity = clampedStrength * 0.85
+            let glowPrimary = clampedStrength * 0.50
+            let glowSecondary = clampedStrength * 0.24
+            // The scrim opens a little at high strength so the tint is not crushed.
+            let dynamicBottomScrim = max(0.55, scrimDepth - clampedStrength * 0.18)
+
+            ZStack {
+                Color.black
+
+                if !reduceTransparency, clampedStrength > 0 {
+                    if let coverURL, let url = URL(string: coverURL) {
+                        CustomAsyncImage(url: url, maxPixelSize: 320) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Color.clear
+                        }
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
+                        // Extra scale gives headroom for both the 65pt blur and the downward drift.
+                        .scaleEffect(1.44)
+                        .blur(radius: 65, opaque: true)
+                        .saturation(1.25)
+                        .offset(y: isSettled ? 0 : -48)
+                        .opacity(isSettled ? blurOpacity : blurOpacity * 0.55)
+                    }
+
+                    // Always mounted so an async `coverTint` catches the downward glide smoothly.
+                    let activeTint = tint ?? .clear
+                    RadialGradient(
+                        colors: [
+                            activeTint.opacity(glowPrimary),
+                            activeTint.opacity(glowSecondary),
+                            .clear
+                        ],
+                        center: UnitPoint(x: 0.5, y: 0.42),
+                        startRadius: 20,
+                        endRadius: maxDim * 0.90
+                    )
+                    .blendMode(.plusLighter)
+                    .scaleEffect(isSettled ? 1.0 : 0.84, anchor: .top)
+                    .offset(y: isSettled ? 0 : -proxy.size.height * 0.30)
+                    .opacity(isSettled ? 1 : 0.6)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: tint != nil)
+                } else if let tint, clampedStrength > 0 {
+                    tint.opacity(clampedStrength * 0.25)
+                }
+
+                // Readability scrim stays anchored while the light flows underneath it.
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0.12), location: 0.0),
+                        .init(color: .black.opacity(0.28), location: 0.58),
+                        .init(color: .black.opacity(0.52), location: 0.84),
+                        .init(color: .black.opacity(dynamicBottomScrim), location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onAppear {
+            guard !settled else { return }
+            if reduceMotion {
+                settled = true
+            } else {
+                // Exponential ease-out: glides visibly down on open, then locks smoothly in place.
+                withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 1.25)) {
+                    settled = true
+                }
+            }
+        }
+    }
 }
 
 /// Draws one colour out of a cover image.
@@ -92,5 +193,19 @@ extension EnvironmentValues {
     var coverTint: Color? {
         get { self[CoverTintKey.self] }
         set { self[CoverTintKey.self] = newValue }
+    }
+}
+
+private struct CoverTintStrengthKey: EnvironmentKey {
+    static let defaultValue: Double = AppearanceTint.defaultStrength
+}
+
+extension EnvironmentValues {
+    /// How strongly tinting should read, 0...1, injected once at the root from
+    /// the Appearance slider. Every sheet, card and control reads this instead
+    /// of hard-coding its own opacity, so one slider drives the whole system.
+    var coverTintStrength: Double {
+        get { self[CoverTintStrengthKey.self] }
+        set { self[CoverTintStrengthKey.self] = newValue }
     }
 }

@@ -92,6 +92,11 @@ struct ReaderView: View {
     @AppStorage(ReaderDim.key) private var dimLevel: Double = 0
     @AppStorage("tts.voice") private var ttsVoiceId: String = "breeze-warm"
     @AppStorage("tts.speed") private var ttsSpeed: Double = 1.0
+    @AppStorage(AppearanceTint.enabledKey) private var tintDetails = true
+    @State private var coverTint: Color?
+    /// Read once when the reader opens: a fetch in the body would run on every
+    /// scroll and TTS tick.
+    @State private var displayCover: String?
 
     @ObservedObject private var focusManager = FocusModeManager.shared
 
@@ -142,8 +147,14 @@ struct ReaderView: View {
     var body: some View {
         presentation
             .task {
+                displayCover = fetchEntry()?.displayThumbnailURL
                 await loadChapter()
                 updateSpeechState()
+            }
+            // The sheets draw the book's atmosphere; extract its colour once
+            // per cover instead of per redraw, exactly as the manga reader does.
+            .task(id: tintDetails ? (displayCover ?? "") : "") {
+                coverTint = tintDetails ? await CoverTint.color(for: displayCover) : nil
             }
             .onChange(of: ttsBridge.isReady) { _, ready in handleBridgeReady(ready) }
             .onReceive(ttsManager.$currentBlockIndex) { newIndex in handleBlockIndex(newIndex) }
@@ -395,6 +406,7 @@ struct ReaderView: View {
             },
             onDismiss: { showChapterList = false }
         )
+        .environment(\.coverTint, coverTint)
     }
 
     private var loginSheet: some View {
@@ -425,9 +437,10 @@ struct ReaderView: View {
             sourceKey: sourceKey,
             entryURL: entryURL ?? "",
             chapters: audioChapterChoices,
-            coverURL: fetchEntry()?.displayThumbnailURL,
+            coverURL: displayCover,
             initialChapter: currentChapterPath
         )
+        .environment(\.coverTint, coverTint)
     }
 
     // MARK: - TTS event handlers

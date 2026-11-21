@@ -17,6 +17,8 @@ struct ContentView: View {
     @AppStorage("general.autoUpdateOnLaunch") private var autoUpdateOnLaunch = false
     @AppStorage(MinimalMode.enabledKey) private var minimalMode = false
     @AppStorage(ChromeAppearance.noLiquidGlassKey) private var noLiquidGlass = false
+    @AppStorage(AppearanceTint.enabledKey) private var tintDetails = false
+    @AppStorage(AppearanceTint.strengthKey) private var tintStrength = AppearanceTint.defaultStrength
     @State private var classicTabBarHidden = false
     @State private var selectedTab: AppTab = .library
     @State private var readerRouter = ReaderRouter()
@@ -111,8 +113,13 @@ struct ContentView: View {
                 await libraryManager.updateLibrary(context: modelContext, sourceManager: sourceManager, automatic: true)
             }
         }
-        .environment(\.noLiquidGlass, noLiquidGlass)
+        // The adapter reads `noLiquidGlass`, so the environment has to be
+        // outside it; applied the other way round it always saw the default.
         .modifier(AppRootButtonStyle())
+        .environment(\.noLiquidGlass, noLiquidGlass)
+        // One slider, one source of truth: every sheet, card and control reads
+        // this instead of hard-coding its own tint opacity.
+        .environment(\.coverTintStrength, tintDetails ? tintStrength : 0)
     }
 
     /// The full app: five tabs on Liquid Glass. The tab-only chrome lives here
