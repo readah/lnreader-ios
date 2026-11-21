@@ -1,13 +1,13 @@
 // MinimalModePages.swift
 // Minimal Mode is a vertical pager: Library, History and Updates in a cycle.
 //
-// Nothing slides. The three pages sit in the same place, one of them opaque, so
-// an upward drag lifts the whole pager off its resting spot against friction and
-// the page is exchanged at the top of that lift: the arriving page is opaque at
-// once and the one that left dissolves over it. The lift leaves the drag at the
-// speed the finger was moving, so the drag and the settle are one motion rather
-// than a stop followed by an animation. Why upward only, and the thresholds,
-// live in `MinimalPageSwipe`.
+// An upward drag lifts the whole pager off its resting spot against friction and
+// the page is exchanged at the top of that lift: the page that left drifts
+// further left and clears, while the arriving page springs in from the right and
+// unblurs. The lift leaves the drag at the speed the finger was moving, so the
+// drag and the settle are one motion rather than a stop followed by an
+// animation. Under Reduce Motion nothing moves: the two pages crossfade in
+// place. Why upward only, and the thresholds, live in `MinimalPageSwipe`.
 //
 // The bar is the container's, not a page's, so a swipe never swaps the chrome
 // for something else, and it is the pager's only handle. The pages share the
@@ -43,6 +43,10 @@ final class MinimalPager {
     }
 
     private(set) var page: Page = .library
+    /// The page drifting out to the left. It stays mounted, and clear of the
+    /// hit testing and VoiceOver tree, until the reveal completes; only then is
+    /// it silently restaged on the right for its next entrance.
+    private(set) var leavingPage: Page?
     /// How far the pages are lifted off their resting place. Never negative:
     /// only an upward drag lifts them, and they always come back down.
     private(set) var lift: CGFloat = 0
@@ -87,7 +91,7 @@ final class MinimalPager {
         }
         lift = CGFloat(MinimalPageSwipe.lift(translation: Double(vertical)))
         // Built on the first frame that lifts, not on release: the page that
-        // dissolves in has the whole drag to get its query and list ready.
+        // reveals in has the whole drag to get its query and list ready.
         if lift > 0, !built.contains(page.next) { built.insert(page.next) }
         // One click at the point where the swipe would commit.
         let crossed = max(0, -Double(vertical)) >= MinimalPageSwipe.commitDistance
@@ -134,40 +138,59 @@ final class MinimalPager {
         advance(speed: speed, reduceMotion: reduceMotion, announce: !hadDetent)
     }
 
-    /// A menu pick has no lift to fall from, so it only dissolves.
-    func select(_ target: Page) {
+    /// A menu pick has no lift to fall from, so the reveal is the whole motion.
+    func select(_ target: Page, reduceMotion: Bool = false) {
         guard target != page, !isSnapping else { return }
         Haptics.shared.selection()
+        let wasBuilt = built.contains(target)
         built.insert(target)
-        page = target
-        lift = 0
+        isSnapping = true
+        // A page picked for the first time has to mount in its waiting slot
+        // before it can change to active, or it would appear already in place
+        // instead of springing in.
+        if wasBuilt {
+            performSwap(to: target, speed: 0, reduceMotion: reduceMotion)
+        } else {
+            Task { @MainActor in
+                self.performSwap(to: target, speed: 0, reduceMotion: reduceMotion)
+            }
+        }
     }
 
-    /// The switch itself: the page is exchanged at the top of the lift and the
-    /// lift comes home. Nothing slides — both pages are in the same place — so
-    /// the only movement is the lift falling back.
     private func advance(speed: Double, reduceMotion: Bool, announce: Bool) {
-        isSnapping = true
         if announce { Haptics.shared.selection() }
         let next = page.next
+        let wasBuilt = built.contains(next)
         built.insert(next)
-        // With Reduce Motion the exchange is instant and there is no animation
-        // to wait on, so the pager must not stay locked.
-        guard let settle = AppMotion.pageSticky(speed: speed, distance: Double(lift), reduceMotion: reduceMotion) else {
-            swap(to: next)
-            isSnapping = false
-            return
-        }
-        withAnimation(settle, completionCriteria: .logicallyComplete) {
-            swap(to: next)
-        } completion: {
-            self.isSnapping = false
+        isSnapping = true
+        if wasBuilt {
+            performSwap(to: next, speed: speed, reduceMotion: reduceMotion)
+        } else {
+            Task { @MainActor in
+                self.performSwap(to: next, speed: speed, reduceMotion: reduceMotion)
+            }
         }
     }
 
-    private func swap(to next: Page) {
-        page = next
-        lift = 0
+    /// The switch itself: the lift comes home at the finger's speed while the
+    /// pages exchange. The outgoing page drifts left and clears; the incoming
+    /// one springs in from the right and unblurs. The pager stays locked until
+    /// that reveal has logically finished, then the now-invisible outgoing page
+    /// is restaged on the right with no animation.
+    private func performSwap(to next: Page, speed: Double, reduceMotion: Bool) {
+        let outgoing = page
+
+        withAnimation(AppMotion.pageSticky(speed: speed, distance: Double(lift), reduceMotion: reduceMotion)) {
+            lift = 0
+        }
+
+        withAnimation(AppMotion.pageReveal(reduceMotion: reduceMotion), completionCriteria: .logicallyComplete) {
+            leavingPage = outgoing
+            page = next
+        } completion: {
+            self.leavingPage = nil
+            self.isSnapping = false
+        }
     }
 }
 
@@ -320,8 +343,14 @@ struct MinimalModeView: View {
         .preferredColorScheme(.dark)
     }
 
-    /// One slot in the pager. Every page sits in the same place and only one of
-    /// them is opaque — the switch is a dissolve, so there is nothing to slide.
+    /// One slot in the pager. Every page sits in the same place; the reveal is
+    /// its own offset (see `MinimalPager.performSwap`):
+    ///
+    /// - active: centered and crisp;
+    /// - leaving: drifts left and clears;
+    /// - waiting: staged just to the right and held invisible, so its entrance
+    ///   never has to pop into place.
+    ///
     /// An unvisited page is a transparent, untouchable placeholder rather than
     /// a missing child, so inserting it later cannot disturb its neighbours.
     @ViewBuilder
@@ -330,18 +359,19 @@ struct MinimalModeView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         if pager.built.contains(page) {
+            let isActive = page == pager.page
+            let isLeaving = page == pager.leavingPage
+            let xOffset: CGFloat = reduceMotion ? 0 : (isActive ? 0 : (isLeaving ? -8 : 10))
+            let blurRadius: CGFloat = reduceMotion ? 0 : (isActive ? 0 : (isLeaving ? 3 : 4))
+
             content()
-                .opacity(page == pager.page ? 1 : 0)
-                // The page that arrived is opaque at once and the one that left
-                // fades out over it, so the exchange never dips through the
-                // background the way two fading pages would.
-                .animation(page == pager.page ? nil : AppMotion.pageDissolve(reduceMotion: reduceMotion),
-                           value: pager.page)
-                .allowsHitTesting(page == pager.page)
-                .accessibilityHidden(page != pager.page)
-                // Above the page that arrived, or its fade would be hidden
-                // behind it.
-                .zIndex(page == pager.page ? 0 : 1)
+                .offset(x: xOffset)
+                .blur(radius: blurRadius)
+                .opacity(isActive ? 1 : 0)
+                .allowsHitTesting(isActive)
+                .accessibilityHidden(!isActive)
+                // The incoming page rides above the one that is leaving.
+                .zIndex(isActive ? 1 : 0)
         } else {
             Color.clear.allowsHitTesting(false)
         }
@@ -366,7 +396,7 @@ struct MinimalModeView: View {
     /// the shelf first — otherwise the field would open out of sight.
     private func toggleSearch() {
         Haptics.shared.selection()
-        if !showSearch, pager.page != .library { pager.select(.library) }
+        if !showSearch, pager.page != .library { pager.select(.library, reduceMotion: reduceMotion) }
         withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
             showSearch.toggle()
         }
@@ -381,7 +411,7 @@ struct MinimalModeView: View {
         guard let chapter = history.lazy.compactMap(\.chapter).first(where: { $0.entry?.inLibrary == true }),
               let entry = chapter.entry else {
             // Nothing to resume: the shelf is the closest thing to it.
-            pager.select(.library)
+            pager.select(.library, reduceMotion: reduceMotion)
             return
         }
         Haptics.shared.impact(.light)
@@ -464,12 +494,54 @@ private struct MinimalPageStack<Content: View>: View {
     }
 
     var body: some View {
-        // Every page in the same place, one of them opaque: the pages never
-        // move relative to each other, only as a block.
+        // The stack owns the lift only. Each page's horizontal reveal is its
+        // own offset, applied in `MinimalModeView.page`.
         ZStack(alignment: .top) {
             content
         }
         .offset(y: -pager.lift)
+    }
+}
+
+// MARK: - Row cascade
+
+extension View {
+    /// A page's rows trail the page's own reveal: each one arrives from the
+    /// right a beat after the one above it, and drifts left when the page
+    /// leaves. Only the first eight rows animate; a long list stays finished.
+    func minimalPageItem(index: Int, page: MinimalPager.Page) -> some View {
+        modifier(MinimalPageItemMotion(index: index, page: page))
+    }
+}
+
+private struct MinimalPageItemMotion: ViewModifier {
+    let index: Int
+    let page: MinimalPager.Page
+
+    @Environment(MinimalPager.self) private var pager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let isActive = pager.page == page
+        let isLeaving = pager.leavingPage == page
+        // Reduce Motion keeps the rows in place and lets the page fade.
+        let cascades = !reduceMotion && index < 8
+        let delay = cascades && isActive ? Double(index) * 0.022 : 0
+        let xOffset: CGFloat = cascades ? (isActive ? 0 : (isLeaving ? -8 : 16)) : 0
+        let blurRadius: CGFloat = cascades ? (isActive ? 0 : (isLeaving ? 3 : 5)) : 0
+
+        content
+            .offset(x: xOffset)
+            .blur(radius: blurRadius)
+            // Restaging the leaving page (clearing `leavingPage` after the
+            // swap) is not driven by `isActive`, so it lands silently while
+            // the rows are already invisible.
+            .animation(
+                isActive
+                    ? AppMotion.pageReveal(reduceMotion: reduceMotion).delay(delay)
+                    : (isLeaving ? AppMotion.pageExit(reduceMotion: reduceMotion) : nil),
+                value: isActive
+            )
     }
 }
 
@@ -514,9 +586,9 @@ private struct MinimalPageHandle: ViewModifier {
                         )
                     }
             )
-            .accessibilityAction(named: "Show Library") { pager.select(.library) }
-            .accessibilityAction(named: "Show History") { pager.select(.history) }
-            .accessibilityAction(named: "Show Updates") { pager.select(.updates) }
+            .accessibilityAction(named: "Show Library") { pager.select(.library, reduceMotion: reduceMotion) }
+            .accessibilityAction(named: "Show History") { pager.select(.history, reduceMotion: reduceMotion) }
+            .accessibilityAction(named: "Show Updates") { pager.select(.updates, reduceMotion: reduceMotion) }
     }
 }
 
@@ -594,7 +666,7 @@ struct MinimalPageMenu: View {
             // A picker, not three buttons: the system puts the tick on the
             // trailing edge and keeps every title where it was. A hand-drawn
             // checkmark ends up leading, which moves the entry you picked.
-            Picker("Page", selection: Binding(get: { pager.page }, set: { pager.select($0) })) {
+            Picker("Page", selection: Binding(get: { pager.page }, set: { pager.select($0, reduceMotion: reduceMotion) })) {
                 ForEach(MinimalPager.Page.allCases) { page in
                     Text(page.title).tag(page)
                 }
@@ -748,7 +820,7 @@ struct MinimalUpdatesPage: View {
                 List {
                     ForEach(groupedChapters, id: \.key) { date, dayChapters in
                         Section(date) {
-                            ForEach(dayChapters) { chapter in
+                            ForEach(Array(dayChapters.enumerated()), id: \.element.id) { index, chapter in
                                 UpdateRow(
                                     chapter: chapter,
                                     onOpenEntry: {
@@ -756,6 +828,7 @@ struct MinimalUpdatesPage: View {
                                     },
                                     onOpenChapter: { open(chapter) }
                                 )
+                                .minimalPageItem(index: index, page: .updates)
                                 .listRowBackground(Color.clear)
                             }
                         }
@@ -907,8 +980,9 @@ struct MinimalHistoryPage: View {
                 List {
                     ForEach(groupedRuns, id: \.key) { date, runs in
                         Section(date) {
-                            ForEach(runs) { run in
+                            ForEach(Array(runs.enumerated()), id: \.element.id) { index, run in
                                 row(run)
+                                    .minimalPageItem(index: index, page: .history)
                                     .listRowBackground(Color.clear)
                             }
                         }
@@ -995,6 +1069,8 @@ private struct MinimalLibraryBar: View {
     let onResume: () -> Void
     let onRefresh: () -> Void
 
+    @Environment(\.noLiquidGlass) private var classic
+
     private let pillWidth: CGFloat = 236
     private let pillHeight: CGFloat = 62
     private let innerPillWidth: CGFloat = 120
@@ -1005,30 +1081,29 @@ private struct MinimalLibraryBar: View {
     private var sideButtonWidth: CGFloat { (pillWidth - innerPillWidth) / 2 }
 
     var body: some View {
-        ZStack {
-            resumeChip
+        HStack(spacing: 0) {
+            sideButton(systemName: isSearching ? "xmark" : "magnifyingglass", action: onSearch)
+                .accessibilityLabel(isSearching ? "Close search" : "Search library")
 
-            HStack(spacing: 0) {
-                sideButton(systemName: isSearching ? "xmark" : "magnifyingglass", action: onSearch)
-                    .accessibilityLabel(isSearching ? "Close search" : "Search library")
+            Spacer().frame(width: innerPillWidth)
 
-                Spacer().frame(width: innerPillWidth)
-
-                Group {
-                    if isUpdating {
-                        ProgressView()
-                            .tint(ink)
-                            .frame(width: sideButtonWidth, height: pillHeight)
-                    } else {
-                        sideButton(systemName: "arrow.triangle.2.circlepath", action: onRefresh)
-                    }
+            Group {
+                if isUpdating {
+                    ProgressView()
+                        .tint(ink)
+                        .frame(width: sideButtonWidth, height: pillHeight)
+                } else {
+                    sideButton(systemName: "arrow.triangle.2.circlepath", action: onRefresh)
                 }
-                .accessibilityLabel(isUpdating ? "Updating library" : "Refresh library")
             }
-            .frame(width: pillWidth, height: pillHeight)
+            .accessibilityLabel(isUpdating ? "Updating library" : "Refresh library")
         }
         .frame(width: pillWidth, height: pillHeight)
+        // The bar's own interactive material, over the whole pill. The chip is
+        // an overlay above it rather than a child inside it: glass nested in a
+        // glass ancestor sinks below it, and this keeps the bar itself live.
         .appGlassEffect(.clear.interactive(), in: .capsule)
+        .overlay { resumeChip }
         .contentShape(.capsule)
         .minimalPageHandle()
         .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 8)
@@ -1051,11 +1126,10 @@ private struct MinimalLibraryBar: View {
                     .lineLimit(1)
             }
             .frame(width: innerPillWidth, height: innerPillHeight)
-            .clipShape(.capsule)
+            .modifier(ResumeChipSkin(classic: classic, ink: ink))
             .contentShape(.capsule)
         }
         .buttonStyle(AppPlainButtonStyle())
-        .appGlassEffect(.clear.interactive(), in: .capsule)
         .disabled(!canResume)
         .opacity(canResume ? 1 : 0.5)
         .accessibilityLabel("Continue reading")
@@ -1069,6 +1143,29 @@ private struct MinimalLibraryBar: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(AppPlainButtonStyle())
+    }
+}
+
+/// Classic has no glass-in-glass: the chip is a tinted fill on the frosted
+/// bar, the treatment the app's classic selectors use. Glass mode gives the
+/// chip its own interactive glass, applied to the button's label so the
+/// highlight follows the press.
+private struct ResumeChipSkin: ViewModifier {
+    let classic: Bool
+    let ink: Color
+
+    func body(content: Content) -> some View {
+        if classic {
+            content
+                .background {
+                    Capsule()
+                        .fill(ink.opacity(0.16))
+                        .overlay { Capsule().strokeBorder(ink.opacity(0.12), lineWidth: 0.5) }
+                }
+                .clipShape(.capsule)
+        } else {
+            content.appGlassEffect(.clear.interactive(), in: .capsule)
+        }
     }
 }
 

@@ -106,11 +106,20 @@ enum AppMotion {
         return .interpolatingSpring(stiffness: 300, damping: 34, initialVelocity: fraction)
     }
 
-    /// The Minimal Mode pages exchanging places at the top of a lift: the page
-    /// that left fades out over the one that arrived. Not a spring — a fade
-    /// that overshoots only flickers.
-    static func pageDissolve(reduceMotion: Bool) -> Animation? {
-        reduceMotion ? nil : .easeOut(duration: 0.28)
+    /// The Minimal Mode page arriving on a swipe or a menu pick: it glides in
+    /// from the right and unblurs. A crisp deceleration with a tiny settle, not
+    /// a bounce — an overshooting page reads as a cartoon.
+    ///
+    /// Reduce Motion keeps the exchange in place and fades instead: no offset,
+    /// no blur, just a quick crossfade.
+    static func pageReveal(reduceMotion: Bool) -> Animation {
+        reduceMotion ? .easeOut(duration: 0.18) : .spring(duration: 0.42, bounce: 0.12)
+    }
+
+    /// The page that left clears slightly faster than the incoming spring
+    /// settles, so it never lingers as a ghost behind the new content.
+    static func pageExit(reduceMotion: Bool) -> Animation {
+        reduceMotion ? .easeOut(duration: 0.18) : .easeOut(duration: 0.24)
     }
 
     /// Glass controls splitting from or merging into each other, such as the

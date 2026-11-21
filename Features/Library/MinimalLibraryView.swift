@@ -195,6 +195,7 @@ struct MinimalLibraryView: View {
                         ) {
                             open(entry)
                         }
+                        .minimalPageItem(index: index, page: .library)
                         // Lower covers stack on top of upper ones.
                         .zIndex(Double(index))
                     }
