@@ -158,10 +158,19 @@ struct VoiceReferencePassageView: View {
 }
 
 struct BookAudioDownloadsView: View {
+    private enum Layout {
+        /// Match this to BookView's horizontal margin (16 or 20) so every card,
+        /// button, and sheet control shares one vertical edge rail.
+        static let horizontalPadding: CGFloat = 16
+        static let cardRadius: CGFloat = 22
+        static let sectionSpacing: CGFloat = 20
+    }
+
     @Environment(SourceManager.self) private var sourceManager
     @Environment(\.appDismiss) private var dismiss
     @Environment(\.coverTint) private var coverTint
     @ObservedObject private var library = TTSOfflineLibrary.shared
+
     let bookId: String
     let bookTitle: String
     let sourceKey: String
@@ -169,6 +178,7 @@ struct BookAudioDownloadsView: View {
     let chapters: [TTSChapterChoice]
     var coverURL: String? = nil
     var initialChapter: String? = nil
+
     @State private var selectedVoices: Set<String> = []
     @State private var fromChapter = 1
     @State private var throughChapter = 1
@@ -176,6 +186,7 @@ struct BookAudioDownloadsView: View {
     @State private var preparationProgress = ""
     @State private var preparationTask: Task<Void, Never>?
     @State private var error: String?
+    @State private var dismissedToastID: String?
     @State private var search = ""
     @State private var stateFilter = "All"
     @State private var showVoices = false
@@ -185,8 +196,12 @@ struct BookAudioDownloadsView: View {
     @State private var deleteIDs: [String] = []
     @State private var voiceFilter = "all"
     @State private var chapterPage = 0
+
     @AppStorage("tts.provider") private var computeProvider = "kaggle"
     @AppStorage("tts.wifiOnly") private var wifiOnly = true
+    @AppStorage(AppearanceTint.strengthKey) private var tintStrength = AppearanceTint.defaultStrength
+
+    // MARK: - Derived State
 
     private var selectedChapters: [TTSChapterChoice] {
         guard !chapters.isEmpty else { return [] }
@@ -194,12 +209,7 @@ struct BookAudioDownloadsView: View {
         let end = min(max(throughChapter - 1, start), chapters.count - 1)
         return Array(chapters[start...end])
     }
-    /// Chapters this book actually has audio records for.
-    ///
-    /// This screen manages downloads, it does not browse chapters: a chapter
-    /// nobody has asked for has nothing to show here. Anything with a record —
-    /// ready, preparing or failed — stays, so progress and retries remain
-    /// reachable.
+
     private var visibleAll: [TTSChapterChoice] {
         let indexed = groups
         return chapters.filter { chapter in
@@ -208,6 +218,7 @@ struct BookAudioDownloadsView: View {
             return matches(chapter, records: records)
         }
     }
+
     private var pageCount: Int { max(1, (visibleAll.count + 99) / 100) }
     private var currentPage: Int { min(chapterPage, pageCount - 1) }
     private var pageLabel: String {
@@ -215,12 +226,73 @@ struct BookAudioDownloadsView: View {
         let last = min((currentPage + 1) * 100, visibleAll.count)
         return "\(first)–\(last) of \(visibleAll.count)"
     }
-    private var currentChoice: TTSChapterChoice? { chapters.first { $0.path == initialChapter } ?? chapters.first }
+
+    private var currentChoice: TTSChapterChoice? {
+        chapters.first { $0.path == initialChapter } ?? chapters.first
+    }
+
     private var bookRecords: [TTSDownloadRecord] { library.downloads(bookId: bookId) }
     private var byteCount: Int64 { bookRecords.filter(\.isAvailable).reduce(0) { $0 + $1.bytesExpected } }
+
     private var groups: [String: [TTSDownloadRecord]] {
-        Dictionary(grouping: bookRecords.filter { voiceFilter == "all" || $0.rendition.voiceId == voiceFilter }, by: { $0.rendition.chapterId })
+        Dictionary(
+            grouping: bookRecords.filter { voiceFilter == "all" || $0.rendition.voiceId == voiceFilter },
+            by: { $0.rendition.chapterId }
+        )
     }
+
+    private var activeVoice: String {
+        let preferred = library.selectedVoice(bookId: bookId, chapterId: initialChapter ?? "")
+        return selectedVoices.contains(preferred) ? preferred : selectedVoices.sorted().first ?? preferred
+    }
+
+    private var activeFilterCount: Int {
+        (stateFilter == "All" ? 0 : 1) + (voiceFilter == "all" ? 0 : 1)
+    }
+
+    private var offlineSizeLabel: String {
+        ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)
+    }
+
+    private var failedRecords: [TTSDownloadRecord] {
+        groups.values
+            .flatMap { $0 }
+            .filter { !$0.isAvailable && $0.state == "failed" }
+    }
+
+    private var downloadBlocked: Bool {
+        preparing || selectedVoices.isEmpty || currentChapterIndex == nil
+    }
+
+    private var currentChapterIndex: Int? {
+        if let initialChapter,
+           let index = chapters.firstIndex(where: { $0.path == initialChapter }) {
+            return index
+        }
+        return chapters.isEmpty ? nil : 0
+    }
+
+    private var downloadCurrentTitle: String {
+        guard let currentChoice else { return "Download chapter" }
+        return "Download chapter \(currentChoice.position + 1)"
+    }
+
+    /// Single source of truth for all status / progress / warning messages.
+    /// Dismiss tracking keeps the 3-second refresh loop from re-popping a
+    /// warning the user already cleared, until the message actually changes.
+    private var activeToast: AudioToastMessage? {
+        if preparing {
+            let text = preparationProgress.isEmpty ? "Preparing audio…" : preparationProgress
+            return AudioToastMessage(id: "preparing", kind: .progress, message: text)
+        }
+        if let message = error ?? library.errorMessage ?? (library.engineState?.needsAttention == true ? library.engineState?.message : nil) {
+            let id = "warn:\(message)"
+            guard dismissedToastID != id else { return nil }
+            return AudioToastMessage(id: id, kind: .warning, message: message)
+        }
+        return nil
+    }
+
     private func matches(_ chapter: TTSChapterChoice, records: [TTSDownloadRecord]) -> Bool {
         let searchable = "\(chapter.position + 1) \(chapter.title)"
         guard search.isEmpty || searchable.localizedCaseInsensitiveContains(search) else { return false }
@@ -231,75 +303,43 @@ struct BookAudioDownloadsView: View {
         default: return true
         }
     }
+
+    // MARK: - Body
+
     var body: some View {
         AppNavigationStack {
-            List {
-                Section {
-                    dashboard
-                        .listRowInsets(EdgeInsets(top: 18, leading: 16, bottom: 18, trailing: 16))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: Layout.sectionSpacing) {
+                    heroHeader
+                    actionControls
+                    downloadsSection
                 }
-                if preparing || error != nil || library.errorMessage != nil || library.engineState?.needsAttention == true {
-                    Section {
-                        if preparing {
-                            HStack(spacing: 10) {
-                                ProgressView()
-                                Text(preparationProgress)
-                                    .font(Typography.caption)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Button("Stop") { preparationTask?.cancel() }
-                                    .font(Typography.caption.weight(.semibold))
-                                    .buttonStyle(AppBorderlessButtonStyle())
-                            }
-                        }
-                        if let message = error ?? library.errorMessage ?? (library.engineState?.needsAttention == true ? library.engineState?.message : nil) {
-                            AppLabel(message, systemName: "exclamationmark.circle", size: 13, relativeTo: .footnote)
-                                .font(Typography.caption)
-                                .foregroundStyle(AppTheme.warning)
-                        }
-                    }
-                }
-                Section {
-                    let indexed = groups
-                    let visible = visibleAll
-                    let page = min(chapterPage, pageCount - 1)
-                    ForEach(Array(visible.dropFirst(page * 100).prefix(100))) { chapter in
-                        chapterRow(chapter, records: indexed[chapter.path] ?? [])
-                    }
-                    if visible.isEmpty {
-                        compactEmptyState
-                            .listRowBackground(Rectangle().fill(.regularMaterial))
-                    }
-                } header: {
-                    HStack {
-                        Text("Downloaded · \(visibleAll.count)")
-                            .font(Typography.caption.weight(.semibold))
-                            .textCase(nil)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        AppMenu {
-                            AppPicker("Status", selection: $stateFilter) {
-                                ForEach(["All", "Downloaded", "Preparing", "Issues"], id: \.self) { Text($0).tag($0) }
-                            }
-                            AppPicker("Voice", selection: $voiceFilter) {
-                                Text("All voices").tag("all")
-                                ForEach(library.voices) { Text($0.name).tag($0.id) }
-                            }
-                        } label: {
-                            AppLabel(stateFilter, systemName: "line.3.horizontal.decrease", size: 13, relativeTo: .footnote)
-                                .font(Typography.caption.weight(.medium))
-                                .foregroundStyle(.primary)
-                        }
-                    }
-                } footer: {
-                    Text(offlineSummary).font(Typography.caption)
+                .padding(.horizontal, Layout.horizontalPadding)
+                .padding(.top, 12)
+                .padding(.bottom, activeToast == nil ? 28 : 96)
+            }
+            .scrollIndicators(.hidden)
+            .background {
+                EntryAtmosphericBackdrop(
+                    coverURL: coverURL,
+                    tint: coverTint,
+                    strength: tintStrength,
+                    scrimDepth: 0.72
+                )
+            }
+            .overlay(alignment: .bottom) {
+                if let toast = activeToast {
+                    AudioStatusToast(
+                        toast: toast,
+                        onStop: toast.kind == .progress ? { preparationTask?.cancel() } : nil,
+                        onDismiss: { dismissToast(toast) }
+                    )
+                    .padding(.horizontal, Layout.horizontalPadding)
+                    .padding(.bottom, 12)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .listSectionSpacing(16)
-            .scrollContentBackground(.hidden)
-            .background { CoverBackdrop(url: coverURL, tint: coverTint) }
+            .animation(.spring(response: 0.34, dampingFraction: 0.86), value: activeToast?.id)
             .appNavigationTitle("Audio")
             .navigationBarTitleDisplayMode(.inline)
             .appToolbar {
@@ -310,50 +350,71 @@ struct BookAudioDownloadsView: View {
                             Text("Kaggle").tag("kaggle")
                             Text("Colab").tag("colab")
                         }
-                        Button("Delete selected range…", role: .destructive) {
-                            let paths = Set(selectedChapters.map(\.path))
-                            deleteIDs = bookRecords.filter { paths.contains($0.rendition.chapterId) && (voiceFilter == "all" || $0.rendition.voiceId == voiceFilter) }.map(\.id)
-                        }.disabled(bookRecords.isEmpty)
-                    } label: { AppLabel("Audio download options", systemName: "ellipsis.circle", size: 17, relativeTo: .body) }
+                        if !bookRecords.isEmpty {
+                            Divider()
+                            Button("Delete selected range…", role: .destructive) {
+                                let paths = Set(selectedChapters.map(\.path))
+                                deleteIDs = bookRecords
+                                    .filter { paths.contains($0.rendition.chapterId) && (voiceFilter == "all" || $0.rendition.voiceId == voiceFilter) }
+                                    .map(\.id)
+                            }
+                            Button("Delete all downloaded…", role: .destructive) {
+                                deleteIDs = bookRecords
+                                    .filter { voiceFilter == "all" || $0.rendition.voiceId == voiceFilter }
+                                    .map(\.id)
+                            }
+                        }
+                    } label: {
+                        AppLabel("Audio download options", systemName: "ellipsis.circle", size: 17, relativeTo: .body)
+                    }
                 }
-                AppToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                AppToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
                 if pageCount > 1 {
                     AppToolbarItemGroup(placement: .bottomBar) {
-                        Button { chapterPage = max(0, currentPage - 1) } label: { AppLabel("Previous chapters", systemName: "chevron.left", size: 12, relativeTo: .caption).labelStyle(.iconOnly) }
-                            .disabled(currentPage == 0)
+                        Button { chapterPage = max(0, currentPage - 1) } label: {
+                            AppLabel("Previous chapters", systemName: "chevron.left", size: 12, relativeTo: .caption).labelStyle(.iconOnly)
+                        }
+                        .disabled(currentPage == 0)
                         Spacer()
                         Text(pageLabel).font(.caption.monospacedDigit())
                         Spacer()
-                        Button { chapterPage = min(pageCount - 1, currentPage + 1) } label: { AppLabel("Next chapters", systemName: "chevron.right", size: 17, relativeTo: .body).labelStyle(.iconOnly) }
-                            .disabled(currentPage + 1 >= pageCount)
+                        Button { chapterPage = min(pageCount - 1, currentPage + 1) } label: {
+                            AppLabel("Next chapters", systemName: "chevron.right", size: 17, relativeTo: .body).labelStyle(.iconOnly)
+                        }
+                        .disabled(currentPage + 1 >= pageCount)
                     }
                 }
             }
             .toolbar(pageCount > 1 ? .visible : .hidden, for: .bottomBar)
-            // Pinned exactly like Browse: the drawer sits under the title and
-            // stays while the list scrolls.
-            .appSearchable(
-                text: $search,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "Chapter number or title"
-            )
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
             .appSheet(isPresented: $showVoices) {
                 AppNavigationStack {
-                    AppForm { Section { NarrationComputePicker() }; Section("Narrator") { NarrationVoicePicker(selected: $selectedVoices) } }
-                        .appNavigationTitle("Choose voices").navigationBarTitleDisplayMode(.large)
-                        .appToolbar { AppToolbarItem(placement: .confirmationAction) { Button("Done") {
-                            if let voice = selectedVoices.sorted().first { library.setBookVoice(voice, bookId: bookId) }
-                            showVoices = false
-                        } } }
+                    AppForm {
+                        Section { NarrationComputePicker() }
+                        Section("Narrator") { NarrationVoicePicker(selected: $selectedVoices) }
+                    }
+                    .appNavigationTitle("Choose voices")
+                    .navigationBarTitleDisplayMode(.large)
+                    .appToolbar {
+                        AppToolbarItem(placement: .confirmationAction) {
+                            Button("Done") {
+                                if let voice = selectedVoices.sorted().first {
+                                    library.setBookVoice(voice, bookId: bookId)
+                                }
+                                showVoices = false
+                            }
+                        }
+                    }
                 }
             }
             .appSheet(isPresented: $showRange) { rangePicker }
             .task {
                 if !initialized {
                     let index = chapters.firstIndex { $0.path == initialChapter } ?? 0
-                    fromChapter = index + 1; throughChapter = fromChapter; chapterPage = index / 100
+                    fromChapter = index + 1
+                    throughChapter = fromChapter
+                    chapterPage = index / 100
                     selectedVoices = [library.selectedVoice(bookId: bookId, chapterId: initialChapter ?? chapters.first?.path ?? "")]
                     initialized = true
                 }
@@ -363,110 +424,91 @@ struct BookAudioDownloadsView: View {
                     do { try await Task.sleep(for: .seconds(3)) } catch { return }
                 }
             }
-            .appRefreshable { await library.refreshVoices(); await library.refresh() }
+            .appRefreshable {
+                await library.refreshVoices()
+                await library.refresh()
+            }
             .onChange(of: search) { _, _ in chapterPage = 0 }
             .onChange(of: stateFilter) { _, _ in chapterPage = 0 }
             .onChange(of: voiceFilter) { _, _ in chapterPage = 0 }
-            .appConfirmationDialog("Delete this chapter audio everywhere?", isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })) {
-                if let record = deleteTarget { Button("Delete \(voiceName(record))", role: .destructive) { Task { await library.delete(record.id) }; deleteTarget = nil } }
-            } message: { Text("Other voices and chapter text remain available.") }
-            .appConfirmationDialog("Delete \(deleteIDs.count) chapter voice downloads everywhere?", isPresented: Binding(get: { !deleteIDs.isEmpty }, set: { if !$0 { deleteIDs = [] } })) {
+            .appConfirmationDialog(
+                "Delete this chapter audio everywhere?",
+                isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })
+            ) {
+                if let record = deleteTarget {
+                    Button("Delete \(voiceName(record))", role: .destructive) {
+                        Task { await library.delete(record.id) }
+                        deleteTarget = nil
+                    }
+                }
+            } message: {
+                Text("Other voices and chapter text remain available.")
+            }
+            .appConfirmationDialog(
+                "Delete \(deleteIDs.count) chapter voice downloads everywhere?",
+                isPresented: Binding(get: { !deleteIDs.isEmpty }, set: { if !$0 { deleteIDs = [] } })
+            ) {
                 Button("Delete selected audio everywhere", role: .destructive) {
-                    let ids = deleteIDs; deleteIDs = []
+                    let ids = deleteIDs
+                    deleteIDs = []
                     Task { await library.deleteMany(ids) }
                 }
-            } message: { Text("Chapter text stays on this phone. You can prepare the voices again later.") }
+            } message: {
+                Text("Chapter text stays on this phone. You can prepare the voices again later.")
+            }
         }
     }
-    private var activeVoice: String {
-        let preferred = library.selectedVoice(bookId: bookId, chapterId: initialChapter ?? "")
-        return selectedVoices.contains(preferred) ? preferred : selectedVoices.sorted().first ?? preferred
-    }
-    /// The header already counts downloaded chapters; the footer only adds how
-    /// much room they take on this phone.
-    private var offlineSummary: String {
-        "\(ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)) stored on this phone"
-    }
 
-    /// A quiet empty row. `ContentUnavailableView` is sized for a whole screen;
-    /// inside this sheet its heading outran the book title above it.
-    private var compactEmptyState: some View {
-        VStack(spacing: 8) {
-            AppIcon(systemName: "headphones", size: 28, relativeTo: .body)
-                .font(.system(size: 28, weight: .regular))
-                .foregroundStyle(.secondary)
-            Text("Nothing downloaded")
-                .font(Typography.headline)
-            Text(search.isEmpty && stateFilter == "All"
-                 ? "Use the buttons above to download this chapter, the next ten, or a range."
-                 : "Try another search or filter.")
-                .font(Typography.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-    }
+    // MARK: - Hero
 
-    /// Cover, chapter and narrator on the blurred artwork, then the actions.
-    /// The artwork is the only large graphic on the sheet, so the cover is the
-    /// thing that names the book rather than another competing card.
-    private var dashboard: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top, spacing: 16) {
-                EntryCoverView(url: coverURL, cornerRadius: 10)
-                    .frame(width: 96)
-                    .shadow(color: .black.opacity(0.35), radius: 12, y: 6)
+    private var heroHeader: some View {
+        HStack(alignment: .center, spacing: 16) {
+            EntryCoverView(url: coverURL, cornerRadius: 12)
+                .frame(width: 88)
+                .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(bookTitle)
-                        .font(Typography.title)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(bookTitle)
+                    .font(Typography.title)
+                    .lineLimit(2)
+
+                if let currentChoice {
+                    Text("Chapter \(currentChoice.position + 1) · \(currentChoice.title)")
+                        .font(Typography.body)
+                        .foregroundStyle(.secondary)
                         .lineLimit(2)
-                    if let currentChoice {
-                        Text("Chapter \(currentChoice.position + 1) · \(currentChoice.title)")
-                            .font(Typography.body)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-                    narratorButton
-                        .padding(.top, 4)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
 
-            downloadControls
-
-            if !failedRecords.isEmpty {
-                retryAllButton
+                narratorButton
+                    .padding(.top, 4)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    /// The narrator as a compact control under the chapter, in the same glass
-    /// as the voice chips: the voice's own light marks it, its name is the
-    /// value, and the chevron opens the picker. A card here used to compete
-    /// with the cover for the first glance.
     private var narratorButton: some View {
         let name = library.voices.first { $0.id == activeVoice }?.name ?? "Narrator"
+        let extraCount = max(selectedVoices.count - 1, 0)
+
         return Button { showVoices = true } label: {
             HStack(spacing: 7) {
                 AppIcon(systemName: "waveform", size: 12, relativeTo: .body)
                     .font(.system(size: 12, weight: .semibold))
-                Text(name)
+                Text(extraCount > 0 ? "\(name) +\(extraCount)" : name)
                     .font(Typography.body.weight(.semibold))
                     .lineLimit(1)
                 Text("Narrator")
                     .font(Typography.caption)
-                    .opacity(0.7)
+                    .opacity(0.75)
                 AppIcon(systemName: "chevron.right", size: 10, relativeTo: .body)
                     .font(.system(size: 10, weight: .bold))
-                    .opacity(0.6)
+                    .opacity(0.65)
             }
             .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.45), radius: 2, y: 0.5)
-            .padding(.horizontal, 11)
+            .shadow(color: .black.opacity(0.4), radius: 2, y: 0.5)
+            .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background { VoiceGlowSurface(voiceId: activeVoice, halo: 9) }
+            .background { VoiceGlowSurface(voiceId: activeVoice, halo: 8) }
             .contentShape(Capsule())
         }
         .buttonStyle(AppPlainButtonStyle())
@@ -474,12 +516,13 @@ struct BookAudioDownloadsView: View {
         .accessibilityHint("Choose a narrator voice")
     }
 
-    /// Three direct actions. The set is short and fixed, so hiding it behind a
-    /// dropdown only cost a tap.
-    private var downloadControls: some View {
+    // MARK: - Actions
+
+    private var actionControls: some View {
         VStack(spacing: 10) {
             Button(action: downloadCurrent) {
                 AppLabel(downloadCurrentTitle, systemName: "arrow.down.circle.fill", size: 17, relativeTo: .body)
+                    .fontWeight(.semibold)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity)
             }
@@ -488,53 +531,48 @@ struct BookAudioDownloadsView: View {
             .controlSize(.large)
             .disabled(downloadBlocked)
 
-            HStack(spacing: 10) {
-                Button { downloadNext(10) } label: {
-                    AppLabel("Next 10", systemName: "arrow.down.circle", size: 17, relativeTo: .body)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity)
-                }
-                .appGlassButtonStyle()
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
-                .disabled(downloadBlocked)
+            AudioGlassContainer(spacing: 10) {
+                HStack(spacing: 10) {
+                    Button { downloadNext(10) } label: {
+                        AppLabel("Next 10", systemName: "arrow.down.circle", size: 16, relativeTo: .body)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .appGlassButtonStyle()
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+                    .disabled(downloadBlocked)
 
-                Button { showRange = true } label: {
-                    AppLabel("Range…", systemName: "slider.horizontal.3", size: 17, relativeTo: .body)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity)
+                    Button { showRange = true } label: {
+                        AppLabel("Range…", systemName: "slider.horizontal.3", size: 16, relativeTo: .body)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .appGlassButtonStyle()
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+                    .disabled(chapters.isEmpty)
                 }
-                .appGlassButtonStyle()
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
-                .disabled(chapters.isEmpty)
+            }
+
+            if !failedRecords.isEmpty {
+                retryAllButton
             }
         }
     }
 
-    /// The chapter number in the button says which chapter it will download,
-    /// so the header no longer repeats it.
-    private var downloadCurrentTitle: String {
-        guard let currentChoice else { return "Download chapter" }
-        return "Download chapter \(currentChoice.position + 1)"
-    }
-
-    /// Only failed renditions for this book. Paused ones are excluded: the user
-    /// stopped those on purpose, so retrying them is not what "retry all" means.
-    private var failedRecords: [TTSDownloadRecord] {
-        groups.values
-            .flatMap { $0 }
-            .filter { !$0.isAvailable && $0.state == "failed" }
-    }
-
-    /// Appears only when this book has something to retry, so the sheet does not
-    /// carry a permanently dead button.
     private var retryAllButton: some View {
         Button {
             Haptics.shared.impact(.light, intensity: 0.8)
             Task { await library.retryAllFailed(bookId: bookId) }
         } label: {
-            AppLabel(failedRecords.count == 1 ? "Retry 1 failed chapter" : "Retry \(failedRecords.count) failed chapters", systemName: "arrow.clockwise", size: 17, relativeTo: .body)
+            AppLabel(
+                failedRecords.count == 1 ? "Retry 1 failed chapter" : "Retry \(failedRecords.count) failed chapters",
+                systemName: "arrow.clockwise",
+                size: 16,
+                relativeTo: .body
+            )
+            .foregroundStyle(AppTheme.warning)
             .lineLimit(1)
             .frame(maxWidth: .infinity)
         }
@@ -545,88 +583,371 @@ struct BookAudioDownloadsView: View {
         .accessibilityHint("Queues every failed narration for this book again")
     }
 
-    private var downloadBlocked: Bool {
-        preparing || selectedVoices.isEmpty || currentChapterIndex == nil
-    }
+    // MARK: - Downloads Section
 
-    /// The chapter the sheet was opened from, or the first one when it was not
-    /// opened from a chapter at all.
-    private var currentChapterIndex: Int? {
-        if let initialChapter,
-           let index = chapters.firstIndex(where: { $0.path == initialChapter }) {
-            return index
+    private var downloadsSection: some View {
+        let indexed = groups
+        let visible = visibleAll
+        let page = min(chapterPage, pageCount - 1)
+        let pagedChapters = Array(visible.dropFirst(page * 100).prefix(100))
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                HStack(spacing: 6) {
+                    Text("Downloaded")
+                        .font(Typography.headline)
+                    Text("· \(visibleAll.count)")
+                        .font(Typography.body.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    if byteCount > 0 {
+                        Text("· \(offlineSizeLabel)")
+                            .font(Typography.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                AppMenu {
+                    AppPicker("Status", selection: $stateFilter) {
+                        ForEach(["All", "Downloaded", "Preparing", "Issues"], id: \.self) { Text($0).tag($0) }
+                    }
+                    AppPicker("Voice", selection: $voiceFilter) {
+                        Text("All voices").tag("all")
+                        ForEach(library.voices) { Text($0.name).tag($0.id) }
+                    }
+                    if activeFilterCount > 0 {
+                        Divider()
+                        Button("Reset filters") {
+                            stateFilter = "All"
+                            voiceFilter = "all"
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        AppIcon(systemName: "line.3.horizontal.decrease", size: 12, relativeTo: .caption)
+                        Text(activeFilterCount > 0 ? "\(stateFilter) (\(activeFilterCount))" : "Filter")
+                            .font(Typography.caption.weight(.medium))
+                    }
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 6)
+                    .audioGlassCapsule(interactive: true)
+                }
+            }
+
+            if !bookRecords.isEmpty {
+                inlineSearchBar
+            }
+
+            if pagedChapters.isEmpty {
+                compactEmptyState
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(pagedChapters.enumerated()), id: \.element.id) { idx, chapter in
+                        chapterRow(chapter, records: indexed[chapter.path] ?? [])
+                        if idx < pagedChapters.count - 1 {
+                            Divider()
+                                .overlay(.white.opacity(0.08))
+                                .padding(.leading, 62)
+                        }
+                    }
+                }
+                .audioGlassCard(cornerRadius: Layout.cardRadius)
+            }
         }
-        return chapters.isEmpty ? nil : 0
     }
 
-    private func downloadCurrent() {
-        guard let index = currentChapterIndex else { return }
-        fromChapter = index + 1
-        throughChapter = fromChapter
-        prepareSelected()
+    private var inlineSearchBar: some View {
+        HStack(spacing: 8) {
+            AppIcon(systemName: "magnifyingglass", size: 14, relativeTo: .body)
+                .foregroundStyle(.secondary)
+            TextField("Chapter number or title", text: $search)
+                .font(Typography.body)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            if !search.isEmpty {
+                Button { search = "" } label: {
+                    AppIcon(systemName: "xmark.circle.fill", size: 15, relativeTo: .body)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(AppPlainButtonStyle())
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .audioGlassCapsule(interactive: true)
     }
 
-    /// `count` chapters starting at the current one, matching the old "Next 10".
-    private func downloadNext(_ count: Int) {
-        guard let index = currentChapterIndex else { return }
-        fromChapter = index + 1
-        throughChapter = min(chapters.count, fromChapter + count - 1)
-        prepareSelected()
+    private var compactEmptyState: some View {
+        VStack(spacing: 8) {
+            AppIcon(systemName: "headphones", size: 28, relativeTo: .body)
+                .foregroundStyle(.secondary)
+            Text(bookRecords.isEmpty ? "Nothing downloaded" : "No matching chapters")
+                .font(Typography.headline)
+            Text(
+                bookRecords.isEmpty
+                    ? "Download this chapter, the next ten, or pick a custom range above."
+                    : "Try clearing your search or changing the filter."
+            )
+            .font(Typography.body)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 12)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+        .padding(.horizontal, 16)
+        .audioGlassCard(cornerRadius: Layout.cardRadius)
     }
-    /// The third of the three direct actions: a two-handle slider for picking a
-    /// span quickly, with a stepper per edge for landing on an exact chapter.
-    ///
-    /// The steppers never dead-end. Moving one edge past the other takes the
-    /// other with it, so a collapsed range at chapter 1 still grows whichever
-    /// way the user pushes; the old version disabled the button they reached for.
+
+    private func chapterRow(_ chapter: TTSChapterChoice, records: [TTSDownloadRecord]) -> some View {
+        let primary = primaryRecord(records)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().fill(.white.opacity(0.09))
+                    Text("\(chapter.position + 1)")
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.primary)
+                }
+                .frame(width: 36, height: 36)
+
+                AppNavigationLink {
+                    TTSChapterAudioDetailView(
+                        chapter: chapter,
+                        bookId: bookId,
+                        bookTitle: bookTitle,
+                        coverURL: coverURL,
+                        onPlay: { playAudio($0) },
+                        onAddVoice: { showVoices = true }
+                    )
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(chapter.title)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                        Text(
+                            primary.map {
+                                $0.isAvailable
+                                    ? "\(voiceName($0)) · Offline"
+                                    : $0.rendition.completedChunks > 0
+                                        ? "\(voiceName($0)) · \($0.rendition.completedChunks)/\($0.rendition.totalChunks) parts ready"
+                                        : status($0)
+                            } ?? (records.isEmpty ? "Tap to see details" : "\(records.count) voices saved")
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(AppPlainButtonStyle())
+
+                if let primary, canPlay(primary) {
+                    Button { playAudio(primary) } label: {
+                        AppLabel("Play \(chapter.title)", systemName: "play.circle.fill", size: 28, relativeTo: .title)
+                            .labelStyle(.iconOnly)
+                    }
+                } else if let primary, ["failed", "paused"].contains(primary.state) {
+                    Button { Task { await library.retry(primary.id) } } label: {
+                        AppLabel("Retry \(chapter.title)", systemName: "arrow.clockwise.circle", size: 22, relativeTo: .title2)
+                            .labelStyle(.iconOnly)
+                            .foregroundStyle(AppTheme.warning)
+                    }
+                } else if primary != nil {
+                    ProgressView()
+                } else {
+                    Button { downloadChapter(chapter) } label: {
+                        AppLabel("Download \(chapter.title)", systemName: "arrow.down.circle", size: 22, relativeTo: .title2)
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(preparing)
+                }
+            }
+            .buttonStyle(AppBorderlessButtonStyle())
+
+            if let primary, ["waiting", "downloading"].contains(primary.state) {
+                ProgressView(value: primary.progress)
+                    .tint(AppTheme.primaryFill)
+                    .padding(.leading, 48)
+            }
+
+            if let primary, primary.state == "failed" || primary.state == "paused" {
+                HStack(alignment: .center, spacing: 8) {
+                    Text(primary.error ?? "Preparation is paused.")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.warning)
+                        .lineLimit(2)
+                    Spacer()
+                    Button("Retry") { Task { await library.retry(primary.id) } }
+                        .font(.caption.weight(.semibold))
+                        .buttonStyle(AppBorderlessButtonStyle())
+                }
+                .padding(.leading, 48)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contextMenu {
+            if let primary, canPlay(primary) {
+                Button("Play", systemImage: "play.fill") { playAudio(primary) }
+            }
+            if let primary, ["failed", "paused"].contains(primary.state) {
+                Button("Retry", systemImage: "arrow.clockwise") {
+                    Task { await library.retry(primary.id) }
+                }
+            }
+            if let primary {
+                Button("Delete \(voiceName(primary))", systemImage: "trash", role: .destructive) {
+                    deleteTarget = primary
+                }
+            }
+        }
+    }
+
+    // MARK: - Range Sheet
+
     private var rangePicker: some View {
         AppNavigationStack {
-            AppForm {
-                Section {
-                    VStack(spacing: 12) {
-                        ChapterRangeSlider(lower: $fromChapter, upper: $throughChapter, count: chapters.count)
-                        HStack {
-                            Text("1")
-                            Spacer()
-                            Text(max(chapters.count, 1).formatted())
-                        }
-                        .font(Typography.small.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    // Live range summary header
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Chapters \(fromChapter.formatted())–\(throughChapter.formatted())")
+                            .font(Typography.headline.monospacedDigit())
+                        Spacer()
+                        Text("\(selectedChapters.count.formatted()) selected")
+                            .font(Typography.caption.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
-                    .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
-                    rangeStepperRow("From", value: fromChapterBinding)
-                    rangeStepperRow("Through", value: throughChapterBinding)
-                } header: {
-                    Text("Chapters")
-                } footer: {
+                    .padding(.horizontal, 4)
+
+                    // Quick preset chips
+                    AudioGlassContainer(spacing: 8) {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                rangePresetChip("+10") { applyPreset(span: 10) }
+                                rangePresetChip("+25") { applyPreset(span: 25) }
+                                rangePresetChip("+50") { applyPreset(span: 50) }
+                                rangePresetChip("To End") {
+                                    setRangeStart(fromChapter)
+                                    setRangeEnd(chapters.count)
+                                }
+                                rangePresetChip("All") {
+                                    setRangeStart(1)
+                                    setRangeEnd(chapters.count)
+                                }
+                            }
+                        }
+                    }
+
+                    // Unified slider + steppers Liquid Glass card
+                    VStack(spacing: 0) {
+                        VStack(spacing: 8) {
+                            ChapterRangeSlider(lower: $fromChapter, upper: $throughChapter, count: chapters.count)
+                            HStack {
+                                Text("1")
+                                Spacer()
+                                Text(max(chapters.count, 1).formatted())
+                            }
+                            .font(Typography.small.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 14)
+
+                        Divider().overlay(.white.opacity(0.08))
+
+                        rangeStepperRow("From", value: fromChapterBinding)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+
+                        Divider()
+                            .overlay(.white.opacity(0.08))
+                            .padding(.leading, 16)
+
+                        rangeStepperRow("Through", value: throughChapterBinding)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    }
+                    .audioGlassCard(cornerRadius: Layout.cardRadius)
+
                     Text(rangeSummary)
+                        .font(Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
                 }
+                .padding(.horizontal, Layout.horizontalPadding)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
+            }
+            .scrollIndicators(.hidden)
+            .background {
+                EntryAtmosphericBackdrop(
+                    coverURL: coverURL,
+                    tint: coverTint,
+                    strength: tintStrength * 0.65,
+                    scrimDepth: 0.84
+                )
             }
             .appNavigationTitle("Range")
             .navigationBarTitleDisplayMode(.inline)
             .appToolbar {
-                AppToolbarItem(placement: .cancellationAction) { Button("Cancel") { showRange = false } }
+                AppToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showRange = false }
+                }
             }
             .safeAreaInset(edge: .bottom) {
                 Button { commitRange() } label: {
-                    Text(rangeDownloadTitle).frame(maxWidth: .infinity)
+                    Text(rangeDownloadTitle)
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
                 }
                 .primaryActionStyle()
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
                 .disabled(selectedChapters.isEmpty || selectedVoices.isEmpty || preparing)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(.bar)
+                .padding(.horizontal, Layout.horizontalPadding)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
             }
         }
         .appPresentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 
+    private func rangePresetChip(_ title: String, action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.shared.selection()
+            action()
+        } label: {
+            Text(title)
+                .font(Typography.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 8)
+                .audioGlassCapsule(interactive: true)
+        }
+        .buttonStyle(AppPlainButtonStyle())
+    }
+
+    private func applyPreset(span: Int) {
+        let start = max(1, min(fromChapter, max(chapters.count, 1)))
+        setRangeStart(start)
+        setRangeEnd(min(chapters.count, start + span - 1))
+    }
+
     private func rangeStepperRow(_ title: String, value: Binding<Int>) -> some View {
         AppStepper(value: value, in: 1...max(chapters.count, 1)) {
             HStack {
                 Text(title)
+                    .font(Typography.body)
                 Spacer()
                 Text(value.wrappedValue.formatted())
                     .font(Typography.body.monospacedDigit().weight(.semibold))
@@ -638,7 +959,7 @@ struct BookAudioDownloadsView: View {
 
     private var rangeDownloadTitle: String {
         let count = selectedChapters.count
-        return count == 1 ? "Download 1 chapter" : "Download \(count) chapters"
+        return count == 1 ? "Download 1 chapter" : "Download \(count.formatted()) chapters"
     }
 
     private var fromChapterBinding: Binding<Int> {
@@ -665,7 +986,32 @@ struct BookAudioDownloadsView: View {
         let count = selectedChapters.count
         let voices = selectedVoices.count
         guard voices > 0 else { return "Choose a narrator before preparing this range." }
-        return "\(count) chapter\(count == 1 ? "" : "s") in \(voices) voice\(voices == 1 ? "" : "s"), prepared in the background and kept on this phone."
+        return "\(count.formatted()) chapter\(count == 1 ? "" : "s") in \(voices) voice\(voices == 1 ? "" : "s"), prepared in the background and kept on this phone."
+    }
+
+    // MARK: - Actions & Helpers
+
+    private func dismissToast(_ toast: AudioToastMessage) {
+        if toast.kind == .progress {
+            preparationTask?.cancel()
+        } else {
+            dismissedToastID = toast.id
+            if error != nil { error = nil }
+        }
+    }
+
+    private func downloadCurrent() {
+        guard let index = currentChapterIndex else { return }
+        fromChapter = index + 1
+        throughChapter = fromChapter
+        prepareSelected()
+    }
+
+    private func downloadNext(_ count: Int) {
+        guard let index = currentChapterIndex else { return }
+        fromChapter = index + 1
+        throughChapter = min(chapters.count, fromChapter + count - 1)
+        prepareSelected()
     }
 
     private func commitRange() {
@@ -674,88 +1020,63 @@ struct BookAudioDownloadsView: View {
         showRange = false
         prepareSelected()
     }
-    private func chapterSummary(_ records: [TTSDownloadRecord]) -> String {
-        if records.isEmpty { return "No audio downloaded" }
-        let ready = records.filter(\.isAvailable).count
-        let pending = records.filter { ["waiting", "downloading"].contains($0.state) }.count
-        let issues = records.filter { $0.error != nil || ["failed", "paused"].contains($0.state) }.count
-        return [ready > 0 ? "\(ready) voices offline" : nil, pending > 0 ? "\(pending) preparing" : nil, issues > 0 ? "\(issues) need attention" : nil].compactMap { $0 }.joined(separator: " · ")
+
+    private func primaryRecord(_ records: [TTSDownloadRecord]) -> TTSDownloadRecord? {
+        records.first { $0.rendition.voiceId == activeVoice }
     }
-    private func primaryRecord(_ records: [TTSDownloadRecord]) -> TTSDownloadRecord? { records.first { $0.rendition.voiceId == activeVoice } }
-    private func canPlay(_ record: TTSDownloadRecord) -> Bool { record.isAvailable || record.rendition.completedChunks > 0 }
+
+    private func canPlay(_ record: TTSDownloadRecord) -> Bool {
+        record.isAvailable || record.rendition.completedChunks > 0
+    }
+
     private func playAudio(_ record: TTSDownloadRecord) {
         library.selectVoice(record.rendition.voiceId, bookId: bookId, chapterId: record.rendition.chapterId)
         ReaderTTSManager.shared.attachCover(url: coverURL, bookId: bookId)
         ReaderTTSManager.shared.playAvailable(record)
         dismiss()
     }
+
     private func downloadChapter(_ chapter: TTSChapterChoice) {
         fromChapter = (chapters.firstIndex { $0.path == chapter.path } ?? 0) + 1
-        throughChapter = fromChapter; prepareSelected()
+        throughChapter = fromChapter
+        prepareSelected()
     }
-    private func chapterRow(_ chapter: TTSChapterChoice, records: [TTSDownloadRecord]) -> some View {
-        let primary = primaryRecord(records)
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(AppTheme.surface)
-                    Text("\(chapter.position + 1)").font(.caption.monospacedDigit().weight(.semibold)).foregroundStyle(.primary)
-                }.frame(width: 36, height: 36)
-                AppNavigationLink {
-                    TTSChapterAudioDetailView(chapter: chapter, bookId: bookId, bookTitle: bookTitle, coverURL: coverURL,
-                                              onPlay: { playAudio($0) }, onAddVoice: { showVoices = true })
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(chapter.title).font(.subheadline).foregroundStyle(.primary).lineLimit(2)
-                        Text(primary.map { $0.isAvailable ? "\(voiceName($0)) · Offline" : $0.rendition.completedChunks > 0 ? "\(voiceName($0)) · \($0.rendition.completedChunks)/\($0.rendition.totalChunks) parts ready" : status($0) } ?? (records.isEmpty ? "Tap to see details" : "\(records.count) voices saved"))
-                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                }.buttonStyle(AppPlainButtonStyle())
-                if let primary, canPlay(primary) {
-                    Button { playAudio(primary) } label: { AppLabel("Play \(chapter.title)", systemName: "play.circle.fill", size: 28, relativeTo: .title).labelStyle(.iconOnly).font(.title) }
-                } else if let primary, ["failed", "paused"].contains(primary.state) {
-                    Button { Task { await library.retry(primary.id) } } label: { AppLabel("Retry \(chapter.title)", systemName: "arrow.clockwise.circle", size: 22, relativeTo: .title2).labelStyle(.iconOnly).font(.title2) }
-                } else if primary != nil {
-                    ProgressView()
-                } else {
-                    Button { downloadChapter(chapter) } label: { AppLabel("Download \(chapter.title)", systemName: "arrow.down.circle", size: 22, relativeTo: .title2).labelStyle(.iconOnly).font(.title2) }.disabled(preparing)
-                }
-            }.buttonStyle(AppBorderlessButtonStyle())
-            if let primary, ["waiting", "downloading"].contains(primary.state) { ProgressView(value: primary.progress) }
-            if let primary, primary.state == "failed" || primary.state == "paused" {
-                HStack(alignment: .top) {
-                    Text(primary.error ?? "Preparation is paused.").font(.caption).foregroundStyle(AppTheme.warning).lineLimit(2)
-                    Spacer()
-                    Button("Retry") { Task { await library.retry(primary.id) } }.font(.caption.weight(.semibold)).buttonStyle(AppBorderlessButtonStyle())
-                }
-            }
-        }.padding(.vertical, 4)
-        .listRowBackground(Rectangle().fill(.regularMaterial))
-        .swipeActions {
-            if let primary {
-                Button("Delete", systemImage: "trash", role: .destructive) { deleteTarget = primary }
-                if ["failed", "paused"].contains(primary.state) { Button("Retry", systemImage: "arrow.clockwise") { Task { await library.retry(primary.id) } }.tint(Color(.systemGray)) }
-            }
-        }
+
+    private func voiceName(_ record: TTSDownloadRecord) -> String {
+        library.voices.first { $0.id == record.rendition.voiceId }?.name
+            ?? record.manifest?.voiceName
+            ?? record.rendition.voiceId
     }
-    private func voiceName(_ record: TTSDownloadRecord) -> String { library.voices.first { $0.id == record.rendition.voiceId }?.name ?? record.manifest?.voiceName ?? record.rendition.voiceId }
+
     private func status(_ record: TTSDownloadRecord) -> String {
         switch record.state {
-        case "downloaded": return "Available offline · " + ByteCountFormatter.string(fromByteCount: record.bytesExpected, countStyle: .file)
+        case "downloaded":
+            return "Available offline · " + ByteCountFormatter.string(fromByteCount: record.bytesExpected, countStyle: .file)
         case "waiting":
             if record.rendition.status == "ready" { return "Ready on server · waiting for transfer" }
-            let label = record.rendition.status == "loading" ? "Loading Breeze models" : record.rendition.status == "generating" ? "Generating speech" : record.rendition.status == "assembling" ? "Assembling audio" : record.rendition.status.capitalized
+            let label = record.rendition.status == "loading"
+                ? "Loading Breeze models"
+                : record.rendition.status == "generating"
+                    ? "Generating speech"
+                    : record.rendition.status == "assembling"
+                        ? "Assembling audio"
+                        : record.rendition.status.capitalized
             return "\(label) · \(record.rendition.completedChunks)/\(record.rendition.totalChunks) parts"
-        case "downloading": return "Downloading to this phone"
-        default: return record.state.capitalized
+        case "downloading":
+            return "Downloading to this phone"
+        default:
+            return record.state.capitalized
         }
     }
+
     private func prepareSelected() {
         guard !preparing else { return }
         let choices = selectedChapters
         let preferred = library.selectedVoice(bookId: bookId, chapterId: initialChapter ?? choices.first?.path ?? "")
         let voices = selectedVoices.sorted { a, b in a == preferred ? true : b == preferred ? false : a < b }
-        preparing = true; error = nil
+        preparing = true
+        error = nil
+        dismissedToastID = nil
         preparationTask = Task { @MainActor in
             defer { preparing = false }
             do {
@@ -763,82 +1084,49 @@ struct BookAudioDownloadsView: View {
                     try Task.checkCancellation()
                     preparationProgress = "Adding \(index + 1) of \(choices.count)…"
                     if let cached = library.localText(bookId: bookId, chapterId: chapter.path) {
-                        try await library.prepare(chapter: .init(bookId: bookId, bookTitle: bookTitle, chapterId: chapter.path, title: chapter.title, position: chapter.position, blocks: cached.blocks), voiceIds: voices)
+                        try await library.prepare(
+                            chapter: .init(bookId: bookId, bookTitle: bookTitle, chapterId: chapter.path, title: chapter.title, position: chapter.position, blocks: cached.blocks),
+                            voiceIds: voices
+                        )
                         continue
                     }
                     let html: String
                     if sourceKey == SourceKey.local {
-                        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("LocalNovels").appendingPathComponent(entryURL.replacingOccurrences(of: "local://", with: ""))
+                        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                            .appendingPathComponent("LocalNovels")
+                            .appendingPathComponent(entryURL.replacingOccurrences(of: "local://", with: ""))
                         let file = folder.appendingPathComponent(chapter.path).standardizedFileURL
-                        guard file.path.hasPrefix(folder.standardizedFileURL.path + "/") else { throw TTSError.request("Invalid local chapter path") }
+                        guard file.path.hasPrefix(folder.standardizedFileURL.path + "/") else {
+                            throw TTSError.request("Invalid local chapter path")
+                        }
                         html = try String(contentsOf: file, encoding: .utf8)
                     } else {
-                        guard let source = sourceManager.novelSource(forKey: sourceKey) else { throw TTSError.request("Source is unavailable") }
+                        guard let source = sourceManager.novelSource(forKey: sourceKey) else {
+                            throw TTSError.request("Source is unavailable")
+                        }
                         html = try await source.chapterHTML(SourceChapter(url: chapter.path, name: chapter.title))
                     }
                     let blocks = try await TTSChapterTextExtractor().extract(html)
-                    try await library.prepare(chapter: .init(bookId: bookId, bookTitle: bookTitle, chapterId: chapter.path, title: chapter.title, position: chapter.position, blocks: blocks), voiceIds: voices)
+                    try await library.prepare(
+                        chapter: .init(bookId: bookId, bookTitle: bookTitle, chapterId: chapter.path, title: chapter.title, position: chapter.position, blocks: blocks),
+                        voiceIds: voices
+                    )
                 }
             } catch is CancellationError { }
-            catch { self.error = "\(preparationProgress) \(error.localizedDescription) Chapters already added remain queued." }
-        }
-    }
-}
-
-/// The book's cover, blurred and darkened, behind the whole sheet — the way
-/// Apple Music lays an album page over its own artwork. The scrim keeps labels
-/// legible and stays dark, which the app's dark-only appearance makes safe.
-private struct CoverBackdrop: View {
-    let url: String?
-    var tint: Color?
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                Color(.systemBackground)
-                if let urlString = url, let imageURL = URL(string: urlString) {
-                    CustomAsyncImage(url: imageURL) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.clear
-                    }
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                    .clipped()
-                    // The blur eats its own edges; grow the artwork past the
-                    // sheet so no dark rim shows through.
-                    .scaleEffect(1.3)
-                    .blur(radius: 55, opaque: true)
-                    .saturation(1.15)
-                    .opacity(0.7)
-                }
-                if let tint { tint.opacity(0.18) }
-                LinearGradient(
-                    stops: [
-                        .init(color: .black.opacity(0.25), location: 0),
-                        .init(color: .black.opacity(0.45), location: 0.4),
-                        .init(color: .black.opacity(0.75), location: 1),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+            catch {
+                self.error = "\(preparationProgress) \(error.localizedDescription) Chapters already added remain queued."
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 }
 
-/// Two handles over the chapter numbers, dragged as one 44-point-tall control.
-/// With the handles apart the gesture takes the nearer one. With both on the
-/// same chapter it waits for the drag direction, so pulling left grows the range
-/// backwards and pulling right grows it forwards instead of both handles
-/// fighting over the finger; dragging back to the start lets it switch sides.
+/// Upgraded Liquid Glass range slider (preserves the collapsed-range bidirectional drag behavior).
 private struct ChapterRangeSlider: View {
     @Binding var lower: Int
     @Binding var upper: Int
     let count: Int
+
+    @Environment(\.noLiquidGlass) private var classic
     private let knob: CGFloat = 28
     private let hitHeight: CGFloat = 44
     @State private var drag: DragState?
@@ -856,17 +1144,21 @@ private struct ChapterRangeSlider: View {
             let span = max(width - knob, 1)
             let lowerX = knob / 2 + span * position(of: lower)
             let upperX = knob / 2 + span * position(of: upper)
+
             ZStack(alignment: .topLeading) {
                 Capsule()
-                    .fill(.quaternary)
+                    .fill(.white.opacity(0.16))
                     .frame(width: span, height: 6)
                     .position(x: width / 2, y: hitHeight / 2)
+
                 Capsule()
                     .fill(AppTheme.primaryFill)
                     .frame(width: max(upperX - lowerX, 0), height: 6)
                     .position(x: (lowerX + upperX) / 2, y: hitHeight / 2)
+
                 knobView(active: drag?.handle == .lower)
                     .position(x: lowerX, y: hitHeight / 2)
+
                 knobView(active: drag?.handle == .upper)
                     .position(x: upperX, y: hitHeight / 2)
             }
@@ -887,13 +1179,21 @@ private struct ChapterRangeSlider: View {
         }
     }
 
+    @ViewBuilder
     private func knobView(active: Bool) -> some View {
-        Circle()
-            .fill(Color(.systemBackground))
-            .overlay(Circle().strokeBorder(AppTheme.primaryFill, lineWidth: 3))
+        let base = Circle()
+            .fill(.white.opacity(active ? 0.96 : 0.88))
+            .overlay(Circle().strokeBorder(.white.opacity(0.45), lineWidth: 1))
             .frame(width: knob, height: knob)
-            .scaleEffect(active ? 1.12 : 1)
-            .shadow(color: .black.opacity(0.18), radius: 3, y: 1)
+            .scaleEffect(active ? 1.14 : 1)
+            .shadow(color: .black.opacity(0.28), radius: active ? 8 : 4, y: 2)
+            .animation(.spring(response: 0.22, dampingFraction: 0.78), value: active)
+
+        if #available(iOS 26.0, *), !classic {
+            base.glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            base
+        }
     }
 
     private func dragGesture(span: CGFloat) -> some Gesture {
@@ -906,17 +1206,17 @@ private struct ChapterRangeSlider: View {
                         guard abs(value.translation.width) > 2 else { return }
                         drag = DragState(
                             handle: value.translation.width < 0 ? .lower : .upper,
-                            startedCollapsed: true)
+                            startedCollapsed: true
+                        )
                     } else {
                         let lowerX = knob / 2 + span * position(of: lower)
                         let upperX = knob / 2 + span * position(of: upper)
                         drag = DragState(
                             handle: abs(value.startLocation.x - lowerX) <= abs(value.startLocation.x - upperX) ? .lower : .upper,
-                            startedCollapsed: false)
+                            startedCollapsed: false
+                        )
                     }
                 }
-                // A range that started collapsed can be dragged back through the
-                // start and out the other side, so the same gesture works both ways.
                 if var state = drag, state.startedCollapsed, lower == upper,
                    abs(value.translation.width) > 2 {
                     state.handle = value.translation.width < 0 ? .lower : .upper
@@ -949,6 +1249,130 @@ private struct ChapterRangeSlider: View {
     }
 }
 
+// MARK: - Toast Model & Placeholder (swap for app's existing Liquid Glass toast)
+
+private struct AudioToastMessage: Equatable {
+    enum Kind: Equatable { case progress, warning }
+    let id: String
+    let kind: Kind
+    let message: String
+}
+
+private struct AudioStatusToast: View {
+    let toast: AudioToastMessage
+    var onStop: (() -> Void)? = nil
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if toast.kind == .progress {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                AppIcon(systemName: "exclamationmark.circle.fill", size: 16, relativeTo: .body)
+                    .foregroundStyle(AppTheme.warning)
+            }
+
+            Text(toast.message)
+                .font(Typography.caption.weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let onStop {
+                Button("Stop", action: onStop)
+                    .font(Typography.caption.weight(.semibold))
+                    .buttonStyle(AppBorderlessButtonStyle())
+            }
+
+            Button(action: onDismiss) {
+                AppIcon(systemName: "xmark", size: 11, relativeTo: .caption)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(AppPlainButtonStyle())
+            .accessibilityLabel("Dismiss message")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .audioGlassCapsule(interactive: true)
+        .shadow(color: .black.opacity(0.28), radius: 14, y: 6)
+        .gesture(
+            DragGesture(minimumDistance: 16)
+                .onEnded { value in
+                    if value.translation.height > 20 { onDismiss() }
+                }
+        )
+    }
+}
+
+// MARK: - Dual-Mode Liquid Glass Helpers
+
+/// Groups interactive glass controls on iOS 26, and falls back to plain
+/// content in classic mode (the app's `noLiquidGlass` runtime gate) as well as
+/// on older OS versions.
+private struct AudioGlassContainer<Content: View>: View {
+    @Environment(\.noLiquidGlass) private var classic
+    let spacing: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if #available(iOS 26.0, *), !classic {
+            GlassEffectContainer(spacing: spacing) { content() }
+        } else {
+            content()
+        }
+    }
+}
+
+private struct AudioGlassCard: ViewModifier {
+    @Environment(\.noLiquidGlass) private var classic
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        Group {
+            if #available(iOS 26.0, *), !classic {
+                content
+                    .background(shape.fill(.white.opacity(0.04)))
+                    .glassEffect(.regular, in: shape)
+            } else {
+                content
+                    .background(shape.fill(.ultraThinMaterial))
+                    .overlay(shape.strokeBorder(.white.opacity(0.10), lineWidth: 0.75))
+                    .clipShape(shape)
+            }
+        }
+    }
+}
+
+private struct AudioGlassCapsule: ViewModifier {
+    @Environment(\.noLiquidGlass) private var classic
+    let interactive: Bool
+
+    func body(content: Content) -> some View {
+        Group {
+            if #available(iOS 26.0, *), !classic {
+                content.glassEffect(interactive ? .regular.interactive() : .regular, in: Capsule())
+            } else {
+                content
+                    .background(Capsule().fill(.ultraThinMaterial))
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 0.75))
+            }
+        }
+    }
+}
+
+private extension View {
+    func audioGlassCard(cornerRadius: CGFloat) -> some View {
+        modifier(AudioGlassCard(cornerRadius: cornerRadius))
+    }
+
+    func audioGlassCapsule(interactive: Bool = false) -> some View {
+        modifier(AudioGlassCapsule(interactive: interactive))
+    }
+}
 
 
 @MainActor
