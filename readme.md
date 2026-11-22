@@ -13,10 +13,12 @@ identity.
 
 ## Screenshots
 
-| | |
-|---|---|
-| ![Library](screenshots/IMG_2522.png) | ![Reader](screenshots/IMG_2523.png) |
-| ![Manga reader](screenshots/IMG_2524.png) | ![Chapter list](screenshots/IMG_2526.png) |
+| | | |
+|---|---|---|
+| ![LNReader screenshot 4972](screenshots/IMG_4972.PNG) | ![LNReader screenshot 4973](screenshots/IMG_4973.PNG) | ![LNReader screenshot 4974](screenshots/IMG_4974.PNG) |
+| ![LNReader screenshot 4975](screenshots/IMG_4975.PNG) | ![LNReader screenshot 4976](screenshots/IMG_4976.PNG) | ![LNReader screenshot 4977](screenshots/IMG_4977.PNG) |
+| ![LNReader screenshot 4979](screenshots/IMG_4979.PNG) | ![LNReader screenshot 4980](screenshots/IMG_4980.PNG) | ![LNReader screenshot 4981](screenshots/IMG_4981.PNG) |
+| ![LNReader screenshot 4982](screenshots/IMG_4982.PNG) | ![LNReader screenshot 4983](screenshots/IMG_4983.PNG) | ![LNReader screenshot 4984](screenshots/IMG_4984.png) |
 
 ## Install with AltStore
 
