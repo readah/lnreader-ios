@@ -488,10 +488,22 @@ enum MinimalRowStyle {
     static let textLeading: CGFloat = coverLeading + coverWidth + 24
     static let rowHeight: CGFloat = 122
 
-    /// A tilt that stays the same per book, between -6° and 5°.
+    /// A stable tilt per book, -9°...9°. FNV-1a rather than a character sum:
+    /// titles that differ by one character must not land on the same lean,
+    /// and the extra width makes the difference readable on a dark cover.
     static func tilt(for title: String) -> Double {
-        let sum = title.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
-        return Double((sum % 12) - 6)
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for scalar in title.unicodeScalars {
+            hash ^= UInt64(scalar.value)
+            hash &*= 1_099_511_628_211
+        }
+        return Double(hash % 19) - 9
+    }
+
+    /// The small scroll-driven lean every cover shares. Kept well below the
+    /// per-book tilt so position cannot flatten what the title chose.
+    nonisolated static func drift(frame: CGRect, screenHeight: CGFloat) -> Double {
+        Double((frame.midY / max(1, screenHeight)) - 0.45) * 1.2
     }
 
     /// 0...1 for how far a row is under the title (`top`) and into the bottom
@@ -923,7 +935,7 @@ private struct MinimalFeedRow: View {
                     screenHeight: screenHeight,
                     bandStart: 1 - MinimalMode.bottomBand * 0.75
                 )
-                let drift = Double((frame.midY / max(1, screenHeight)) - 0.45) * 2.2
+                let drift = MinimalRowStyle.drift(frame: frame, screenHeight: screenHeight)
                 return content
                     .rotationEffect(.degrees(tilt + drift))
                     .blur(radius: MinimalRowStyle.blur(fade: fade, cover: true))

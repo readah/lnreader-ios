@@ -424,7 +424,7 @@ private struct MinimalLibraryRow: View {
                     let frame = proxy.frame(in: .named(MinimalPageSpace.name))
                     // The cover blurs a little later than its label.
                     let fade = MinimalRowStyle.fade(frame, screenHeight: height, bandStart: 1 - MinimalMode.bottomBand * 0.75)
-                    let drift = Double((frame.midY / max(1, height)) - 0.45) * 2.2
+                    let drift = MinimalRowStyle.drift(frame: frame, screenHeight: height)
                     return content
                         .rotationEffect(.degrees(tilt + drift))
                         .blur(radius: MinimalRowStyle.blur(fade: fade, cover: true))
