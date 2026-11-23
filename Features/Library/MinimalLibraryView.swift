@@ -69,7 +69,6 @@ struct MinimalLibraryView: View {
     /// every row the scroll crosses, and a sort is an ICU compare per element.
     @State private var sortCache = LibrarySortCache()
 
-    private let rowHeight: CGFloat = 122
     private let topInset: CGFloat = 84
 
     var body: some View {
@@ -79,7 +78,7 @@ struct MinimalLibraryView: View {
 
                 // Above the shelf, below the chrome: the title and the bar stay
                 // full strength while the rows darken into them.
-                vignettes(screenHeight: screenHeight)
+                MinimalPageScrims(screenHeight: screenHeight)
 
                 VStack(spacing: 10) {
                     MinimalPageHeader(title: "Library") { importButton }
@@ -189,7 +188,6 @@ struct MinimalLibraryView: View {
                         MinimalLibraryRow(
                             entry: entry,
                             unread: counts[entry.persistentModelID]?.unread ?? 0,
-                            rowHeight: rowHeight,
                             screenHeight: screenHeight,
                             namespace: bookTransitions
                         ) {
@@ -209,7 +207,7 @@ struct MinimalLibraryView: View {
         .refreshable { onRefresh() }
         .onScrollPhaseChange { _, phase in scrollPhase = phase }
         .onScrollGeometryChange(for: Int.self) { geometry in
-            Int(((geometry.contentOffset.y + geometry.contentInsets.top) / rowHeight).rounded(.down))
+            Int(((geometry.contentOffset.y + geometry.contentInsets.top) / MinimalRowStyle.rowHeight).rounded(.down))
         } action: { old, new in
             rowPassed(from: old, to: new, count: items.count)
         }
@@ -224,44 +222,8 @@ struct MinimalLibraryView: View {
         let now = ProcessInfo.processInfo.systemUptime
         let dt = now - lastRowChange
         lastRowChange = now
-        let speed = dt > 0 ? Double(rowHeight) * Double(abs(new - old)) / dt : 0
+        let speed = dt > 0 ? Double(MinimalRowStyle.rowHeight) * Double(abs(new - old)) / dt : 0
         Haptics.shared.shelfRowPassed(speed: speed)
-    }
-
-    // MARK: - Vignettes
-
-    /// Darken the top under the title and only the last band at the bottom,
-    /// where the glass bar sits. This page draws its own scrims rather than the
-    /// pager container, so the title and the bar are never dimmed by them and
-    /// they travel with the shelf while it is being swiped away.
-    private func vignettes(screenHeight: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            LinearGradient(
-                stops: [
-                    .init(color: .black.opacity(0.55), location: 0.0),
-                    .init(color: .black.opacity(0.32), location: 0.55),
-                    .init(color: .clear, location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 130)
-
-            Spacer()
-
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.0),
-                    .init(color: .black.opacity(0.3), location: 0.55),
-                    .init(color: .black.opacity(0.55), location: 1.0)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: screenHeight * MinimalMode.bottomBand)
-        }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
     }
 
     // MARK: - Header
@@ -402,7 +364,6 @@ private struct MinimalLibraryRow: View {
     let entry: Entry
     /// Unread chapters, from the shelf's count pass. Zero draws nothing.
     let unread: Int
-    let rowHeight: CGFloat
     let screenHeight: CGFloat
     var namespace: Namespace.ID
     let onTap: () -> Void
@@ -411,16 +372,9 @@ private struct MinimalLibraryRow: View {
     /// badges off in Settings does not want them back on the shelf.
     private var badgePrefs = LibraryBadgePrefs()
 
-    /// The share of the screen, from the bottom, where rows blur out.
-    nonisolated static var bottomBand: CGFloat { MinimalMode.bottomBand }
-
-    private static let coverLeading: CGFloat = 24
-    private static let coverWidth: CGFloat = 92
-    private static let textLeading: CGFloat = coverLeading + coverWidth + 24
-
     var body: some View {
         let height = screenHeight
-        let tilt = baseTilt
+        let tilt = MinimalRowStyle.tilt(for: entry.displayTitle)
 
         ZStack(alignment: .leading) {
             VStack {
@@ -428,7 +382,7 @@ private struct MinimalLibraryRow: View {
                 Rectangle()
                     .fill(Color.white.opacity(0.11))
                     .frame(height: 0.6)
-                    .padding(.leading, Self.textLeading)
+                    .padding(.leading, MinimalRowStyle.textLeading)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -444,17 +398,17 @@ private struct MinimalLibraryRow: View {
                         .lineLimit(1)
                 }
             }
-            .padding(.leading, Self.textLeading)
+            .padding(.leading, MinimalRowStyle.textLeading)
             .padding(.trailing, 20)
             .visualEffect { content, proxy in
-                let fade = Self.fade(proxy.frame(in: .named(MinimalPageSpace.name)), screenHeight: height, bandStart: 1 - Self.bottomBand)
+                let fade = MinimalRowStyle.fade(proxy.frame(in: .named(MinimalPageSpace.name)), screenHeight: height, bandStart: 1 - MinimalMode.bottomBand)
                 return content
-                    .blur(radius: fade.top * 8 + pow(fade.bottom, 1.35) * 12)
-                    .opacity(max(0.18, 1 - fade.top * 0.45 - fade.bottom * 0.7))
+                    .blur(radius: MinimalRowStyle.blur(fade: fade, cover: false))
+                    .opacity(MinimalRowStyle.opacity(fade: fade))
             }
 
             EntryCoverView(url: entry.displayThumbnailURL, aspectRatio: 2 / 3, cornerRadius: 5)
-                .frame(width: Self.coverWidth)
+                .frame(width: MinimalRowStyle.coverWidth)
                 // Inside the rotation, so the badge tilts with the cover and
                 // reads as printed on it rather than floating over it. The same
                 // badge the grid puts on a cover, at the same corner. After the
@@ -469,17 +423,17 @@ private struct MinimalLibraryRow: View {
                 .visualEffect { content, proxy in
                     let frame = proxy.frame(in: .named(MinimalPageSpace.name))
                     // The cover blurs a little later than its label.
-                    let fade = Self.fade(frame, screenHeight: height, bandStart: 1 - Self.bottomBand * 0.75)
+                    let fade = MinimalRowStyle.fade(frame, screenHeight: height, bandStart: 1 - MinimalMode.bottomBand * 0.75)
                     let drift = Double((frame.midY / max(1, height)) - 0.45) * 2.2
                     return content
                         .rotationEffect(.degrees(tilt + drift))
-                        .blur(radius: fade.top * 9 + pow(fade.bottom, 1.45) * 14)
+                        .blur(radius: MinimalRowStyle.blur(fade: fade, cover: true))
                 }
                 .bookTransitionSource(entry.persistentModelID, in: namespace)
-                .padding(.leading, Self.coverLeading)
+                .padding(.leading, MinimalRowStyle.coverLeading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: rowHeight)
+        .frame(height: MinimalRowStyle.rowHeight)
         .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
         .accessibilityElement(children: .combine)
@@ -493,21 +447,6 @@ private struct MinimalLibraryRow: View {
         unread > 0 && badgePrefs.settings.unread ? unread : 0
     }
 
-    /// 0...1 for how far the row is under the title (`top`) and into the bottom
-    /// band (`bottom`, which starts at `bandStart` of the screen height).
-    nonisolated private static func fade(_ frame: CGRect, screenHeight: CGFloat, bandStart: CGFloat) -> (top: CGFloat, bottom: CGFloat) {
-        let top = max(0, min(1, (128 - frame.minY) / 75))
-        let start = screenHeight * bandStart
-        let span = max(1, screenHeight - start)
-        let bottom = max(0, min(1, (frame.midY - start) / span))
-        return (top, bottom)
-    }
-
-    /// A tilt that stays the same per book, between -6° and 5°.
-    private var baseTilt: Double {
-        let sum = entry.displayTitle.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
-        return Double((sum % 12) - 6)
-    }
 }
 
 #Preview {

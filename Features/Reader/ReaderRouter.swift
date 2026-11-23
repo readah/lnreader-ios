@@ -58,6 +58,20 @@ final class ReaderRouter {
     }
 }
 
+extension ReaderRouter {
+    /// Every History and Updates row opens the same way, whatever screen it is
+    /// on. A chapter whose entry was removed still opens with blank source data.
+    func open(_ chapter: Chapter) {
+        open(
+            sourceKey: chapter.entry?.sourceKey ?? "",
+            entryURL: chapter.entry?.url,
+            kind: chapter.entry?.kind ?? .novel,
+            chapterURL: chapter.url,
+            chapterName: chapter.name
+        )
+    }
+}
+
 // MARK: - Covered-by-reader environment
 
 private struct IsReaderPresentedKey: EnvironmentKey {

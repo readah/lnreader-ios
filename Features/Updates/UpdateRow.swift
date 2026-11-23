@@ -54,15 +54,6 @@ struct UpdateRow: View {
             }
 
             Spacer()
-
-            // Unread indicator
-            if !chapter.read {
-                AppIcon(systemName: "circle.fill", size: 11, relativeTo: .caption2)
-                    .font(Typography.small)
-                    .imageScale(.small)
-                    .foregroundStyle(.primary)
-                    .accessibilityHidden(true)
-            }
         }
     }
 }

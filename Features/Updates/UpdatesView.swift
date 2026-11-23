@@ -24,7 +24,7 @@ struct UpdatesView: View {
     /// The last feed shown. Updates stays mounted under the reader and its query
     /// (a scan of every chapter for `dateFetch`) re-runs on each progress save, on
     /// the main thread, mid-scroll. Nothing here is visible then: hold the list.
-    @State private var held = HeldFeed()
+    @State private var held = HeldItems<Chapter>()
 
     private var recentChapters: [Chapter] {
         if isReaderPresented, let items = held.items { return items }
@@ -33,17 +33,8 @@ struct UpdatesView: View {
         return result
     }
 
-    /// Newest-first, capped: grouping and diffing every chapter ever fetched
-    /// froze the main thread for over a second on a large library.
-    private static let feedLimit = 300
-
     init() {
-        var descriptor = FetchDescriptor<Chapter>(
-            predicate: #Predicate { $0.dateFetch != nil && !$0.hidden },
-            sortBy: [SortDescriptor(\Chapter.dateFetch, order: .reverse)]
-        )
-        descriptor.fetchLimit = Self.feedLimit
-        _allRecentChapters = Query(descriptor)
+        _allRecentChapters = Query(FeedQueries.updates)
     }
 
     var body: some View {
@@ -76,15 +67,7 @@ struct UpdatesView: View {
                                         onOpenEntry: {
                                             if let entry = chapter.entry { path.append(entry) }
                                         },
-                                        onOpenChapter: {
-                                            readerRouter.open(
-                                                sourceKey: chapter.entry?.sourceKey ?? "",
-                                                entryURL: chapter.entry?.url,
-                                                kind: chapter.entry?.kind ?? .novel,
-                                                chapterURL: chapter.url,
-                                                chapterName: chapter.name
-                                            )
-                                        }
+                                        onOpenChapter: { readerRouter.open(chapter) }
                                     )
                                     .listRowBackground(Color.clear)
                                 }
@@ -174,28 +157,7 @@ struct UpdatesView: View {
     // MARK: - Grouping
 
     /// Group chapters by the day they were fetched.
-    private var groupedUpdates: [(key: String, value: [Chapter])] {
-        let calendar = Calendar.current
-        var buckets: [Date: [Chapter]] = [:]
-        var undated: [Chapter] = []
-        for chapter in recentChapters {
-            guard let date = chapter.dateFetch else {
-                undated.append(chapter)
-                continue
-            }
-            buckets[calendar.startOfDay(for: date), default: []].append(chapter)
-        }
-        var groups = buckets.keys.sorted(by: >).map { day in
-            (day.daySectionTitle, buckets[day] ?? [])
-        }
-        if !undated.isEmpty {
-            groups.append(("Unknown", undated))
-        }
-        return groups
+    private var groupedUpdates: [(key: String, items: [Chapter])] {
+        DaySections.of(recentChapters, date: \.dateFetch, rows: { $0 })
     }
-}
-
-/// A reference box: writing to it while `body` runs does not invalidate the view.
-private final class HeldFeed {
-    var items: [Chapter]?
 }

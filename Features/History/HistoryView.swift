@@ -10,8 +10,7 @@ struct HistoryView: View {
     @Environment(LibraryManager.self) private var libraryManager
     @Namespace private var chapterTransitions
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \History.lastRead, order: .reverse)
-    private var history: [History]
+    @Query private var history: [History]
 
     /// Changes when the History tab is tapped again; opens the most recent chapter.
     var resumeTrigger = 0
@@ -27,7 +26,12 @@ struct HistoryView: View {
     /// progress save re-runs `@Query` here: a fetch plus an in-memory sort of
     /// every row, on the main thread, mid-scroll. While the reader is open nothing
     /// here can be seen, so the list is held and rebuilt when the reader closes.
-    @State private var held = HeldHistory()
+    @State private var held = HeldItems<History>()
+
+    init(resumeTrigger: Int = 0) {
+        self.resumeTrigger = resumeTrigger
+        _history = Query(FeedQueries.history)
+    }
 
     var body: some View {
         AppNavigationStack(path: $path) {
@@ -196,28 +200,15 @@ struct HistoryView: View {
 
     /// Day sections, each split into runs: back-to-back reads of the same
     /// entry collapse into one row. A run never crosses a day boundary.
-    private var groupedHistory: [(key: String, value: [HistoryRun])] {
-        let calendar = Calendar.current
-        var buckets: [Date: [History]] = [:]
-        for item in filteredHistory where item.chapter != nil {
-            buckets[calendar.startOfDay(for: item.lastRead), default: []].append(item)
-        }
-        return buckets.keys.sorted(by: >).map { day in
-            (day.daySectionTitle, HistoryRun.runs(of: buckets[day] ?? []))
-        }
+    private var groupedHistory: [(key: String, items: [HistoryRun])] {
+        DaySections.of(filteredHistory, date: { $0.lastRead }, rows: HistoryRun.runs(of:))
     }
 
     // MARK: - Actions
 
     private func open(_ item: History) {
         guard let chapter = item.chapter else { return }
-        readerRouter.open(
-            sourceKey: chapter.entry?.sourceKey ?? "",
-            entryURL: chapter.entry?.url,
-            kind: chapter.entry?.kind ?? .novel,
-            chapterURL: chapter.url,
-            chapterName: chapter.name
-        )
+        readerRouter.open(chapter)
     }
 
     private func toggle(_ run: HistoryRun) {
@@ -230,13 +221,7 @@ struct HistoryView: View {
     private func resumeLatest() {
         guard path.isEmpty, readerRouter.request == nil,
               let chapter = history.first(where: { $0.chapter != nil })?.chapter else { return }
-        readerRouter.open(
-            sourceKey: chapter.entry?.sourceKey ?? "",
-            entryURL: chapter.entry?.url,
-            kind: chapter.entry?.kind ?? .novel,
-            chapterURL: chapter.url,
-            chapterName: chapter.name
-        )
+        readerRouter.open(chapter)
     }
 
     private func delete(_ items: [History]) {
@@ -298,9 +283,4 @@ struct HistoryRun: Identifiable {
         }
         return runs.map(HistoryRun.init)
     }
-}
-
-/// A reference box: writing to it while `body` runs does not invalidate the view.
-private final class HeldHistory {
-    var items: [History]?
 }

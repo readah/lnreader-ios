@@ -286,10 +286,10 @@ struct MinimalModeView: View {
                         )
                     }
                     page(.history) {
-                        MinimalHistoryPage(safeTop: safeTop, safeBottom: safeBottom)
+                        MinimalHistoryPage(safeTop: safeTop, screenHeight: height)
                     }
                     page(.updates) {
-                        MinimalUpdatesPage(safeTop: safeTop, safeBottom: safeBottom)
+                        MinimalUpdatesPage(safeTop: safeTop, screenHeight: height)
                     }
                 }
                 .frame(width: screenGeo.size.width, height: height)
@@ -478,6 +478,89 @@ enum MinimalResumeFeed {
 /// just because the whole page is moving.
 enum MinimalPageSpace {
     static let name = "minimalPage"
+}
+
+/// The shelf's row geometry, shared with the History and Updates pages so
+/// every Minimal Mode page reads as the same dark cover list.
+enum MinimalRowStyle {
+    static let coverLeading: CGFloat = 24
+    static let coverWidth: CGFloat = 92
+    static let textLeading: CGFloat = coverLeading + coverWidth + 24
+    static let rowHeight: CGFloat = 122
+
+    /// A tilt that stays the same per book, between -6° and 5°.
+    static func tilt(for title: String) -> Double {
+        let sum = title.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
+        return Double((sum % 12) - 6)
+    }
+
+    /// 0...1 for how far a row is under the title (`top`) and into the bottom
+    /// band (`bottom`, which starts at `bandStart` of the screen height).
+    nonisolated static func fade(
+        _ frame: CGRect,
+        screenHeight: CGFloat,
+        bandStart: CGFloat
+    ) -> (top: CGFloat, bottom: CGFloat) {
+        let top = max(0, min(1, (128 - frame.minY) / 75))
+        let start = screenHeight * bandStart
+        let span = max(1, screenHeight - start)
+        let bottom = max(0, min(1, (frame.midY - start) / span))
+        return (top, bottom)
+    }
+
+    /// How much a row blurs at that fade. Covers blur a little later and harder
+    /// than their text.
+    nonisolated static func blur(
+        fade: (top: CGFloat, bottom: CGFloat),
+        cover: Bool
+    ) -> CGFloat {
+        cover
+            ? fade.top * 9 + pow(fade.bottom, 1.45) * 14
+            : fade.top * 8 + pow(fade.bottom, 1.35) * 12
+    }
+
+    /// Text fades but never disappears: a row under the title still reads as
+    /// a row, just a distant one.
+    nonisolated static func opacity(fade: (top: CGFloat, bottom: CGFloat)) -> CGFloat {
+        max(0.18, 1 - fade.top * 0.45 - fade.bottom * 0.7)
+    }
+}
+
+/// The two scrims every minimal page wears: dark under the floating title and
+/// only across the band where the glass bar sits. Drawn by the page, not the
+/// container, so neither the title nor the bar is dimmed by them.
+struct MinimalPageScrims: View {
+    let screenHeight: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.55), location: 0.0),
+                    .init(color: .black.opacity(0.32), location: 0.55),
+                    .init(color: .clear, location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 130)
+
+            Spacer()
+
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: .black.opacity(0.3), location: 0.55),
+                    .init(color: .black.opacity(0.55), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: screenHeight * MinimalMode.bottomBand)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
 }
 
 /// Lifts the whole pager off its resting place. It exists so that the only
@@ -704,7 +787,9 @@ private struct MinimalFeedPage<Body: View, Trailing: View>: View {
     let page: MinimalPager.Page
     let title: String
     let safeTop: CGFloat
-    let safeBottom: CGFloat
+    let screenHeight: CGFloat
+    let refreshEnabled: Bool
+    let onRefresh: () -> Void
     @Binding var path: NavigationPath
     let trailing: Trailing
     @ViewBuilder var content: () -> Body
@@ -713,15 +798,29 @@ private struct MinimalFeedPage<Body: View, Trailing: View>: View {
 
     var body: some View {
         AppNavigationStack(path: $path) {
-            VStack(spacing: 0) {
-                MinimalPageHeader(title: title) { trailing }
-                content()
+            ZStack(alignment: .top) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    // Lazy, and it matters for a 300-row feed. The top clears
+                    // the floating title, the bottom clears the glass bar.
+                    LazyVStack(spacing: 0) {
+                        Color.clear.frame(height: safeTop + 84)
+                        content()
+                        Color.clear.frame(height: 150)
+                    }
+                }
+                .ignoresSafeArea(edges: .bottom)
+                .appRefreshable("Refresh \(title.lowercased())", enabled: refreshEnabled) { onRefresh() }
+
+                MinimalPageScrims(screenHeight: screenHeight)
+
+                // Above the scrims, below nothing: the title and page actions
+                // stay full strength while the rows fade under them.
+                VStack(spacing: 10) {
+                    MinimalPageHeader(title: title) { trailing }
+                }
+                .padding(.top, safeTop)
             }
-            .padding(.top, safeTop)
-            // The bar floats over every page, so the list stops above it.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Color.clear.frame(height: 76 + safeBottom)
-            }
+            .coordinateSpace(.named(MinimalPageSpace.name))
             .appNavigationDestination(for: Entry.self) { entry in
                 // A migrated entry takes the place of the one that left.
                 EntryDetailView(entry: entry) { replacement in
@@ -737,47 +836,214 @@ private struct MinimalFeedPage<Body: View, Trailing: View>: View {
     }
 }
 
-/// Day sections, newest first: the shape both feeds list by. Each page says how
-/// its own items become rows — chapters stay as they are, history collapses
-/// into runs. Items whose date is missing trail the rest under "Unknown".
-private enum MinimalDaySections {
-    static func of<Item, Row>(
-        _ items: [Item],
-        date: (Item) -> Date?,
-        rows: ([Item]) -> [Row]
-    ) -> [(key: String, items: [Row])] {
-        let calendar = Calendar.current
-        var buckets: [Date: [Item]] = [:]
-        var undated: [Item] = []
-        for item in items {
-            guard let day = date(item) else {
-                undated.append(item)
-                continue
+// MARK: - Feed rows
+
+/// A cover-forward row, drawn from the same geometry as the library shelf: a
+/// stable tilted cover, a white title beside it, and the same fade under the
+/// title and into the bar. Updates and History differ only in their text.
+private struct MinimalFeedRow: View {
+    let entry: Entry?
+    let bookTitle: String
+    let title: String
+    let meta: String
+    let screenHeight: CGFloat
+    /// A second cover behind this one, for a history run folded into one row.
+    var stacked = false
+    var earlierCount = 0
+    var isExpanded = false
+    var onToggle: () -> Void = {}
+    let onOpenEntry: () -> Void
+    let onOpenChapter: () -> Void
+
+    var body: some View {
+        let tilt = MinimalRowStyle.tilt(for: bookTitle)
+
+        ZStack(alignment: .leading) {
+            VStack {
+                Spacer()
+                Rectangle()
+                    .fill(Color.white.opacity(0.11))
+                    .frame(height: 0.6)
+                    .padding(.leading, MinimalRowStyle.textLeading)
             }
-            buckets[calendar.startOfDay(for: day), default: []].append(item)
+
+            HStack(spacing: 12) {
+                details
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onOpenChapter)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("Opens the chapter")
+
+                Spacer(minLength: 0)
+
+                if earlierCount > 0 {
+                    runToggle
+                }
+            }
+            .padding(.trailing, MinimalRowStyle.coverLeading)
+
+            cover(tilt: tilt)
+                .buttonStyle(AppPlainButtonStyle())
+                .padding(.leading, MinimalRowStyle.coverLeading)
         }
-        var sections: [(key: String, items: [Row])] = buckets.keys.sorted(by: >).map { day in
-            (key: day.daySectionTitle, items: rows(buckets[day] ?? []))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: MinimalRowStyle.rowHeight)
+    }
+
+    private func cover(tilt: Double) -> some View {
+        Button(action: onOpenEntry) {
+            EntryCoverView(
+                url: entry?.displayThumbnailURL,
+                aspectRatio: 2 / 3,
+                cornerRadius: 5
+            )
+            .frame(width: MinimalRowStyle.coverWidth)
+            .background(alignment: .top) {
+                if stacked {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.white.opacity(0.18))
+                        .frame(
+                            width: MinimalRowStyle.coverWidth - 8,
+                            height: MinimalRowStyle.coverWidth * 1.5 - 8
+                        )
+                        .offset(y: -4)
+                }
+            }
+            .shadow(color: .black.opacity(0.6), radius: 10, x: 2, y: -4)
+            .shadow(color: .black.opacity(0.4), radius: 14, x: 4, y: 8)
+            .visualEffect { content, proxy in
+                let frame = proxy.frame(in: .named(MinimalPageSpace.name))
+                let fade = MinimalRowStyle.fade(
+                    frame,
+                    screenHeight: screenHeight,
+                    bandStart: 1 - MinimalMode.bottomBand * 0.75
+                )
+                let drift = Double((frame.midY / max(1, screenHeight)) - 0.45) * 2.2
+                return content
+                    .rotationEffect(.degrees(tilt + drift))
+                    .blur(radius: MinimalRowStyle.blur(fade: fade, cover: true))
+            }
         }
-        // An item with no date is still an item: the full Updates tab lists it
-        // under "Unknown" at the bottom rather than losing it, and so does this.
-        if !undated.isEmpty {
-            sections.append((key: "Unknown", items: rows(undated)))
+        .accessibilityLabel("Open \(bookTitle)")
+        .accessibilityHint("Opens the book, not the chapter")
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(bookTitle)
+                .font(Typography.headline.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+            Text(title)
+                .font(Typography.body)
+                .foregroundStyle(Color.white.opacity(0.68))
+                .lineLimit(2)
+            if !meta.isEmpty {
+                Text(meta)
+                    .font(Typography.small)
+                    .foregroundStyle(Color.white.opacity(0.45))
+                    .lineLimit(1)
+            }
         }
-        return sections
+        .padding(.leading, MinimalRowStyle.textLeading)
+        .padding(.trailing, 8)
+        .visualEffect { content, proxy in
+            let fade = MinimalRowStyle.fade(
+                proxy.frame(in: .named(MinimalPageSpace.name)),
+                screenHeight: screenHeight,
+                bandStart: 1 - MinimalMode.bottomBand
+            )
+            return content
+                .blur(radius: MinimalRowStyle.blur(fade: fade, cover: false))
+                .opacity(MinimalRowStyle.opacity(fade: fade))
+        }
+    }
+
+    private var runToggle: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 3) {
+                Text("+\(earlierCount)")
+                    .font(Typography.small.weight(.semibold))
+                    .monospacedDigit()
+                AppIcon(systemName: "chevron.down", size: 11, relativeTo: .caption2)
+                    .font(Typography.small.weight(.bold))
+                    .rotationEffect(.degrees(isExpanded ? -180 : 0))
+            }
+            .foregroundStyle(.white.opacity(0.85))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.white.opacity(0.12), in: Capsule())
+        }
+        .buttonStyle(AppPlainButtonStyle())
+        .accessibilityLabel(isExpanded ? "Hide earlier chapters" : "Show \(earlierCount) earlier chapters")
+    }
+}
+
+/// A day heading in the same quiet serif register as the shelf's floating
+/// title, not the system list header the tab screens wear.
+private struct MinimalFeedSection: View {
+    let title: String
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(.system(.footnote, design: .serif, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.55))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, MinimalRowStyle.coverLeading)
+            .padding(.top, 18)
+            .padding(.bottom, 2)
+    }
+}
+
+/// An earlier read under an open run: no cover to repeat, just the chapter on
+/// a rail aligned with the rows above it.
+private struct MinimalHistoryChapterRow: View {
+    let name: String
+    let meta: String
+    let onOpen: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Spacer().frame(width: MinimalRowStyle.coverLeading)
+            Rectangle()
+                .fill(Color.white.opacity(0.16))
+                .frame(width: 1)
+            Spacer().frame(width: MinimalRowStyle.textLeading - MinimalRowStyle.coverLeading - 1)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(Typography.body)
+                    .foregroundStyle(Color.white.opacity(0.78))
+                    .lineLimit(1)
+                if !meta.isEmpty {
+                    Text(meta)
+                        .font(Typography.small)
+                        .foregroundStyle(Color.white.opacity(0.45))
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 10)
+        .padding(.trailing, MinimalRowStyle.coverLeading)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpen)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens the chapter")
     }
 }
 
 // MARK: - Updates page
 
-/// The unread new chapters, on the dark surface. The toast on the library page
-/// says how many arrived; what they are belongs here.
+/// The newly fetched chapters, read or not, on the dark surface. The toast on
+/// the library page says how many arrived; what they are belongs here.
 struct MinimalUpdatesPage: View {
     /// The safe-area band the page's chrome has to stay inside: the page itself
     /// is full screen so the pages tile, but nothing should sit under the
     /// status bar or the home indicator.
     let safeTop: CGFloat
-    let safeBottom: CGFloat
+    let screenHeight: CGFloat
 
     @Environment(\.isReaderPresented) private var isReaderPresented
     @Environment(\.modelContext) private var modelContext
@@ -790,19 +1056,18 @@ struct MinimalUpdatesPage: View {
     /// The last feed shown. The page stays mounted under the reader and the
     /// query re-runs on each progress save: hold the list (the `UpdatesView`
     /// rule).
-    @State private var held = MinimalHeld<Chapter>()
+    @State private var held = HeldItems<Chapter>()
 
-    init(safeTop: CGFloat, safeBottom: CGFloat) {
+    init(safeTop: CGFloat, screenHeight: CGFloat) {
         self.safeTop = safeTop
-        self.safeBottom = safeBottom
-        _allChapters = Query(MinimalUpdateFeed.descriptor)
+        self.screenHeight = screenHeight
+        _allChapters = Query(FeedQueries.updates)
     }
 
     private var chapters: [Chapter] {
         if isReaderPresented, let items = held.items { return items }
-        let result = allChapters.filter { $0.entry?.inLibrary == true }
-        held.items = result
-        return result
+        held.items = allChapters
+        return allChapters
     }
 
     var body: some View {
@@ -810,49 +1075,44 @@ struct MinimalUpdatesPage: View {
             page: .updates,
             title: "Updates",
             safeTop: safeTop,
-            safeBottom: safeBottom,
+            screenHeight: screenHeight,
+            refreshEnabled: !libraryManager.isUpdating,
+            onRefresh: startUpdate,
             path: $path,
             trailing: refreshButton
         ) {
             if chapters.isEmpty {
                 emptyState
             } else {
-                List {
-                    ForEach(groupedChapters, id: \.key) { date, dayChapters in
-                        Section(date) {
-                            ForEach(Array(dayChapters.enumerated()), id: \.element.id) { index, chapter in
-                                UpdateRow(
-                                    chapter: chapter,
-                                    onOpenEntry: {
-                                        if let entry = chapter.entry { path.append(entry) }
-                                    },
-                                    onOpenChapter: { open(chapter) }
-                                )
-                                .minimalPageItem(index: index, page: .updates)
-                                .listRowBackground(Color.clear)
-                            }
-                        }
-                        .listRowBackground(Color.clear)
+                ForEach(groupedChapters, id: \.key) { date, dayChapters in
+                    MinimalFeedSection(title: date)
+                    ForEach(Array(dayChapters.enumerated()), id: \.element.id) { index, chapter in
+                        MinimalFeedRow(
+                            entry: chapter.entry,
+                            bookTitle: chapter.entry?.displayTitle ?? "Unknown",
+                            title: chapter.name,
+                            meta: chapter.dateUpload?.formatted ?? "",
+                            screenHeight: screenHeight,
+                            onOpenEntry: {
+                                if let entry = chapter.entry { path.append(entry) }
+                            },
+                            onOpenChapter: { open(chapter) }
+                        )
+                        .minimalPageItem(index: index, page: .updates)
+                        .zIndex(Double(index))
                     }
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .appRefreshable("Refresh updates", enabled: !libraryManager.isUpdating) { startUpdate() }
             }
         }
     }
 
     private var emptyState: some View {
-        ScrollView {
-            EmptyStateView(
-                icon: "bell.badge",
-                title: "No Updates",
-                subtitle: "New chapters from your library will appear here."
-            )
-            .frame(maxWidth: .infinity, minHeight: 300)
-        }
-        .appRefreshable("Refresh updates", enabled: !libraryManager.isUpdating) { startUpdate() }
-        .frame(maxHeight: .infinity)
+        EmptyStateView(
+            icon: "bell.badge",
+            title: "No Updates",
+            subtitle: "New chapters from your library will appear here."
+        )
+        .frame(maxWidth: .infinity, minHeight: 300)
     }
 
     private var refreshButton: some View {
@@ -886,45 +1146,14 @@ struct MinimalUpdatesPage: View {
     }
 
     private func open(_ chapter: Chapter) {
-        guard let entry = chapter.entry else { return }
         Haptics.shared.impact(.light)
-        readerRouter.open(
-            sourceKey: entry.sourceKey,
-            entryURL: entry.url,
-            kind: entry.kind,
-            chapterURL: chapter.url,
-            chapterName: chapter.name
-        )
+        readerRouter.open(chapter)
     }
 
     /// Day sections, newest first.
     private var groupedChapters: [(key: String, items: [Chapter])] {
-        MinimalDaySections.of(chapters, date: \.dateFetch, rows: { $0 })
+        DaySections.of(chapters, date: \.dateFetch, rows: { $0 })
     }
-}
-
-enum MinimalUpdateFeed {
-    /// Built once: a page's `init` runs whenever its container rebuilds, and
-    /// building a `#Predicate` on every pass is not free.
-    static let descriptor: FetchDescriptor<Chapter> = {
-        var descriptor = FetchDescriptor<Chapter>(
-            predicate: #Predicate<Chapter> {
-                $0.dateFetch != nil && !$0.hidden && !$0.read
-            },
-            sortBy: [SortDescriptor(\Chapter.dateFetch, order: .reverse)])
-        descriptor.fetchLimit = 300
-        return descriptor
-    }()
-}
-
-/// The same cap for History: the newest 200 reads.
-enum MinimalHistoryFeed {
-    static let descriptor: FetchDescriptor<History> = {
-        var descriptor = FetchDescriptor<History>(
-            sortBy: [SortDescriptor(\History.lastRead, order: .reverse)])
-        descriptor.fetchLimit = 200
-        return descriptor
-    }()
 }
 
 // MARK: - History page
@@ -933,21 +1162,25 @@ enum MinimalHistoryFeed {
 /// run-collapsed shape the full History tab uses.
 struct MinimalHistoryPage: View {
     let safeTop: CGFloat
-    let safeBottom: CGFloat
+    let screenHeight: CGFloat
 
     @Environment(\.isReaderPresented) private var isReaderPresented
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(ReaderRouter.self) private var readerRouter
 
     @Query private var history: [History]
     @State private var path = NavigationPath()
     /// Held while the reader is open: the page stays mounted and every
     /// progress save re-runs the query (the `HistoryView` rule).
-    @State private var held = MinimalHeld<History>()
+    @State private var held = HeldItems<History>()
+    /// Runs the user has opened, by `HistoryRun.id` — the same expansion the
+    /// History tab offers.
+    @State private var expandedRuns: Set<String> = []
 
-    init(safeTop: CGFloat, safeBottom: CGFloat) {
+    init(safeTop: CGFloat, screenHeight: CGFloat) {
         self.safeTop = safeTop
-        self.safeBottom = safeBottom
-        _history = Query(MinimalHistoryFeed.descriptor)
+        self.screenHeight = screenHeight
+        _history = Query(FeedQueries.recentHistory)
     }
 
     private var items: [History] {
@@ -962,93 +1195,87 @@ struct MinimalHistoryPage: View {
             page: .history,
             title: "History",
             safeTop: safeTop,
-            safeBottom: safeBottom,
+            screenHeight: screenHeight,
+            refreshEnabled: false,
+            onRefresh: {},
             path: $path,
             trailing: EmptyView()
         ) {
             if items.isEmpty {
-                ScrollView {
-                    EmptyStateView(
-                        icon: "clock",
-                        title: "No Reading History",
-                        subtitle: "Chapters you read will appear here."
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 300)
-                }
-                .frame(maxHeight: .infinity)
+                EmptyStateView(
+                    icon: "clock",
+                    title: "No Reading History",
+                    subtitle: "Chapters you read will appear here."
+                )
+                .frame(maxWidth: .infinity, minHeight: 300)
             } else {
-                List {
-                    ForEach(groupedRuns, id: \.key) { date, runs in
-                        Section(date) {
-                            ForEach(Array(runs.enumerated()), id: \.element.id) { index, run in
-                                row(run)
-                                    .minimalPageItem(index: index, page: .history)
-                                    .listRowBackground(Color.clear)
-                            }
-                        }
-                        .listRowBackground(Color.clear)
+                ForEach(groupedRuns, id: \.key) { date, runs in
+                    MinimalFeedSection(title: date)
+                    ForEach(Array(runs.enumerated()), id: \.element.id) { index, run in
+                        rows(run)
+                            .minimalPageItem(index: index, page: .history)
+                            .zIndex(Double(index))
                     }
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
             }
         }
     }
 
-    private func row(_ run: HistoryRun) -> some View {
-        let head = run.head
-        return HStack(spacing: 12) {
-            RowCoverButton(entry: head.chapter?.entry) {
-                if let entry = head.chapter?.entry { path.append(entry) }
+    /// A run's head row, then its earlier chapters when it is open. Both use
+    /// the shelf's cover-forward row, not the tab screen's compact list row.
+    @ViewBuilder
+    private func rows(_ run: HistoryRun) -> some View {
+        let isExpanded = expandedRuns.contains(run.id)
+        MinimalFeedRow(
+            entry: run.head.chapter?.entry,
+            bookTitle: run.head.chapter?.entry?.displayTitle ?? "Unknown",
+            title: run.head.chapter?.name ?? "Unknown chapter",
+            meta: meta(for: run.head),
+            screenHeight: screenHeight,
+            stacked: run.earlier.count > 0 && !isExpanded,
+            earlierCount: run.earlier.count,
+            isExpanded: isExpanded,
+            onToggle: { toggle(run) },
+            onOpenEntry: {
+                if let entry = run.head.chapter?.entry { path.append(entry) }
+            },
+            onOpenChapter: { open(run.head) }
+        )
+
+        if isExpanded {
+            ForEach(run.earlier) { item in
+                MinimalHistoryChapterRow(
+                    name: item.chapter?.name ?? "",
+                    meta: meta(for: item)
+                ) { open(item) }
             }
-
-            VStack(alignment: .leading, spacing: 3) {
-                if let entry = head.chapter?.entry {
-                    Text(entry.displayTitle)
-                        .font(Typography.caption)
-                        .foregroundStyle(.white.opacity(0.6))
-                        .lineLimit(1)
-                }
-
-                Text(head.chapter?.name ?? "Unknown chapter")
-                    .font(Typography.body)
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-
-                HStack(spacing: 6) {
-                    Text(head.lastRead, format: .dateTime.hour().minute())
-                    if run.items.count > 1 {
-                        Text("· \(run.items.count) chapters")
-                    }
-                }
-                .font(Typography.small)
-                .foregroundStyle(.white.opacity(0.45))
-            }
-
-            Spacer(minLength: 0)
         }
-        .padding(.vertical, 4)
-        .contentShape(.rect)
-        .onTapGesture { open(head) }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Opens the chapter")
+    }
+
+    private func meta(for item: History) -> String {
+        var parts: [String] = []
+        if let progress = item.chapter?.progress, progress > 0, progress < 100 {
+            parts.append("\(Int(progress))%")
+        }
+        parts.append(item.lastRead.timeAgo)
+        return parts.joined(separator: " · ")
     }
 
     private func open(_ item: History) {
         guard let chapter = item.chapter else { return }
         Haptics.shared.impact(.light)
-        readerRouter.open(
-            sourceKey: chapter.entry?.sourceKey ?? "",
-            entryURL: chapter.entry?.url,
-            kind: chapter.entry?.kind ?? .novel,
-            chapterURL: chapter.url,
-            chapterName: chapter.name
-        )
+        readerRouter.open(chapter)
+    }
+
+    private func toggle(_ run: HistoryRun) {
+        Haptics.shared.impact(.light, intensity: 0.8)
+        withAnimation(AppMotion.gentle(reduceMotion: reduceMotion)) {
+            if expandedRuns.remove(run.id) == nil { expandedRuns.insert(run.id) }
+        }
     }
 
     private var groupedRuns: [(key: String, items: [HistoryRun])] {
-        MinimalDaySections.of(items, date: \.lastRead, rows: { HistoryRun.runs(of: $0) })
+        DaySections.of(items, date: { $0.lastRead }, rows: HistoryRun.runs(of:))
     }
 }
 
@@ -1248,12 +1475,4 @@ private struct MinimalUpdateToast: View {
         Haptics.shared.selection()
         onDismiss()
     }
-}
-
-// MARK: - Hold box
-
-/// A reference box: writing to it while `body` runs does not invalidate the
-/// view.
-private final class MinimalHeld<Item> {
-    var items: [Item]?
 }
