@@ -849,6 +849,9 @@ private struct MinimalFeedRow: View {
     let screenHeight: CGFloat
     /// A second cover behind this one, for a history run folded into one row.
     var stacked = false
+    /// Read chapters keep their row but step back, the way the tab screens
+    /// grey out a chapter name once it has been read.
+    var isRead = false
     var earlierCount = 0
     var isExpanded = false
     var onToggle: () -> Void = {}
@@ -873,6 +876,7 @@ private struct MinimalFeedRow: View {
                     .onTapGesture(perform: onOpenChapter)
                     .accessibilityElement(children: .combine)
                     .accessibilityAddTraits(.isButton)
+                    .accessibilityValue(isRead ? "Read" : "Unread")
                     .accessibilityHint("Opens the chapter")
 
                 Spacer(minLength: 0)
@@ -933,11 +937,14 @@ private struct MinimalFeedRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(bookTitle)
                 .font(Typography.headline.weight(.bold))
-                .foregroundStyle(.white)
+                // A read row steps the book back too, the way the tab screens
+                // dim both the entry and the chapter. Without this the chapter
+                // alone changing shade is hard to notice on the dark surface.
+                .foregroundStyle(isRead ? Color.white.opacity(0.45) : .white)
                 .lineLimit(1)
             Text(title)
                 .font(Typography.body)
-                .foregroundStyle(Color.white.opacity(0.68))
+                .foregroundStyle(Color.white.opacity(isRead ? 0.42 : 0.68))
                 .lineLimit(2)
             if !meta.isEmpty {
                 Text(meta)
@@ -1001,6 +1008,7 @@ private struct MinimalFeedSection: View {
 private struct MinimalHistoryChapterRow: View {
     let name: String
     let meta: String
+    var isRead = false
     let onOpen: () -> Void
 
     var body: some View {
@@ -1014,7 +1022,7 @@ private struct MinimalHistoryChapterRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(name)
                     .font(Typography.body)
-                    .foregroundStyle(Color.white.opacity(0.78))
+                    .foregroundStyle(Color.white.opacity(isRead ? 0.42 : 0.78))
                     .lineLimit(1)
                 if !meta.isEmpty {
                     Text(meta)
@@ -1030,6 +1038,7 @@ private struct MinimalHistoryChapterRow: View {
         .onTapGesture(perform: onOpen)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .accessibilityValue(isRead ? "Read" : "Unread")
         .accessibilityHint("Opens the chapter")
     }
 }
@@ -1093,6 +1102,7 @@ struct MinimalUpdatesPage: View {
                             title: chapter.name,
                             meta: chapter.dateUpload?.formatted ?? "",
                             screenHeight: screenHeight,
+                            isRead: chapter.read,
                             onOpenEntry: {
                                 if let entry = chapter.entry { path.append(entry) }
                             },
@@ -1233,6 +1243,7 @@ struct MinimalHistoryPage: View {
             meta: meta(for: run.head),
             screenHeight: screenHeight,
             stacked: run.earlier.count > 0 && !isExpanded,
+            isRead: run.head.chapter?.read ?? false,
             earlierCount: run.earlier.count,
             isExpanded: isExpanded,
             onToggle: { toggle(run) },
@@ -1246,7 +1257,8 @@ struct MinimalHistoryPage: View {
             ForEach(run.earlier) { item in
                 MinimalHistoryChapterRow(
                     name: item.chapter?.name ?? "",
-                    meta: meta(for: item)
+                    meta: meta(for: item),
+                    isRead: item.chapter?.read ?? false
                 ) { open(item) }
             }
         }
