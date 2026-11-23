@@ -38,7 +38,14 @@ struct EntryWebView: View {
             page.load(URLRequest(url: url))
         }
         .onDisappear {
-            Task { await CookieJar.importFromWebKit() }
+            let hosts = Set([url.host, currentURL.host].compactMap { $0?.lowercased() })
+            let agent = page.customUserAgent ?? UserAgentInterceptor.defaultUserAgent
+            Task {
+                await CookieJar.importFromWebKit()
+                // `cf_clearance` is bound to the agent that earned it. This page earned (or
+                // refreshed) it under `agent`, so the scraper must replay that agent too.
+                for host in hosts { BrowserIdentity.shared.setAgent(agent, for: host) }
+            }
         }
     }
 

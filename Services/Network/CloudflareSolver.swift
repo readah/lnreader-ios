@@ -158,12 +158,31 @@ private enum CloudflareWebView {
 
             let cookies = cookies(for: url, in: await allCookies(in: store))
             let clearance = cookies.first { $0.name == "cf_clearance" }?.value
-            if let clearance, clearance != previous {
-                let used = await javascript("navigator.userAgent", in: webView) ?? agent
-                return CloudflareClearance(cookies: cookies, userAgent: used)
+            if let clearance {
+                var usable = clearance != previous
+                if !usable { usable = await pageIsClear(url, in: webView) }
+                if usable {
+                    let used = await javascript("navigator.userAgent", in: webView) ?? agent
+                    return CloudflareClearance(cookies: cookies, userAgent: used)
+                }
             }
         }
         return nil
+    }
+
+    /// Whether the page is past its interstitial. A `cf_clearance` the view already held is
+    /// usable when the browser can load the site with it — the cookie stays identical, so
+    /// waiting for a new value alone would time out on every site that opens instantly.
+    private static func pageIsClear(_ url: URL, in webView: WKWebView) async -> Bool {
+        guard let host = (webView.url?.host ?? url.host)?.lowercased() else { return false }
+        let script = """
+        (() => {
+          if (location.hostname.toLowerCase() !== "\(host)") return false;
+          const text = (document.title || "") + " " + (document.body?.innerText || "").slice(0, 300);
+          return !/just a moment|checking your browser|attention required|cf-chl/i.test(text);
+        })()
+        """
+        return (try? await webView.evaluateJavaScript(script)) as? Bool == true
     }
 
     private static func makeWebView() -> WKWebView {
