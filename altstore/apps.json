@@ -42,6 +42,15 @@
       },
       "versions": [
         {
+          "version": "2.2.6",
+          "buildVersion": "21",
+          "date": "2026-11-24",
+          "localizedDescription": "Version 2.2.6.",
+          "downloadURL": "https://github.com/readah/lnreader-ios/releases/download/v2.2.6/LNReader-2.2.6.ipa",
+          "size": 18737250,
+          "minOSVersion": "26.0"
+        },
+        {
           "version": "2.2.5",
           "buildVersion": "20",
           "date": "2026-11-23",
