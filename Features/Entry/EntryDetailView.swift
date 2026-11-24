@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct EntryDetailView: View {
     @Environment(\.modelContext) private var modelContext
@@ -77,6 +78,11 @@ struct EntryDetailView: View {
     /// The row briefly lit after a scroll lands on it.
     @State private var highlightedChapterID: String?
     @State private var showAudioDownloads = false
+    /// The EPUB built from this entry's downloads, waiting for the save panel.
+    @State private var exportDocument: EpubDocument?
+    @State private var showEPUBExporter = false
+    @State private var isPreparingEPUB = false
+    @State private var exportError: String?
     /// Hold-to-select state for the chapter list; the bar pins to this screen.
     @State private var chapterSelection = ChapterSelection()
     /// True while the entry is being written to the library.
@@ -321,6 +327,21 @@ struct EntryDetailView: View {
         } message: {
             Text(refetchError ?? "")
         }
+        .fileExporter(isPresented: $showEPUBExporter, document: exportDocument,
+                      contentType: .epubBook, defaultFilename: exportFilename) { result in
+            exportDocument = nil
+            if case .failure(let error) = result {
+                exportError = "Export failed: \(error.localizedDescription)"
+            }
+        }
+        .appAlert("Couldn't export EPUB", isPresented: Binding(
+            get: { exportError != nil },
+            set: { if !$0 { exportError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "")
+        }
     }
 
     // MARK: - Fetch status
@@ -348,6 +369,14 @@ struct EntryDetailView: View {
             }
             if webURL != nil {
                 webViewButton
+            }
+            if canExportEPUB {
+                Button {
+                    prepareEPUB()
+                } label: {
+                    Label("Export downloaded as EPUB", systemImage: "book.closed")
+                }
+                .disabled(isPreparingEPUB)
             }
             if let shareURL {
                 ShareLink(item: shareURL) {
@@ -418,6 +447,53 @@ struct EntryDetailView: View {
     /// check, when the source misbehaves.
     private var webViewButton: some View {
         Button("Open in web view", systemImage: "globe") { showWebView = true }
+    }
+
+    /// Only saved, source-backed novels with something downloaded can be
+    /// exported. Local imports already keep their own files, and manga has no
+    /// chapter HTML to put in a reading spine.
+    private var canExportEPUB: Bool {
+        guard let localEntry, !localEntry.isLocal, !isManga else { return false }
+        return orderedChapters.contains { $0.downloaded }
+    }
+
+    private var exportFilename: String {
+        let base = displayTitle
+            .replacingOccurrences(of: #"[^\w\- .]"#, with: "_", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (base.isEmpty ? "Novel" : base) + ".epub"
+    }
+
+    /// File reads and deflating the archive would stall the main thread, so the
+    /// whole build runs in a detached task and only the finished document comes
+    /// back to the view.
+    private func prepareEPUB() {
+        guard let localEntry, !isPreparingEPUB else { return }
+        let container = modelContext.container
+        let sourceKey = localEntry.sourceKey
+        let entryURL = localEntry.url
+        let title = displayTitle
+        let author = displayAuthor
+        isPreparingEPUB = true
+        Task.detached(priority: .userInitiated) {
+            do {
+                let book = try EpubExporter.collect(
+                    container: container, sourceKey: sourceKey, entryURL: entryURL,
+                    title: title, author: author
+                )
+                let data = try EpubExporter.epubData(for: book)
+                await MainActor.run {
+                    self.isPreparingEPUB = false
+                    self.exportDocument = EpubDocument(data: data)
+                    self.showEPUBExporter = true
+                }
+            } catch {
+                await MainActor.run {
+                    self.isPreparingEPUB = false
+                    self.exportError = error.localizedDescription
+                }
+            }
+        }
     }
 
     // MARK: - Chapter Computation
@@ -933,5 +1009,26 @@ struct EntryDetailScrollView<Content: View>: View {
             }
         }
         .ignoresSafeArea(edges: .top)
+    }
+}
+
+extension UTType {
+    static var epubBook: UTType { UTType(filenameExtension: "epub") ?? .data }
+}
+
+/// The generated book, held just long enough for the system save panel.
+struct EpubDocument: FileDocument {
+    let data: Data
+
+    static var readableContentTypes: [UTType] { [.epubBook] }
+
+    init(data: Data) { self.data = data }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
     }
 }

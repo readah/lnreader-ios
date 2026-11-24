@@ -39,7 +39,7 @@ compile_and_run_plain() {
 # The checks that take no arguments, in dependency order: the cheap layers
 # first, so a break in the foundation shows up before the expensive ones run.
 PLAIN_CHECKS="foundation navigation links schema chapter-sync chapter-order page-pipeline scanlators \
-reader-settings manga-zoom haptics filters sorts categories badges offline mihon-backup tts-contracts \
+reader-settings manga-zoom haptics filters sorts categories badges offline epub-export mihon-backup tts-contracts \
 sync migration cover-art"
 
 usage() {
@@ -51,7 +51,7 @@ all                run every check that takes no arguments
 <check>            run one check
 
 Checks: foundation navigation links schema chapter-sync chapter-order page-pipeline scanlators
-        reader-settings manga-zoom haptics filters sorts categories badges offline mihon-backup
+        reader-settings manga-zoom haptics filters sorts categories badges offline epub-export mihon-backup
         tts-contracts sync migration cover-art native-comments player
 
 Checks needing setup, not part of `all`:
@@ -251,6 +251,25 @@ run() {
         Features/Entry/ScanlatorRules.swift \
         Services/OfflineChapters.swift \
         tests/OfflineLibraryChecks.swift
+      ;;
+    epub-export)
+      compile_and_run epub-export \
+        Models/Schema/ContentKind.swift \
+        Models/Schema/EntryStatus.swift \
+        Models/Schema/UpdateStrategy.swift \
+        Models/Schema/DownloadState.swift \
+        Models/Schema/SchemaV1.swift \
+        Models/Schema/SchemaV2.swift \
+        Models/Schema/SchemaV3.swift \
+        Models/Schema/SchemaV4.swift \
+        Models/UserProfile.swift \
+        Services/Sources/SourceKey.swift \
+        Services/Sources/SourceModels.swift \
+        Services/ChapterOrder.swift \
+        Services/OfflineChapters.swift \
+        Services/EpubExporter.swift \
+        Utilities/MiniZIP.swift \
+        tests/EpubExportChecks.swift
       ;;
     mihon-backup)
       compile_and_run mihon-backup \
